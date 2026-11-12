@@ -88,3 +88,4 @@
 ### ⚪ WON'T HAVE (Roadmap Futuro)
 * Integração nativa com 15 ERPs legados de mercado simultaneamente.
 * Aplicativo nativo em lojas (Google Play / App Store) — substituído com eficácia pelo formato Web PWA responsivo.
+

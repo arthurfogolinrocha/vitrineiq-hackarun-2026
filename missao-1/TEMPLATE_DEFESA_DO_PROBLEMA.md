@@ -55,3 +55,4 @@
 *Frase clara, afirmativa e de alto impacto que resume o ganho gerado pelo nosso produto:*
 
 > **"Nós ajudamos [Público-alvo] a [Resolver o problema principal com velocidade recorde], eliminando [Gargalo/Custo] através de [Diferencial tecnológico e inteligência artificial aplicada]."**
+

@@ -53,3 +53,4 @@ export function containsRestrictedPatterns(text: string): boolean {
   ];
   return patterns.some((pattern) => pattern.test(text));
 }
+

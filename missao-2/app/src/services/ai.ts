@@ -25,12 +25,16 @@ export async function analyzeWithAI(
   }
 
   // Tentativa de chamada real à API (se fornecida via parâmetro ou env)
-  const resolvedApiKey = apiKey || (typeof process !== 'undefined' ? process.env?.VITE_GEMINI_API_KEY : undefined);
+  const metaEnv = typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: Record<string, string> }).env : undefined;
+  const resolvedApiKey =
+    apiKey ||
+    metaEnv?.VITE_GEMINI_API_KEY ||
+    (typeof process !== 'undefined' ? process.env?.VITE_GEMINI_API_KEY : undefined);
 
   if (resolvedApiKey) {
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${resolvedApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${resolvedApiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -101,3 +105,4 @@ A análise automatizada processou a demanda com base em regras de inferência de
 
 *Status: Em conformidade com o Artigo 6 do regulamento do HackaRun 2026.*`;
 }
+

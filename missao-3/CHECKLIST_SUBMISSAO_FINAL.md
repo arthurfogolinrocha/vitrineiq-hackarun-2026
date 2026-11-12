@@ -33,3 +33,4 @@
 - [ ] Chegar ao shopping com antecedência para as **Missões-surpresa** (15h–16h45) que valem **+1.0 ponto extra** na nota final.
 - [ ] Baterias de notebooks e celulares 100% carregadas + adaptadores de tomada.
 - [ ] Roteiro do pitch presencial de 5 minutos ensaiado entre a equipe.
+

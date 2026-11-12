@@ -94,3 +94,4 @@ Em total conformidade com o **Artigo 6 do Regulamento do 1º HackaRun 2026**:
 2. **Finalidade:** Co-criação de requisitos, acelerador de prototipação, elaboração de casos de teste automatizados e assistência analítica na plataforma.
 3. **Domínio Técnico:** Toda a base de código, decisões de arquitetura e lógica de segurança foram integralmente revisadas, compreendidas e defendidas pela equipe técnica.
 4. **Proteção de Dados:** Nenhum dado confidencial ou sensível de terceiros foi transmitido a modelos públicos.
+

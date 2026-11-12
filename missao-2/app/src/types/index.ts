@@ -33,3 +33,4 @@ export interface SystemAuditLog {
   timestamp: string;
   securityHash: string;
 }
+

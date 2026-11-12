@@ -39,3 +39,4 @@
 1. **Áudio Limpo:** Use fone com microfone bom ou ambiente silencioso.
 2. **Resolução:** Grave em 1080p horizontal (Full HD).
 3. **Plataforma de Envio:** Subir no YouTube como "Não Listado" e testar o link antes de submeter no formulário oficial.
+

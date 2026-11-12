@@ -25,3 +25,4 @@
 - [ ] **4. Formato e Canal de Entrega:**
   - PDF gerado com layout limpo e sem quebras estranhas de página.
   - Submissão realizada no link/canal oficial da coordenação do HackaRun antes das 10h00 do dia 13/11.
+

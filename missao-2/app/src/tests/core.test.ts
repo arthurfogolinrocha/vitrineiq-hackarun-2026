@@ -63,3 +63,4 @@ describe('Módulo de Inteligência Artificial & Fallback Resiliente', () => {
     expect(response.content).toContain('Aviso de Segurança');
   });
 });
+

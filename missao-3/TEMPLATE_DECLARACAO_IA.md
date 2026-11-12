@@ -35,3 +35,4 @@ Declaramos formalmente perante a Banca Examinadora do 1º HackaRun UniCatólica 
 * O código-fonte gerado foi inspecionado, testado e validado por nós com cobertura de testes unitários;
 * Nenhum dado proprietário ou protegido pela LGPD foi exposto de forma indevida a provedores públicos;
 * A solução está pronta para defesa presencial e arguição técnica perante os jurados no Capim Dourado Shopping.
+
