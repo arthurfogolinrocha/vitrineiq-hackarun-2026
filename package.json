@@ -1,0 +1,14 @@
+{
+  "name": "hackarun-2026-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Workspace Oficial de Engenharia para o 1º HackaRun UniCatólica 2026",
+  "scripts": {
+    "dev": "npm --prefix missao-2/app run dev",
+    "build": "npm --prefix missao-2/app run build",
+    "test:vitest": "npm --prefix missao-2/app run test",
+    "test:rust": "cargo test --manifest-path missao-2/engine-rust/Cargo.toml",
+    "test": "npm run test:vitest && npm run test:rust",
+    "open:canvas": "open missao-1/canvas_executivo.html"
+  }
+}
