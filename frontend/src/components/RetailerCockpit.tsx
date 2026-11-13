@@ -37,6 +37,7 @@ import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LiveContextPayload } from '../services/api';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
 import { stripMarkdown } from '../services/ai';
+import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -58,6 +59,8 @@ interface RetailerCockpitProps {
   visionSnapshot?: VisionFunnelSnapshot;
   onOpenVision?: () => void;
   completedSalesByZone: Partial<Record<ZoneId, number>>;
+  /** Movimento real de hoje por hora na ala selecionada (câmera, Balcão e Concierge). */
+  perfilHoje?: PerfilPorHora;
 }
 
 const WEATHER_OPTIONS: { value: WeatherCondition; label: string; icon: 'sun' | 'rain' | 'mild' }[] = [
@@ -116,6 +119,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   visionSnapshot,
   onOpenVision,
   completedSalesByZone,
+  perfilHoje,
 }) => {
   const current =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
@@ -143,11 +147,20 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     if (match) setSelectedBarWeight(match.weight);
   }, [factors.timeSlot]);
 
+  // Com dado real por hora, o gráfico mostra o medido e não escala o Score; sem ele, vale o perfil estimado.
+  const horasReais = perfilHoje ? horasDoGrafico(perfilHoje) : [];
+  const temDadoReal = horasReais.some((x) => Object.values(x.dados).some((n) => n > 0));
+  const maxPassaram = Math.max(1, ...horasReais.map((x) => x.dados.passaram));
+  const insights = temDadoReal && perfilHoje ? insightsPorHora(perfilHoje) : [];
+  const [horaSelecionada, setHoraSelecionada] = useState<number | null>(null);
+  const horaDetalhe = horasReais.find((x) => x.hora === horaSelecionada);
+  const pesoHora = temDadoReal ? 1 : selectedBarWeight;
+
   // Recálculo dinâmico do fluxo horário e do Score IQ
-  const effectiveFootTraffic = Math.round(current.footTraffic * selectedBarWeight);
+  const effectiveFootTraffic = Math.round(current.footTraffic * pesoHora);
   const effectiveScore = Math.max(
     0,
-    Math.min(100, Math.round(current.opportunityScore * (0.35 + 0.65 * selectedBarWeight)))
+    Math.min(100, Math.round(current.opportunityScore * (0.35 + 0.65 * pesoHora)))
   );
 
   useEffect(() => {
@@ -213,7 +226,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   const stopsTotal =
     isCamActiveHere && visionSnapshot && visionSnapshot.vitrineStops > 0
       ? visionSnapshot.vitrineStops
-      : Math.round(current.vitrineStops * selectedBarWeight);
+      : Math.round(current.vitrineStops * pesoHora);
   const entriesTotal =
     isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
       ? visionSnapshot.entries
@@ -494,15 +507,89 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 User Story #01 • Horário de Pico do Segmento
               </span>
               <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
-                Fluxo Estimado de Clientes ao Longo do Dia ({current.zone.shortName})
+                {temDadoReal
+                  ? `Movimento real por hora, hoje (${current.zone.shortName})`
+                  : `Fluxo Estimado de Clientes ao Longo do Dia (${current.zone.shortName})`}
               </h3>
             </div>
-            <span className="text-[11px] font-semibold text-stone-500">
-              Clique em uma barra para simular o turno
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${
+                temDadoReal ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {temDadoReal ? 'Medido: câmera, Balcão e Concierge' : 'Estimativa: sem dados reais desta ala hoje'}
             </span>
           </div>
 
-          {/* Gráfico em Barras Interativo */}
+          {temDadoReal ? (
+            <div className="pt-2 space-y-3">
+              <div className="h-44 flex items-end justify-between gap-1 sm:gap-1.5 px-1 border-b border-stone-200 pb-2">
+                {horasReais.map(({ hora, dados: d }) => {
+                  const resumo = `${hora}h: ${d.passaram} passaram, ${d.olharam} olharam, ${d.vendas} vendas, ${d.perdidas} perdidas, ${d.buscas} buscas`;
+                  const selecionada = hora === horaSelecionada;
+                  return (
+                    <button
+                      key={hora}
+                      type="button"
+                      onClick={() => setHoraSelecionada(selecionada ? null : hora)}
+                      className="flex-1 flex flex-col items-center justify-end h-full group"
+                      title={resumo}
+                      aria-label={resumo}
+                      aria-pressed={selecionada}
+                    >
+                      <span className="text-[10px] font-bold mb-1 text-stone-500">{d.passaram || ''}</span>
+                      <div
+                        className={`w-full max-w-[28px] rounded-t-lg relative overflow-hidden transition-all duration-300 ${
+                          selecionada ? 'bg-[#111318]/45' : 'bg-[#111318]/15 group-hover:bg-[#111318]/30'
+                        }`}
+                        style={{ height: `${Math.round((d.passaram / maxPassaram) * 100)}%` }}
+                      >
+                        <div
+                          className="absolute bottom-0 inset-x-0 bg-[#E2A83B]"
+                          style={{ height: `${d.passaram ? Math.round((d.olharam / d.passaram) * 100) : 0}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-between gap-1 sm:gap-1.5 px-1">
+                {horasReais.map(({ hora, dados: d }) => (
+                  <span key={hora} className="flex-1 flex flex-col items-center gap-0.5 text-[10px] font-bold text-stone-400">
+                    {hora}h
+                    <span className="flex gap-0.5 h-1.5" aria-hidden="true">
+                      {d.vendas > 0 && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                      {d.perdidas > 0 && <span className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-[#111318]/15" />passaram</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-[#E2A83B]" />olharam a vitrine</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" />venda concluída</span>
+                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" />venda perdida</span>
+              </div>
+              {horaDetalhe && (
+                <p className="text-xs font-semibold text-[#111318] bg-[#FAF8F5] border border-stone-200 rounded-xl px-3 py-2">
+                  {horaDetalhe.hora}h às {horaDetalhe.hora + 1}h: {horaDetalhe.dados.passaram} passaram · {horaDetalhe.dados.olharam} olharam
+                  {horaDetalhe.dados.passaram > 0 &&
+                    ` (${Math.round((horaDetalhe.dados.olharam / horaDetalhe.dados.passaram) * 100)}%)`}{' '}
+                  · {horaDetalhe.dados.vendas} vendas · {horaDetalhe.dados.perdidas} perdidas · {horaDetalhe.dados.buscas} buscas no Concierge
+                </p>
+              )}
+              {insights.length > 0 && (
+                <ul className="space-y-1.5">
+                  {insights.map((texto) => (
+                    <li key={texto} className="text-xs text-stone-700 flex gap-2">
+                      <span className="text-[#B45309] font-bold" aria-hidden="true">→</span>
+                      {texto}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
           <div className="pt-2">
             <div className="h-44 flex items-end justify-between gap-1.5 sm:gap-2 px-1 border-b border-stone-200 pb-2">
               {HOURLY_PROFILE.map((bar) => {
@@ -554,6 +641,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               ))}
             </div>
           </div>
+          )}
 
           {/* Resumo dos Turnos em Pills */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">

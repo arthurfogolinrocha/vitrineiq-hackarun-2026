@@ -129,3 +129,15 @@ def test_contagem_por_zona_negativa_ou_gigante_e_recusada():
     for valor in (-1, 10**30):
         corpo = {**EVENTO, "olhares_por_zona": {"centro": valor}}
         assert client.post("/api/vitrine/eventos", json=corpo).status_code == 422
+
+
+def test_perfil_por_hora_junta_camera_balcao_e_concierge():
+    client.post("/api/vitrine/eventos", json={**EVENTO, "inicio": "2026-11-13T19:00:00", "passantes": 7, "olharam": 2})
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Loja", "tipo": "venda"})
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Loja", "tipo": "perdida", "reason": "preco"})
+    client.post("/api/concierge/busca", json={"zoneId": ALA, "query": "tênis"})
+
+    perfil = client.get("/api/estado").json()["porHora"][ALA]
+    assert perfil["19"]["passaram"] == 7 and perfil["19"]["olharam"] == 2
+    agora = str(db.agora().hour)
+    assert (perfil[agora]["vendas"], perfil[agora]["perdidas"], perfil[agora]["buscas"]) == (1, 1, 1)

@@ -9,6 +9,7 @@ import {
   ZoneId,
 } from '../types';
 import { resolveApiUrl } from './ai';
+import { PerfilPorHora } from '../utils/horario';
 
 /** Telemetria real de clima, calendário e eventos de Palmas-TO (`GET /api/contexto`). */
 export interface LiveContextPayload {
@@ -60,6 +61,7 @@ export interface CicloEstado {
   campaigns: FlashCampaign[];
   vitrine: Partial<Record<ZoneId, VitrineResumo>>;
   alertas: VitrineAlerta[];
+  porHora: Partial<Record<ZoneId, PerfilPorHora>>;
 }
 
 const TIMEOUT_MS = 5000;

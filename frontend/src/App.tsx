@@ -34,7 +34,7 @@ import {
   ZoneLiveTelemetry,
 } from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
-import { api, LiveContextPayload, VitrineAlerta, VitrineResumo } from './services/api';
+import { api, CicloEstado, LiveContextPayload, VitrineAlerta, VitrineResumo } from './services/api';
 import { generateAuditHash } from './utils/security';
 import { readUrlView } from './utils/urlView';
 import { RetailerCockpit } from './components/RetailerCockpit';
@@ -145,6 +145,7 @@ export function App() {
   const [online, setOnline] = useState(false);
   const [vitrine, setVitrine] = useState<Partial<Record<ZoneId, VitrineResumo>>>({});
   const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
+  const [porHora, setPorHora] = useState<CicloEstado['porHora']>({});
   const [alertasVistos, setAlertasVistos] = useState<string[]>([]);
   const [liveContext, setLiveContext] = useState<LiveContextPayload | null>(null);
   const [isContextAuto, setIsContextAuto] = useState(true);
@@ -182,6 +183,7 @@ export function App() {
       setCampaigns(e.campaigns);
       setVitrine(e.vitrine);
       setAlertas(e.alertas);
+      setPorHora(e.porHora ?? {});
       setOnline(true);
     } catch {
       setOnline(false);
@@ -743,6 +745,7 @@ export function App() {
                 visionSnapshot={effectiveVision}
                 onOpenVision={() => setActiveTab('vision')}
                 completedSalesByZone={completedSalesByZone}
+                perfilHoje={porHora[selectedZoneId]}
               />
             )}
 

@@ -235,6 +235,30 @@ def _hoje() -> datetime:
     return db.agora().replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def perfil_por_hora(vitrine_regs: list[dict[str, Any]], balcao: list[dict[str, Any]],
+                    buscas: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, int]]]:
+    """Por ala e por hora de hoje: quantos passaram e olharam (câmera), vendas, perdidas (Balcão) e buscas (Concierge)."""
+    perfil: dict[str, dict[str, Counter[str]]] = {}
+
+    def somar(zona: str, hora: int, campo: str, n: int = 1) -> None:
+        perfil.setdefault(zona, {}).setdefault(str(hora), Counter())[campo] += n
+
+    for r in vitrine_regs:
+        hora = datetime.fromisoformat(r["inicio"]).hour
+        somar(r["zona"], hora, "passaram", r["passantes"])
+        somar(r["zona"], hora, "olharam", r["olharam"])
+    hoje = _hoje()
+    for campo, regs in (("vendas", [b for b in balcao if b["tipo"] == "venda"]),
+                        ("perdidas", [b for b in balcao if b["tipo"] == "perdida"]),
+                        ("buscas", buscas)):
+        for r in regs:
+            criado = datetime.fromisoformat(r["criadoEm"])
+            if criado >= hoje:
+                somar(r["zoneId"], criado.hour, campo)
+    campos = ("passaram", "olharam", "vendas", "perdidas", "buscas")
+    return {z: {h: {c: horas[h][c] for c in campos} for h in sorted(horas, key=int)} for z, horas in perfil.items()}
+
+
 @router.get("/vitrine/resumo")
 def vitrine_resumo(ala: ZoneId) -> dict[str, Any]:
     return resumo_vitrine([r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala])
@@ -251,6 +275,7 @@ def estado() -> dict[str, Any]:
     vitrine = {z: resumo_vitrine([r for r in vitrine_regs if r["zona"] == z])
                for z in sorted({r["zona"] for r in vitrine_regs})}
     return {
+        "porHora": perfil_por_hora(vitrine_regs, balcao, db.listar("busca", 500, _hoje())),
         "lostSales": [r for r in balcao if r["tipo"] == "perdida"],
         "completedSalesByZone": dict(vendas),
         "signals": db.listar("busca", 100),
