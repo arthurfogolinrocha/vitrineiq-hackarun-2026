@@ -2,48 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
-
 @property --spot-inner {
-  syntax: "<length-percentage>";
-  inherits: true;
+  syntax: "<length>";
+  inherits: false;
   initial-value: 0px;
 }
 
 @property --spot-outer {
-  syntax: "<length-percentage>";
-  inherits: true;
+  syntax: "<length>";
+  inherits: false;
   initial-value: 0px;
 }
 
+:root {
+  color-scheme: light;
+}
+
 body {
-  margin: 0;
-  background-color: #020617;
-  color: #f8fafc;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  overflow-x: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
 }
 
-/* Acessibilidade: foco visível de alto contraste (WCAG 2.4.7 / 1.4.11) */
-:where(a:any-link, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid #38bdf8;
-  outline-offset: 3px;
+/* Keyboard Focus Visibility */
+:focus-visible {
+  outline: 2px solid #d97706;
+  outline-offset: 2px;
 }
 
-/* Micro-interações naturais em botões (compositor-only) */
-:where(button) {
+/* Tactile Buttons (apenas interação natural) */
+button {
+  cursor: pointer;
   transition:
-    box-shadow 150ms ease-out,
     background-color 150ms ease-out,
+    color 150ms ease-out,
     border-color 150ms ease-out,
+    box-shadow 150ms ease-out,
     scale 150ms ease-out;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   button:active:not(:disabled) {
-    scale: 0.97;
+    scale: 0.98;
   }
 }
 
@@ -60,26 +60,18 @@ body {
   white-space: nowrap !important;
 }
 
-/* Spotlight & 3D Tilt Card (conteúdo base sempre visível; spotlight como aprimoramento) */
+/* Card Executivo com Spotlight Sutil (Light Theme) */
 .spotlight-card {
   position: relative;
   --mouse-x: 50%;
   --mouse-y: 50%;
   --spot-inner: 0px;
   --spot-outer: 0px;
-  --tilt-x: 0deg;
-  --tilt-y: 0deg;
-  transform-style: preserve-3d;
+  transition: box-shadow 180ms ease-out, border-color 180ms ease-out, transform 180ms ease-out;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .spotlight-card {
-    transition: transform 180ms ease-out, border-color 180ms ease-out;
-  }
-
-  .spotlight-card:hover {
-    transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
-  }
+.spotlight-card:hover {
+  box-shadow: 0 10px 25px -10px rgba(15, 23, 42, 0.08);
 }
 
 .spotlight-overlay {
@@ -88,9 +80,9 @@ body {
   border-radius: inherit;
   pointer-events: none;
   background: radial-gradient(
-    420px circle at var(--mouse-x) var(--mouse-y),
-    rgba(245, 158, 11, 0.16),
-    rgba(56, 189, 248, 0.06) 45%,
+    360px circle at var(--mouse-x) var(--mouse-y),
+    rgba(217, 119, 6, 0.09),
+    rgba(37, 99, 235, 0.04) 45%,
     transparent 75%
   );
   -webkit-mask-image: radial-gradient(
@@ -103,113 +95,115 @@ body {
     black var(--spot-inner, 0px),
     transparent var(--spot-outer, 0px)
   );
-  mask-repeat: no-repeat;
-  transition: --spot-inner 0.22s ease-out, --spot-outer 0.22s ease-out;
+  transition: --spot-inner 240ms ease-out, --spot-outer 260ms ease-out, opacity 200ms ease-out;
+  opacity: 0;
 }
 
 .spotlight-card:hover .spotlight-overlay {
-  --spot-inner: 110px;
-  --spot-outer: 260px;
+  --spot-inner: 85px;
+  --spot-outer: 240px;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .spotlight-card,
   .spotlight-overlay {
-    transition: none !important;
+    transition: none;
+    transform: none !important;
   }
 }
 
-/* Perspectiva 3D Isométrica para o Mapa do Shopping */
+/* Maquete 3D Nivelada & Simétrica (sem inclinação torta lateral) */
 .map-stage-3d {
-  perspective: 1400px;
+  perspective: 1500px;
 }
 
 .map-plane {
-  transform-style: preserve-3d;
-  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 420ms ease-out;
+  transform-origin: center center;
 }
 
 .map-plane.is-3d {
-  transform: rotateX(34deg) rotateZ(-6deg) scale(0.95);
-  box-shadow: 0 36px 80px -20px rgba(0, 0, 0, 0.75);
+  transform: rotateX(18deg) scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .map-plane {
+  .map-plane,
+  .map-plane.is-3d {
+    transform: none;
     transition: none;
   }
 }
 
-/* Fluxo animado nos corredores SVG */
+/* Fluxo Contínuo nos Corredores do Shopping */
 @keyframes corridorFlow {
+  from {
+    stroke-dashoffset: 40;
+  }
   to {
-    stroke-dashoffset: -40;
+    stroke-dashoffset: 0;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+.animate-corridor-flow {
+  animation: corridorFlow 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
   .animate-corridor-flow {
-    animation: corridorFlow 1.8s linear infinite;
+    animation: none;
   }
 }
 
-/* Transição de entrada suave de painéis */
+/* Entrada suave de abas */
 @keyframes panelEnter {
   from {
     opacity: 0;
-    translate: 0 8px;
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    translate: 0 0;
+    transform: translateY(0);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
+.panel-enter {
+  animation: panelEnter 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
   .panel-enter {
-    animation: panelEnter 240ms ease-out both;
+    animation: none;
   }
 }
 
-/* Validação após interação (:user-invalid / :user-valid) */
+/* Skip Link */
+.skip-link:focus {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 60;
+  background: #d97706;
+  color: #ffffff;
+  font-weight: 700;
+  padding: 0.65rem 1.1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Validação pós-interação */
 :is(:user-invalid, .user-invalid-fallback) {
-  border-color: #ef4444 !important;
-  background-color: rgba(127, 29, 29, 0.18) !important;
+  border-color: #dc2626 !important;
+  outline-color: #dc2626;
 }
 
-:is(:user-invalid, .user-invalid-fallback) + .error-msg {
-  display: block;
-}
-
-input:user-valid,
-textarea:user-valid,
-select:user-valid {
-  border-color: #10b981;
-}
-
-/* Contenção de rolagem para modais nativos <dialog> */
-dialog:modal {
+/* Modal <dialog> com backdrop suave */
+dialog {
+  margin: auto;
   overscroll-behavior: contain;
 }
 
 dialog::backdrop {
-  overflow: hidden;
-  overscroll-behavior: contain;
-  background: rgba(2, 6, 23, 0.78);
-  backdrop-filter: blur(6px);
-}
-
-/* Scrollbar estilizada */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #020617;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
 }

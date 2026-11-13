@@ -48,8 +48,8 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
       'Copiloto Gemini gera plano de ação e copy de WhatsApp com fallback resiliente.',
     ],
     targetTab: 'cockpit',
-    targetLabel: 'Abrir Painel Lojista & IA',
-    icon: <Sparkles className="w-4 h-4 text-amber-400" aria-hidden="true" />,
+    targetLabel: 'Abrir Painel Lojista',
+    icon: <Sparkles className="w-4 h-4 text-amber-600" aria-hidden="true" />,
   },
   {
     id: 'US-02',
@@ -57,7 +57,7 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     persona: 'Lojista / Supervisor de Vitrine',
     title: 'Webcam de Vitrine Alimentando o Painel (LGPD)',
     asA: 'Como gestor de loja física',
-    iWant: 'quero conectar uma webcam na vitrine para medir quem passa, quem para e quem entra na loja',
+    iWant: 'quero conectar uma webcam na vitrine para contar quem passa, quem para e quem entra na loja',
     soThat: 'para alimentar o painel sem gravar rostos (LGPD) e corrigir vitrines com baixa conversão.',
     kpi: 'Funil Passantes → Vitrine → Porta ao vivo',
     acceptance: [
@@ -65,8 +65,8 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
       'Atualiza imediatamente o fluxo e o Score de Oportunidade da ala selecionada no Painel.',
     ],
     targetTab: 'vision',
-    targetLabel: 'Abrir Webcam & Sensor',
-    icon: <Camera className="w-4 h-4 text-emerald-400" aria-hidden="true" />,
+    targetLabel: 'Abrir Câmera Vitrine',
+    icon: <Camera className="w-4 h-4 text-emerald-600" aria-hidden="true" />,
   },
   {
     id: 'US-03',
@@ -83,7 +83,7 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     ],
     targetTab: 'counter',
     targetLabel: 'Abrir Modo Balcão',
-    icon: <Store className="w-4 h-4 text-sky-400" aria-hidden="true" />,
+    icon: <Store className="w-4 h-4 text-blue-600" aria-hidden="true" />,
   },
   {
     id: 'US-04',
@@ -100,7 +100,7 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     ],
     targetTab: 'concierge',
     targetLabel: 'Abrir Concierge QR',
-    icon: <QrCode className="w-4 h-4 text-violet-400" aria-hidden="true" />,
+    icon: <QrCode className="w-4 h-4 text-violet-600" aria-hidden="true" />,
   },
   {
     id: 'US-05',
@@ -108,16 +108,16 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     persona: 'Superintendente / Expansão de Mix',
     title: 'Mapa 3D Oficial & Espaços Vagos (Mix)',
     asA: 'Como gestor de operações do shopping',
-    iWant: 'quero visualizar a planta dos 2 pavimentos em 3D com rotas quentes entre âncoras e lojas vagas',
+    iWant: 'quero visualizar a planta dos 2 pavimentos em 3D com fluxos separados entre âncoras e lojas vagas',
     soThat: 'para identificar áreas subaproveitadas e atrair o segmento certo para cada espaço vago.',
     kpi: 'Planta Mix 38.800 m² • 1º e 2º Piso',
     acceptance: [
-      'Alterna entre 1º Pavimento (Térreo) e 2º Pavimento (Praça de Alimentação) com vista 3D/2D.',
-      'Exibe demanda oculta e âncoras reais por ala.',
+      'Alterna entre 1º Pavimento (Térreo) e 2º Pavimento (Praça de Alimentação) em maquete 3D nivelada.',
+      'Permite filtrar fluxos por Moda, Lazer/Cinema e Gastronomia.',
     ],
     targetTab: 'map',
-    targetLabel: 'Abrir Mapa 3D Oficial',
-    icon: <Compass className="w-4 h-4 text-amber-300" aria-hidden="true" />,
+    targetLabel: 'Abrir Mapa 3D',
+    icon: <Compass className="w-4 h-4 text-amber-600" aria-hidden="true" />,
   },
 ];
 
@@ -127,22 +127,22 @@ export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTa
   return (
     <div className="space-y-6 panel-enter">
       {/* Cabeçalho Roleta + Slide Mode Toggle */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-200">
               Roleta Tecnológica • Obrigatório
             </span>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
               STORIES: User Stories
             </span>
           </div>
-          <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-amber-400" aria-hidden="true" />
-            Mapa Interativo de Histórias de Usuário (Story Map)
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-amber-600" aria-hidden="true" />
+            Mapa Interativo de Histórias de Usuário
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Cada história abaixo está conectada diretamente à funcionalidade viva que a resolve — e pronta para o slide de abertura do pitch.
+          <p className="text-xs text-slate-500 mt-1">
+            Histórias no formato oficial ágil ligadas diretamente às telas do VitrineIQ e prontas para o slide de abertura.
           </p>
         </div>
 
@@ -152,8 +152,8 @@ export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTa
           aria-pressed={pitchSlideMode}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold border transition flex items-center gap-2 ${
             pitchSlideMode
-              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-lg shadow-amber-500/20'
-              : 'bg-slate-950 hover:bg-slate-800 text-slate-100 border-slate-700'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+              : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400'
           }`}
         >
           <Presentation className="w-4 h-4" aria-hidden="true" />
@@ -162,18 +162,17 @@ export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTa
       </div>
 
       {pitchSlideMode ? (
-        /* Modo Slide de Abertura Limpo para Projetor */
-        <SpotlightCard className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border border-amber-500/40 rounded-3xl p-8 shadow-2xl space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-4">
+        <SpotlightCard className="bg-white border border-amber-300 rounded-3xl p-8 shadow-md space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4">
             <div>
-              <span className="text-xs font-bold uppercase tracking-widest text-amber-400">
+              <span className="text-xs font-bold uppercase tracking-widest text-amber-700">
                 Slide 01 • Abertura do Pitch VitrineIQ
               </span>
-              <h3 className="text-2xl sm:text-3xl font-black text-white mt-1">
-                4 Dores Reais do Capim Dourado → 1 Ecossistema Inteligente
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+                4 Dores Reais do Capim Dourado → 1 Solução Integrada
               </h3>
             </div>
-            <span className="text-xs font-mono text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 rounded-full">
+            <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-full">
               100% Rastreável no MVP
             </span>
           </div>
@@ -182,85 +181,81 @@ export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTa
             {VITRINEIQ_STORIES.slice(0, 4).map((story) => (
               <div
                 key={story.id}
-                className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3"
+                className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-slate-900">
                     {story.icon}
                     {story.id} • {story.persona}
                   </span>
-                  <span className="text-[11px] font-mono text-emerald-400">{story.kpi}</span>
+                  <span className="text-[11px] font-mono font-semibold text-emerald-700">{story.kpi}</span>
                 </div>
-                <p className="text-sm sm:text-base text-slate-100 leading-relaxed">
-                  <strong className="text-amber-300">{story.asA},</strong>{' '}
+                <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
+                  <strong className="text-amber-800">{story.asA},</strong>{' '}
                   {story.iWant},{' '}
-                  <span className="text-emerald-300 font-semibold">{story.soThat}</span>
+                  <span className="text-emerald-800 font-semibold">{story.soThat}</span>
                 </p>
               </div>
             ))}
           </div>
         </SpotlightCard>
       ) : (
-        /* Grid Story Map Interativo */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {VITRINEIQ_STORIES.map((story) => (
             <SpotlightCard
               key={story.id}
-              className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4"
+              className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col justify-between space-y-4 shadow-xs"
             >
               <div className="space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-950 border border-slate-700 font-mono text-xs font-bold text-amber-300">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 font-mono text-xs font-bold text-slate-800">
                       {story.id}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                         story.priority === 'MUST HAVE'
-                          ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-                          : 'bg-sky-500/15 text-sky-300 border-sky-500/30'
+                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                          : 'bg-blue-50 text-blue-800 border-blue-200'
                       }`}
                     >
                       {story.priority}
                     </span>
                   </div>
-                  <span className="text-[11px] text-emerald-400 font-semibold">{story.kpi}</span>
+                  <span className="text-[11px] text-emerald-700 font-bold">{story.kpi}</span>
                 </div>
 
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                     {story.icon}
                     {story.title}
                   </h3>
-                  <span className="text-xs text-slate-400">{story.persona}</span>
+                  <span className="text-xs text-slate-500">{story.persona}</span>
                 </div>
 
-                <blockquote className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs sm:text-sm text-slate-200 leading-relaxed space-y-1">
-                  <p>
-                    <strong className="text-amber-300">{story.asA}</strong>,{' '}
-                    {story.iWant},{' '}
-                    <span className="text-emerald-300 font-medium">{story.soThat}</span>
-                  </p>
+                <blockquote className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                  <strong className="text-amber-800">{story.asA}</strong>, {story.iWant},{' '}
+                  <span className="text-emerald-800 font-semibold">{story.soThat}</span>
                 </blockquote>
 
                 <div className="space-y-1.5 text-xs">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    Critérios de Aceite Implementados
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Critérios de Aceite
                   </span>
                   {story.acceptance.map((item) => (
-                    <div key={item} className="flex items-start gap-2 text-slate-300">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" aria-hidden="true" />
+                    <div key={item} className="flex items-start gap-2 text-slate-700">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
                       <span>{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex justify-end">
+              <div className="pt-3 border-t border-slate-100 flex justify-end">
                 <button
                   type="button"
                   onClick={() => onNavigateTab(story.targetTab)}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold inline-flex items-center gap-1.5 transition"
+                  className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold inline-flex items-center gap-1.5 transition"
                 >
                   <span>{story.targetLabel}</span>
                   <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />

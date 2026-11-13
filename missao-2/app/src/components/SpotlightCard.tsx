@@ -5,52 +5,50 @@ interface SpotlightCardProps {
   className?: string;
 }
 
+/**
+ * Container executivo com spotlight radial sutil guiado por ponteiro.
+ * Usa pointer-events: none no overlay para nunca bloquear cliques ou textos.
+ */
 export const SpotlightCard: React.FC<SpotlightCardProps> = ({ children, className = '' }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const rectRef = useRef<DOMRect | null>(null);
+  const rectRef = useRef({ left: 0, top: 0 });
 
   useEffect(() => {
     const el = cardRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    rectRef.current = el.getBoundingClientRect();
-    const observer = new ResizeObserver(() => {
-      if (cardRef.current) {
-        rectRef.current = cardRef.current.getBoundingClientRect();
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
+
+    const updateRect = () => {
+      const r = el.getBoundingClientRect();
+      rectRef.current = { left: r.left, top: r.top };
+    };
+
+    updateRect();
+    const ro = new ResizeObserver(updateRect);
+    ro.observe(el);
+    window.addEventListener('scroll', updateRect, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('scroll', updateRect);
+    };
   }, []);
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = cardRef.current;
-    if (!el) return;
-    const rect = rectRef.current || el.getBoundingClientRect();
-    const xPct = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 100;
-    const yPct = ((e.clientY - rect.top) / Math.max(1, rect.height)) * 100;
+    if (!el || e.pointerType === 'touch') return;
+    const r = el.getBoundingClientRect();
+    rectRef.current = { left: r.left, top: r.top };
 
-    // Tilt 3D sutil (-3.5deg a +3.5deg)
-    const tiltY = ((xPct - 50) / 50) * 3.5;
-    const tiltX = -((yPct - 50) / 50) * 3.5;
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
 
-    el.style.setProperty('--mouse-x', `${xPct.toFixed(1)}%`);
-    el.style.setProperty('--mouse-y', `${yPct.toFixed(1)}%`);
-    el.style.setProperty('--tilt-x', `${tiltX.toFixed(2)}deg`);
-    el.style.setProperty('--tilt-y', `${tiltY.toFixed(2)}deg`);
-  };
-
-  const handlePointerLeave = () => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.setProperty('--tilt-x', '0deg');
-    el.style.setProperty('--tilt-y', '0deg');
+    el.style.setProperty('--mouse-x', `${x.toFixed(1)}px`);
+    el.style.setProperty('--mouse-y', `${y.toFixed(1)}px`);
   };
 
   return (
     <div
       ref={cardRef}
       onPointerMove={handlePointerMove}
-      onPointerLeave={handlePointerLeave}
       className={`spotlight-card ${className}`}
     >
       <div className="spotlight-overlay" aria-hidden="true" />
@@ -58,4 +56,3 @@ export const SpotlightCard: React.FC<SpotlightCardProps> = ({ children, classNam
     </div>
   );
 };
-

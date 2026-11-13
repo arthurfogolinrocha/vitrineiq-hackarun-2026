@@ -10,7 +10,6 @@ import {
   Sparkles,
   UserCheck,
   UserMinus,
-  Users,
   VideoOff,
 } from 'lucide-react';
 import { ShoppingZone, VisionFunnelSnapshot, ZoneId } from '../types';
@@ -55,11 +54,10 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
   const [webcamActive, setWebcamActive] = useState(false);
   const [privacyBlur, setPrivacyBlur] = useState(true);
   const [webcamError, setWebcamError] = useState<string | null>(null);
-  const [burstMode, setBurstMode] = useState(false);
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId) || zones[0];
 
-  // Gerenciamento da Webcam Real (processamento em RAM na borda, zero armazenamento)
+  // Gerenciamento da Webcam Real (processamento em RAM na borda, zero gravação)
   useEffect(() => {
     let stream: MediaStream | null = null;
     const videoEl = videoRef.current;
@@ -86,7 +84,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         }
       })
       .catch(() => {
-        setWebcamError('Permissão de webcam não concedida ou câmera indisponível; mantendo Simulador de Borda ativo.');
+        setWebcamError('Permissão de webcam não concedida; mantendo o simulador ativo.');
         setWebcamActive(false);
       });
 
@@ -109,7 +107,6 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     canvas.width = W;
     canvas.height = H;
 
-    // Canvas offscreen leve (80x45) para detecção real de movimento por região sem custo pesado de CPU
     const MW = 80;
     const MH = 45;
     const motionCanvas = document.createElement('canvas');
@@ -126,12 +123,12 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     const spawnVisitor = (fromRight = false): SimulatedVisitor => ({
       id: nextId++,
       x: fromRight ? W + 20 : -20,
-      y: 210 + Math.random() * 90,
+      y: 215 + Math.random() * 85,
       vx: (fromRight ? -1 : 1) * (1.5 + Math.random() * 1.1),
       vy: 0,
       state: 'passing',
       dwellFrames: 0,
-      targetEnter: Math.random() < (burstMode ? 0.36 : 0.28),
+      targetEnter: Math.random() < 0.30,
       countedStop: false,
       countedOutcome: false,
     });
@@ -152,37 +149,32 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
       const hasLiveVideo = Boolean(webcamActive && videoEl && videoEl.readyState >= 2);
 
       if (hasLiveVideo && videoEl) {
-        // 1) Desenha o vídeo da webcam real espelhado (com ou sem Privacy Blur LGPD)
         ctx.save();
         ctx.translate(W, 0);
         ctx.scale(-1, 1);
-        ctx.filter = privacyBlur ? 'blur(7px) brightness(0.75) saturate(0.8)' : 'brightness(0.85)';
+        ctx.filter = privacyBlur ? 'blur(7px) brightness(0.8)' : 'brightness(0.92)';
         ctx.drawImage(videoEl, 0, 0, W, H);
         ctx.restore();
 
-        // Grade e Zonas de Visão de Borda sobre a Webcam Real
-        // Zona Porta (Superior)
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.14)';
+        // 3 Zonas Virtuais sobre a Webcam Real
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.16)';
         ctx.fillRect(190, 14, 340, 102);
-        ctx.strokeStyle = 'rgba(52, 211, 153, 0.75)';
+        ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 2;
         ctx.strokeRect(190, 14, 340, 102);
 
-        // Zona Vitrine (Centro)
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.12)';
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.14)';
         ctx.fillRect(60, 122, W - 120, 96);
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+        ctx.strokeStyle = '#f59e0b';
         ctx.setLineDash([6, 4]);
         ctx.strokeRect(60, 122, W - 120, 96);
         ctx.setLineDash([]);
 
-        // Zona Corredor (Inferior)
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.10)';
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.12)';
         ctx.fillRect(20, 224, W - 40, 100);
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
+        ctx.strokeStyle = '#3b82f6';
         ctx.strokeRect(20, 224, W - 40, 100);
 
-        // Detecção real de movimento por região via frame-differencing
         if (!isPaused && motionCtx && frameTick % 3 === 0) {
           motionCtx.save();
           motionCtx.translate(MW, 0);
@@ -223,18 +215,14 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
           }
           prevLuma = currentLuma;
 
-          // Desenha Bounding Box do movimento real detectado na câmera
           if (maxX > minX && maxY > minY && doorMotion + vitrineMotion + corridorMotion > 18) {
             const bx = (minX / MW) * W;
             const by = (minY / MH) * H;
             const bw = ((maxX - minX) / MW) * W;
             const bh = ((maxY - minY) / MH) * H;
-            ctx.strokeStyle = doorMotion > 14 ? '#34d399' : vitrineMotion > 18 ? '#fbbf24' : '#38bdf8';
+            ctx.strokeStyle = doorMotion > 14 ? '#10b981' : vitrineMotion > 18 ? '#f59e0b' : '#2563eb';
             ctx.lineWidth = 3;
             ctx.strokeRect(bx, by, bw, bh);
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.font = '700 11px monospace';
-            ctx.fillText('MOVIMENTO DETECTADO (ANON)', Math.max(10, bx), Math.max(18, by - 6));
           }
 
           const now = performance.now();
@@ -290,40 +278,29 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
           }
         }
 
-        // Rótulos no overlay da Webcam
         ctx.font = '700 11px Inter, sans-serif';
-        ctx.fillStyle = '#34d399';
-        ctx.fillText('ZONA PORTA — ENTRADA / SAÍDA (PASSE A MÃO AQUI)', 202, 34);
-        ctx.fillStyle = '#fbbf24';
+        ctx.fillStyle = '#065f46';
+        ctx.fillText('ZONA PORTA — ENTRADA / SAÍDA', 202, 34);
+        ctx.fillStyle = '#92400e';
         ctx.fillText(`VITRINE ${selectedZone.shortName.toUpperCase()} — ATRAÇÃO`, 72, 142);
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = '#1e40af';
         ctx.fillText('CORREDOR DO SHOPPING — PASSANTES', 32, 244);
-
-        ctx.fillStyle = 'rgba(2, 6, 23, 0.78)';
-        ctx.fillRect(W - 235, 12, 220, 26);
-        ctx.fillStyle = '#34d399';
-        ctx.font = '700 10px monospace';
-        ctx.fillText(
-          privacyBlur ? 'WEBCAM ATIVA • BLUR LGPD ON' : 'WEBCAM ATIVA • MODO DEMO',
-          W - 224,
-          29
-        );
       } else {
-        // 2) Modo Simulação Esquemática 60fps
-        ctx.fillStyle = '#070d1b';
+        // Modo Simulador Esquemático Claro e Legível
+        ctx.fillStyle = '#f8fafc';
         ctx.fillRect(0, 0, W, H);
 
         // Interior da Loja
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.10)';
         ctx.fillRect(40, 18, W - 80, 124);
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+        ctx.strokeStyle = '#10b981';
         ctx.lineWidth = 2;
         ctx.strokeRect(40, 18, W - 80, 124);
 
         // Porta de Entrada
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.16)';
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.22)';
         ctx.fillRect(285, 132, 150, 22);
-        ctx.strokeStyle = '#fbbf24';
+        ctx.strokeStyle = '#d97706';
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
         ctx.moveTo(285, 142);
@@ -331,22 +308,22 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Zona de Atração da Vitrine
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.07)';
+        // Zona da Vitrine
+        ctx.fillStyle = 'rgba(37, 99, 235, 0.08)';
         ctx.fillRect(90, 150, 540, 48);
 
-        ctx.font = '600 11px Inter, sans-serif';
-        ctx.fillStyle = '#34d399';
+        ctx.font = '700 11px Inter, sans-serif';
+        ctx.fillStyle = '#065f46';
         ctx.fillText(`INTERIOR DA LOJA (${selectedZone.shortName})`, 56, 40);
-        ctx.fillStyle = '#fbbf24';
+        ctx.fillStyle = '#b45309';
         ctx.fillText('PORTA / LINHA DE ENTRADA-SAÍDA', 274, 126);
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = '#1d4ed8';
         ctx.fillText('ZONA DE ATRAÇÃO DA VITRINE (>3s)', 56, 170);
-        ctx.fillStyle = '#94a3b8';
+        ctx.fillStyle = '#475569';
         ctx.fillText('CORREDOR DO SHOPPING (PASSANTES)', 56, 322);
 
         if (!isPaused) {
-          if (frameTick % (burstMode ? 36 : 64) === 0 && visitors.length < 18) {
+          if (frameTick % 56 === 0 && visitors.length < 16) {
             visitors.push(spawnVisitor(Math.random() > 0.5));
           }
 
@@ -443,13 +420,13 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         for (const v of visitors) {
           const color =
             v.state === 'entering' || v.state === 'exiting'
-              ? '#34d399'
+              ? '#059669'
               : v.state === 'vitrine_stop'
-                ? '#fbbf24'
-                : '#38bdf8';
+                ? '#d97706'
+                : '#2563eb';
 
           ctx.strokeStyle = color;
-          ctx.lineWidth = 1.6;
+          ctx.lineWidth = 2;
           ctx.strokeRect(v.x - 10, v.y - 10, 20, 20);
 
           ctx.fillStyle = color;
@@ -457,8 +434,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
           ctx.arc(v.x, v.y, 4.5, 0, Math.PI * 2);
           ctx.fill();
 
-          ctx.font = '600 9px monospace';
-          ctx.fillText(`ID#${v.id}`, v.x - 11, v.y - 14);
+          ctx.font = '700 9px monospace';
+          ctx.fillText(`#${v.id}`, v.x - 9, v.y - 14);
         }
       }
 
@@ -472,7 +449,6 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [
     isPaused,
-    burstMode,
     selectedZoneId,
     selectedZone.shortName,
     webcamActive,
@@ -504,40 +480,29 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
   return (
     <div className="space-y-6 panel-enter">
-      {/* Vídeo oculto consumido apenas pelo detector em RAM */}
       <video ref={videoRef} muted playsInline className="hidden" />
 
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                <Camera className="w-5 h-5 text-amber-400" aria-hidden="true" />
-                Sensor Câmera na Vitrine — Alimentação Ao Vivo do Painel
-              </h2>
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                  webcamActive
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                    : 'bg-sky-500/15 border-sky-500/30 text-sky-300'
-                }`}
-              >
-                {webcamActive ? 'WEBCAM REAL ALIMENTANDO PAINEL' : 'MODO SIMULADOR AO VIVO'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Conecte a webcam do notebook para contar passantes, paradas na vitrine e entradas por visão de borda em RAM — atualizando o Painel do Lojista e o Mapa 3D em tempo real.
+            <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+              <Camera className="w-5 h-5 text-emerald-600" aria-hidden="true" />
+              Câmera na Vitrine — Entrada, Saída &amp; Fluxo
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Conecte a webcam para alimentar o Painel do Lojista ao vivo sem gravar vídeo ou reconhecer rostos (100% LGPD).
             </p>
           </div>
 
+          {/* Controles Limpos e Óbvios */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setWebcamActive((w) => !w)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition ${
                 webcamActive
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/20'
-                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 border-amber-400 shadow'
+                  ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-sm'
               }`}
             >
               {webcamActive ? (
@@ -548,7 +513,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               ) : (
                 <>
                   <Camera className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Conectar Webcam Real (Alimentar Painel)</span>
+                  <span>Conectar Webcam Real</span>
                 </>
               )}
             </button>
@@ -557,58 +522,35 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               <button
                 type="button"
                 onClick={() => setPrivacyBlur((b) => !b)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
-                  privacyBlur
-                    ? 'bg-sky-500/20 border-sky-400/40 text-sky-300'
-                    : 'bg-slate-800 border-slate-700 text-slate-200'
-                }`}
+                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5"
               >
-                {privacyBlur ? (
-                  <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
-                ) : (
-                  <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-                )}
-                <span>{privacyBlur ? 'Blur LGPD: Ativo' : 'Blur LGPD: Desativado'}</span>
+                {privacyBlur ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
+                <span>{privacyBlur ? 'Desfoque LGPD: ON' : 'Desfoque LGPD: OFF'}</span>
               </button>
             )}
 
             <button
               type="button"
               onClick={() => setIsPaused((p) => !p)}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold border border-slate-700 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200 flex items-center gap-1.5"
             >
               {isPaused ? (
                 <>
-                  <Play className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-                  <span>Retomar Sensor</span>
+                  <Play className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                  <span>Retomar</span>
                 </>
               ) : (
                 <>
-                  <Pause className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
-                  <span>Pausar Sensor</span>
+                  <Pause className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
+                  <span>Pausar</span>
                 </>
               )}
             </button>
 
-            {!webcamActive && (
-              <button
-                type="button"
-                onClick={() => setBurstMode((b) => !b)}
-                className={`px-3 py-2 rounded-xl text-xs font-semibold border flex items-center gap-1.5 ${
-                  burstMode
-                    ? 'bg-amber-500 text-slate-950 border-amber-400'
-                    : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{burstMode ? 'Pico Pós-Cinema Ativo' : 'Simular Pico'}</span>
-              </button>
-            )}
-
             <button
               type="button"
               onClick={handleResetCounters}
-              className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-800 flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200 flex items-center gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Zerar</span>
@@ -617,23 +559,22 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         </div>
 
         {webcamError && (
-          <div role="status" className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+          <div role="status" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
             {webcamError}
           </div>
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          {/* Viewport da Câmera / Edge Sensor */}
           <div className="xl:col-span-8 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <label htmlFor="vision-zone" className="font-semibold text-slate-300">
-                Ala / Vitrine alimentada pelo sensor no Painel Lojista:
+              <label htmlFor="vision-zone" className="font-bold text-slate-700">
+                Ala vinculada no Painel Lojista:
               </label>
               <select
                 id="vision-zone"
                 value={selectedZoneId}
                 onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-slate-100"
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-medium"
               >
                 {zones.map((z) => (
                   <option key={z.id} value={z.id}>
@@ -643,80 +584,75 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               </select>
             </div>
 
-            <div className="rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 shadow-2xl">
+            <div className="rounded-2xl overflow-hidden border border-slate-300 bg-slate-50 shadow-sm">
               <canvas
                 ref={canvasRef}
                 role="img"
-                aria-label="Sensor de visão computacional de borda contando passantes no corredor, paradas na vitrine, entradas e saídas na loja"
+                aria-label="Sensor de câmera contando passantes no corredor, paradas na vitrine, entradas e saídas na loja"
                 className="w-full h-auto block"
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
-              <span className="flex items-center gap-1.5 text-emerald-400">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
                 <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                Edge Processing em RAM (&lt;5ms): nenhuma imagem ou dado facial é salvo ou enviado à nuvem.
+                Processamento em RAM (&lt;5ms): nenhuma imagem é gravada.
               </span>
-              <span>
-                {webcamActive
-                  ? 'Dica na demo: mova a mão na faixa Corredor, Vitrine ou Porta!'
-                  : 'Azul = Passante • Amarelo = Parou na Vitrine • Verde = Entrou'}
-              </span>
+              <span>Azul = Passante • Amarelo = Parou na Vitrine • Verde = Entrou</span>
             </div>
           </div>
 
-          {/* Métricas do Funil Físico */}
           <div className="xl:col-span-4 space-y-3">
-            <SpotlightCard className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] text-slate-400 uppercase font-semibold">
+            <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-[11px] text-slate-500 uppercase font-bold">
                 Passaram na Frente (Corredor)
               </span>
-              <div className="text-2xl font-black text-sky-400 mt-1">{snapshot.passersBy}</div>
-              <span className="text-[11px] text-slate-400">
+              <div className="text-2xl font-black text-blue-600 mt-1">{snapshot.passersBy}</div>
+              <span className="text-[11px] text-slate-500">
                 {snapshot.passedWithoutEntering} passaram sem entrar
               </span>
             </SpotlightCard>
 
-            <SpotlightCard className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
-              <span className="text-[11px] text-slate-400 uppercase font-semibold">
+            <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+              <span className="text-[11px] text-slate-500 uppercase font-bold">
                 Pararam na Vitrine (&gt;3s)
               </span>
-              <div className="text-2xl font-black text-amber-400 mt-1">{snapshot.vitrineStops}</div>
-              <span className="text-[11px] text-rose-300">
-                Fuga pós-vitrine: {vitrineEscapeRate}% olharam e não entraram
+              <div className="text-2xl font-black text-amber-600 mt-1">{snapshot.vitrineStops}</div>
+              <span className="text-[11px] text-rose-700 font-medium">
+                Fuga pós-vitrine: {vitrineEscapeRate}% não entraram
               </span>
             </SpotlightCard>
 
-            <SpotlightCard className="p-4 rounded-2xl bg-slate-950 border border-slate-800">
+            <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-400 uppercase font-semibold">
+                <span className="text-[11px] text-slate-500 uppercase font-bold">
                   Entradas × Saídas na Loja
                 </span>
-                <UserCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                <UserCheck className="w-4 h-4 text-emerald-600" aria-hidden="true" />
               </div>
-              <div className="text-2xl font-black text-emerald-400 mt-1">
+              <div className="text-2xl font-black text-emerald-600 mt-1">
                 {snapshot.entries}{' '}
-                <span className="text-sm font-semibold text-slate-400">entradas</span> •{' '}
-                <span className="text-lg text-slate-300">{snapshot.exits} saídas</span>
+                <span className="text-sm font-semibold text-slate-500">entradas</span> •{' '}
+                <span className="text-lg text-slate-700">{snapshot.exits} saídas</span>
               </div>
-              <span className="text-[11px] text-emerald-300 font-semibold">
-                Taxa de Atração da Vitrine: {snapshot.attractionRate}%
+              <span className="text-[11px] text-emerald-700 font-semibold">
+                Taxa de Atração: {snapshot.attractionRate}%
               </span>
             </SpotlightCard>
 
             <button
               type="button"
               onClick={() => onAnalyzeWithVision(snapshot)}
-              className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
+              className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
               <span>Diagnosticar Fuga da Vitrine com IA</span>
             </button>
 
-            <div className="p-3 rounded-xl bg-slate-950/90 border border-slate-800 text-[11px] text-slate-400 flex items-start gap-2">
-              <UserMinus className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-start gap-2">
+              <UserMinus className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
               <span>
-                Os contadores acima alimentam em tempo real o <strong>Painel Lojista</strong> e o <strong>Score de Oportunidade</strong> da ala selecionada.
+                Estes contadores alimentam diretamente o <strong>Painel Lojista</strong> e o <strong>Score de Oportunidade</strong>.
               </span>
             </div>
           </div>

@@ -1,13 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   BarChart3,
   BookOpen,
   Camera,
   Compass,
-  Lock,
-  Pause,
-  Play,
   QrCode,
   ShieldCheck,
   Sparkles,
@@ -45,7 +41,6 @@ import { CounterQuickLog } from './components/CounterQuickLog';
 import { ConsumerConcierge } from './components/ConsumerConcierge';
 import { SecurityAuditPanel } from './components/SecurityAuditPanel';
 import { EdgeVisionSensor } from './components/EdgeVisionSensor';
-import { NeuralMallCanvas } from './components/NeuralMallCanvas';
 import { UserStoriesBoard } from './components/UserStoriesBoard';
 
 type ActiveTab = 'cockpit' | 'map' | 'vision' | 'stories' | 'counter' | 'concierge' | 'audit';
@@ -109,7 +104,6 @@ export default function App() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<AIAnalysisResponse | null>(null);
-  const [bgPaused, setBgPaused] = useState(false);
   const [visionSnapshot, setVisionSnapshot] = useState<VisionFunnelSnapshot>({
     zoneId: 'ala-lazer-cinema',
     passersBy: 42,
@@ -280,99 +274,101 @@ export default function App() {
     return created;
   };
 
-  const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'cockpit', label: 'Painel Lojista & IA', icon: <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" /> },
+  const primaryNavItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'cockpit', label: 'Painel Lojista', icon: <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'map', label: 'Mapa 3D', icon: <Compass className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'vision', label: 'Sensor Câmera', icon: <Camera className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'stories', label: 'User Stories', icon: <BookOpen className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'vision', label: 'Câmera Vitrine', icon: <Camera className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'counter', label: 'Modo Balcão', icon: <Store className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'concierge', label: 'Concierge QR', icon: <QrCode className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'audit', label: 'LGPD & Segurança', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
+  ];
+
+  const secondaryNavItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'stories', label: 'User Stories', icon: <BookOpen className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'audit', label: 'LGPD', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-x-clip">
-      <NeuralMallCanvas paused={bgPaused} />
-
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <a href="#conteudo-principal" className="skip-link visually-hidden">
         Pular para o conteúdo principal
       </a>
 
-      {/* Top Bar VitrineIQ */}
-      <header className="border-b border-slate-800/80 bg-slate-900/75 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3.5">
+      {/* Top Bar Executiva Limpa */}
+      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-blue-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-sm">
               <Sparkles className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-white">
+                <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-slate-900">
                   VitrineIQ
                 </h1>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                  CAPIM DOURADO • DESAFIO 06
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                  Capim Dourado Shopping
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                Inteligência Comercial em Tempo Real • HackaRun UniCatólica 2026
+              <p className="text-[11px] text-slate-500">
+                Inteligência Comercial para Lojistas
               </p>
             </div>
           </div>
 
-          {/* Telemetria Rápida + Controle de Movimento (WCAG 2.2.2) */}
-          <div className="hidden xl:flex items-center gap-2 text-xs font-mono text-slate-300">
-            <div className="flex items-center gap-1.5 bg-slate-800/70 px-2.5 py-1.5 rounded-lg border border-slate-700/60">
-              <Activity className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-              <span>Tempo Real</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-slate-800/70 px-2.5 py-1.5 rounded-lg border border-slate-700/60">
-              <Lock className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
-              <span>LGPD Zero PII</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setBgPaused((prev) => !prev)}
-              className="flex items-center gap-1.5 bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1.5 rounded-lg border border-slate-700/70 text-slate-200 transition"
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 5 Pilares Principais */}
+            <nav
+              aria-label="Principal"
+              className="flex flex-wrap items-center gap-1 bg-slate-100 border border-slate-200 p-1 rounded-xl"
             >
-              {bgPaused ? (
-                <Play className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
-              ) : (
-                <Pause className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
-              )}
-              <span>{bgPaused ? 'Retomar Fundo 3D' : 'Pausar Fundo 3D'}</span>
-            </button>
-          </div>
+              {primaryNavItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </nav>
 
-          {/* Navegação Principal */}
-          <nav
-            aria-label="Principal"
-            className="flex flex-wrap items-center gap-1 bg-slate-950/90 border border-slate-800 p-1 rounded-xl"
-          >
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-amber-500 text-slate-950 shadow'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+            {/* Acessos Secundários Discretos */}
+            <div className="flex items-center gap-1">
+              {secondaryNavItems.map((item) => {
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition flex items-center gap-1 ${
+                      isActive
+                        ? 'bg-amber-500 border-amber-500 text-slate-950'
+                        : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </header>
 
-      <main id="conteudo-principal" tabIndex={-1} className="relative z-10 max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
+      <main id="conteudo-principal" tabIndex={-1} className="max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
         {activeTab === 'cockpit' && (
           <RetailerCockpit
             zonesTelemetry={zonesTelemetry}
@@ -440,7 +436,7 @@ export default function App() {
         {activeTab === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
       </main>
 
-      <footer className="relative z-10 border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-400 bg-slate-950/80 backdrop-blur-sm">
+      <footer className="border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500 bg-white">
         VitrineIQ • 1º HackaRun UniCatólica 2026 • Capim Dourado Shopping — Palmas, TO
       </footer>
     </div>

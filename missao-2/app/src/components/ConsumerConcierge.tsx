@@ -55,41 +55,40 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-      {/* Região viva acessível */}
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start panel-enter">
       <div className="visually-hidden" aria-live="polite">
         {liveStatus}
       </div>
 
-      {/* Simulador Mobile-First (Ponta do Consumidor) */}
-      <section className="lg:col-span-5 bg-slate-900/90 border border-slate-700 rounded-3xl p-6 shadow-2xl space-y-5 max-w-md mx-auto w-full">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+      {/* Simulador Mobile-First Limpo (Ponta do Consumidor) */}
+      <section className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-md space-y-5 max-w-md mx-auto w-full">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30">
-              <QrCode className="w-5 h-5 text-amber-400" aria-hidden="true" />
+            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200">
+              <QrCode className="w-5 h-5 text-amber-600" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Concierge QR — Capim Dourado</h2>
-              <span className="text-[11px] text-emerald-400 font-medium">
+              <h2 className="text-sm font-extrabold text-slate-900">Concierge QR — Capim Dourado</h2>
+              <span className="text-[11px] text-emerald-700 font-semibold">
                 Sem baixar app • Zero cadastro
               </span>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono">
+          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono font-bold border border-slate-200">
             LGPD OK
           </span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs" noValidate>
           <div>
-            <label htmlFor="qr-zone" className="block font-semibold text-slate-200 mb-1.5">
+            <label htmlFor="qr-zone" className="block font-bold text-slate-700 mb-1.5">
               Onde você está agora no shopping?
             </label>
             <select
               id="qr-zone"
               value={selectedZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-100"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-medium"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -100,11 +99,11 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           </div>
 
           <div>
-            <label htmlFor="qr-query" className="block font-semibold text-slate-200 mb-1">
+            <label htmlFor="qr-query" className="block font-bold text-slate-700 mb-1">
               O que você procura ou achou das lojas hoje?
             </label>
-            <span id="qr-query-hint" className="block text-[11px] text-slate-400 mb-1.5">
-              Mínimo de 3 caracteres. Sua busca ajuda a liberar cupons na hora (100% anônimo).
+            <span id="qr-query-hint" className="block text-[11px] text-slate-500 mb-1.5">
+              Mínimo de 3 caracteres. Sua busca libera cupons na hora (100% anônimo).
             </span>
             <input
               id="qr-query"
@@ -119,13 +118,13 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               onBlur={() => setQueryTouched(true)}
               onInvalid={() => setQueryTouched(true)}
               placeholder="Ex: Presente até R$ 150 ou camisa tamanho M"
-              className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-slate-100 placeholder-slate-500 ${
-                isQueryInvalid ? 'user-invalid-fallback border-rose-500' : 'border-slate-700'
+              className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 ${
+                isQueryInvalid ? 'user-invalid-fallback border-rose-500' : 'border-slate-300'
               }`}
             />
             <div
               id="qr-query-error"
-              className={`error-msg text-[11px] text-rose-400 mt-1 ${
+              className={`error-msg text-[11px] text-rose-600 font-semibold mt-1 ${
                 isQueryInvalid ? 'block' : 'hidden'
               }`}
             >
@@ -142,7 +141,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                   setQuery(chip);
                   setQueryTouched(false);
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 transition"
+                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[11px] text-slate-700 font-medium transition"
               >
                 {chip}
               </button>
@@ -150,14 +149,14 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           </div>
 
           <div>
-            <label htmlFor="qr-budget" className="block font-semibold text-slate-200 mb-1.5">
+            <label htmlFor="qr-budget" className="block font-bold text-slate-700 mb-1.5">
               Faixa de valor desejada
             </label>
             <select
               id="qr-budget"
               value={budget}
               onChange={(e) => setBudget(e.target.value as ConsumerSignal['budget'])}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-100"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-medium"
             >
               <option value="ate_80">Até R$ 80</option>
               <option value="80_200">Entre R$ 80 e R$ 200</option>
@@ -167,7 +166,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition"
+            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
             <span>Buscar Oferta &amp; Ganhar Cupom Agora</span>
@@ -175,18 +174,18 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
         </form>
 
         {latestReward && (
-          <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-2 text-xs">
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-emerald-300 flex items-center gap-1.5">
-                <Ticket className="w-4 h-4" aria-hidden="true" />
+              <span className="font-bold text-emerald-800 flex items-center gap-1.5">
+                <Ticket className="w-4 h-4 text-emerald-600" aria-hidden="true" />
                 Cupom Desbloqueado!
               </span>
-              <span className="font-mono font-black px-2 py-0.5 rounded bg-emerald-500 text-slate-950">
+              <span className="font-mono font-black px-2 py-0.5 rounded bg-emerald-600 text-white">
                 {latestReward.couponCode}
               </span>
             </div>
-            <p className="text-slate-100 font-medium">{latestReward.matchedOffer}</p>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-slate-900 font-semibold">{latestReward.matchedOffer}</p>
+            <p className="text-[11px] text-slate-600">
               Sinal enviado anonimamente ao painel da ala em tempo real.
             </p>
           </div>
@@ -195,37 +194,37 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
       {/* Explicação ao vivo do ciclo + feed de sinais recebidos */}
       <div className="lg:col-span-7 space-y-6">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" aria-hidden="true" />
-            Efeito &ldquo;Uau&rdquo; no Pitch ao Vivo (Duas Pontas Conectadas)
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-600" aria-hidden="true" />
+            Duas Pontas Conectadas (Cliente + Lojista)
           </h3>
-          <p className="text-xs text-slate-300 leading-relaxed">
-            Ao enviar uma busca aqui no <strong>Concierge QR</strong>, você simula exatamente o que um jurado ou cliente faz no celular dentro do Capim Dourado Shopping: ele recebe um achado + cupom na hora, e o <strong>Painel do Lojista + Mapa de Calor</strong> recebem o sinal de demanda instantaneamente.
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Ao enviar uma busca no <strong>Concierge QR</strong>, o visitante recebe um cupom na hora sem instalar aplicativo, enquanto o <strong>Painel do Lojista e o Mapa 3D</strong> recebem o sinal de demanda instantaneamente.
           </p>
 
-          <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-xl">
-            <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <div className="flex items-center gap-2 text-[11px] text-emerald-800 font-semibold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">
+            <ShieldCheck className="w-4 h-4 shrink-0 text-emerald-600" aria-hidden="true" />
             <span>Privacidade Garantida: nenhum nome, telefone ou CPF é solicitado ao consumidor.</span>
           </div>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Gift className="w-4 h-4 text-sky-400" aria-hidden="true" />
-            Últimas Buscas &amp; Ofertas Ativas Agora ({campaigns.filter((c) => c.active).length} cupons ativos)
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+          <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+            <Gift className="w-4 h-4 text-blue-600" aria-hidden="true" />
+            Últimas Buscas &amp; Cupons Liberados ({campaigns.filter((c) => c.active).length} cupons ativos)
           </h3>
           <ul className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1 text-xs">
             {signals.map((sig) => (
               <li
                 key={sig.id}
-                className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3"
+                className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
               >
                 <div>
-                  <strong className="text-white block">&ldquo;{sig.query}&rdquo;</strong>
-                  <span className="text-slate-400">{sig.matchedOffer}</span>
+                  <strong className="text-slate-900 block">&ldquo;{sig.query}&rdquo;</strong>
+                  <span className="text-slate-600">{sig.matchedOffer}</span>
                 </div>
-                <span className="px-2 py-1 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono text-[11px] shrink-0">
+                <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold shrink-0">
                   {sig.couponCode}
                 </span>
               </li>
@@ -236,4 +235,3 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
     </div>
   );
 };
-

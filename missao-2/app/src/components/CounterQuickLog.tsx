@@ -16,35 +16,40 @@ const REASON_BUTTONS: {
   title: string;
   subtitle: string;
   accent: string;
+  iconBg: string;
   icon: React.ReactNode;
 }[] = [
   {
     reason: 'preco',
     title: 'Preço / Parcelamento',
     subtitle: 'Cliente achou caro ou pediu desconto',
-    accent: 'border-amber-500/40 hover:border-amber-400 hover:bg-amber-500/10',
-    icon: <Tag className="w-6 h-6 text-amber-400" aria-hidden="true" />,
+    accent: 'border-amber-200 hover:border-amber-400 hover:bg-amber-50/70',
+    iconBg: 'bg-amber-50 border-amber-200',
+    icon: <Tag className="w-6 h-6 text-amber-600" aria-hidden="true" />,
   },
   {
     reason: 'estoque_grade',
     title: 'Sem Tamanho / Estoque',
     subtitle: 'Faltou cor, tamanho ou produto desejado',
-    accent: 'border-rose-500/40 hover:border-rose-400 hover:bg-rose-500/10',
-    icon: <PackageX className="w-6 h-6 text-rose-400" aria-hidden="true" />,
+    accent: 'border-rose-200 hover:border-rose-400 hover:bg-rose-50/70',
+    iconBg: 'bg-rose-50 border-rose-200',
+    icon: <PackageX className="w-6 h-6 text-rose-600" aria-hidden="true" />,
   },
   {
     reason: 'pesquisando',
     title: 'Só Olhando / Vitrine',
     subtitle: 'Entrou pela vitrine mas saiu sem oferta certa',
-    accent: 'border-sky-500/40 hover:border-sky-400 hover:bg-sky-500/10',
-    icon: <Search className="w-6 h-6 text-sky-400" aria-hidden="true" />,
+    accent: 'border-blue-200 hover:border-blue-400 hover:bg-blue-50/70',
+    iconBg: 'bg-blue-50 border-blue-200',
+    icon: <Search className="w-6 h-6 text-blue-600" aria-hidden="true" />,
   },
   {
     reason: 'fila_atendimento',
     title: 'Fila / Demora',
     subtitle: 'Desistiu pela espera no caixa ou atendimento',
-    accent: 'border-purple-500/40 hover:border-purple-400 hover:bg-purple-500/10',
-    icon: <Users className="w-6 h-6 text-purple-400" aria-hidden="true" />,
+    accent: 'border-violet-200 hover:border-violet-400 hover:bg-violet-50/70',
+    iconBg: 'bg-violet-50 border-violet-200',
+    icon: <Users className="w-6 h-6 text-violet-600" aria-hidden="true" />,
   },
 ];
 
@@ -69,29 +74,29 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-enter">
       {/* Botões de 1 Toque do Vendedor */}
-      <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+      <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-400" aria-hidden="true" />
-            Modo Balcão — Registro em 1 Toque (2 segundos)
+          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-600" aria-hidden="true" />
+            Modo Balcão — Registro em 1 Toque
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Nenhum ERP atual captura por que o cliente saiu sem comprar. Um toque aqui alimenta o Copiloto IA em tempo real.
+          <p className="text-xs text-slate-500 mt-1">
+            Registre em 2 segundos por que o cliente saiu sem comprar e alimente o Copiloto IA na hora.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="counter-zone" className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label htmlFor="counter-zone" className="block text-xs font-bold text-slate-700 mb-1.5">
               Ala da Loja no Shopping
             </label>
             <select
               id="counter-zone"
               value={selectedZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -102,7 +107,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           </div>
 
           <div>
-            <label htmlFor="counter-store" className="block text-xs font-semibold text-slate-300 mb-1.5">
+            <label htmlFor="counter-store" className="block text-xs font-bold text-slate-700 mb-1.5">
               Nome da Loja (Demo)
             </label>
             <input
@@ -110,17 +115,17 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               type="text"
               value={storeName}
               onChange={(e) => setStoreName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-slate-100"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="counter-note" className="block text-xs font-semibold text-slate-300 mb-1">
-            Detalhe rápido opcional (ex: "Tênis 41" ou "Presente até R$ 100")
+          <label htmlFor="counter-note" className="block text-xs font-bold text-slate-700 mb-1">
+            Detalhe rápido opcional (ex: &ldquo;Tênis 41&rdquo; ou &ldquo;Presente até R$ 100&rdquo;)
           </label>
-          <span id="counter-note-hint" className="block text-[11px] text-slate-400 mb-1.5">
-            Opcional: ajuda a IA a sugerir exatamente o produto ou promoção certa.
+          <span id="counter-note-hint" className="block text-[11px] text-slate-500 mb-1.5">
+            Ajuda a IA a sugerir exatamente o produto ou promoção certa.
           </span>
           <input
             id="counter-note"
@@ -129,7 +134,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Ex: Procurou camisa branca M e não tinha..."
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400"
           />
         </div>
 
@@ -139,14 +144,14 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               key={btn.reason}
               type="button"
               onClick={() => handleQuickTap(btn.reason)}
-              className={`min-h-[84px] p-4 rounded-2xl bg-slate-950 border text-left transition flex items-start gap-3.5 ${btn.accent}`}
+              className={`min-h-[84px] p-4 rounded-2xl bg-slate-50/70 border text-left transition flex items-start gap-3.5 ${btn.accent}`}
             >
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
+              <div className={`p-2.5 rounded-xl border shrink-0 ${btn.iconBg}`}>
                 {btn.icon}
               </div>
               <div>
-                <span className="block text-sm font-bold text-white">{btn.title}</span>
-                <span className="block text-xs text-slate-400 mt-0.5">{btn.subtitle}</span>
+                <span className="block text-sm font-bold text-slate-900">{btn.title}</span>
+                <span className="block text-xs text-slate-600 mt-0.5">{btn.subtitle}</span>
               </div>
             </button>
           ))}
@@ -156,32 +161,32 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           <div
             role="status"
             aria-live="polite"
-            className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2"
+            className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2"
           >
-            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" aria-hidden="true" />
             <span>{feedbackBanner}</span>
           </div>
         )}
       </div>
 
       {/* Últimos registros de balcão */}
-      <aside className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Clock className="w-4 h-4 text-sky-400" aria-hidden="true" />
+      <aside className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+          <Clock className="w-4 h-4 text-blue-600" aria-hidden="true" />
           Feed de Vendas Perdidas ({lostSales.length})
         </h3>
         <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
           {lostSales.map((item) => (
             <li
               key={item.id}
-              className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 text-xs space-y-1"
+              className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1"
             >
               <div className="flex items-center justify-between gap-2">
-                <strong className="text-white">{item.storeName}</strong>
-                <span className="font-mono text-[10px] text-slate-400">{item.timestamp}</span>
+                <strong className="text-slate-900">{item.storeName}</strong>
+                <span className="font-mono text-[10px] text-slate-500">{item.timestamp}</span>
               </div>
-              <div className="text-rose-300 font-medium">{LOST_SALE_LABELS[item.reason]}</div>
-              {item.note && <p className="text-slate-400">{item.note}</p>}
+              <div className="text-rose-700 font-semibold">{LOST_SALE_LABELS[item.reason]}</div>
+              {item.note && <p className="text-slate-600">{item.note}</p>}
             </li>
           ))}
         </ul>
@@ -189,4 +194,3 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
     </div>
   );
 };
-
