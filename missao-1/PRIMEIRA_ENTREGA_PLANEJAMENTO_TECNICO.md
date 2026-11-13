@@ -18,7 +18,7 @@ A interface adota o conceito **Capim Dourado Editorial Bento UI** (Sidebar escur
    - **Hero Card com Medidor SVG Circular (IQ Score 0–100):** Resume a oportunidade do corredor em tempo real, combinando paradas na vitrine, buscas QR e perdas no balcão.
    - **Funil Físico da Porta:** Visualiza proporcionalmente `Passaram no Corredor → Pararam na Vitrine → Entraram na Loja → Compra Concluída`.
    - **Gráfico Interativo de Horário de Pico (`10h`–`22h`):** Permite clicar em turnos (`Manhã`, `Almoço`, `Tarde`, `Pico Noite`) e simular Clima de Palmas (`Sol 38°C`, `Chuva Forte`, `Ameno`) e Eventos (`Estreia Cinemark`, `Dia de Pagamento`).
-   - **Copiloto IA & Oferta Relâmpago:** Gera plano tático imediato e publica cupons com texto pronto para WhatsApp.
+   - **Agente de IA & Oferta Relâmpago:** Gera, via backend Python, plano tático imediato e publica cupons com texto pronto para WhatsApp.
 2. **Tela 02 — Gêmeo Digital Shopping 3D (`ShoppingMap3D` + `ShoppingMap`):**
    - Maquete 3D em **WebGL (Three.js)** fiel ao mix real do Capim Dourado Shopping (`Térreo L1` e `2º Piso L2`, com escada rolante e rotas animadas).
    - **Scroll Zoom (`OrbitControls`)**, seleção direta clicando nas fachadas e modo **Entrar no Shopping (Street View)** em primeira pessoa com caminhada por corredor (`W A S D` / botões) e botão **Subir ao 2º Andar / Descer ao Térreo**, além de alternância rápida para **Planta 2D Técnica**.
@@ -28,8 +28,8 @@ A interface adota o conceito **Capim Dourado Editorial Bento UI** (Sidebar escur
    - Vendedor registra o motivo real de não-fechamento (`Preço`, `Sem Tamanho/Grade`, `Só Pesquisando`, `Fila`) em 1 toque.
 5. **Tela 05 — Concierge QR para o Cliente (`ConsumerConcierge`):**
    - Totem/QR anônimo na vitrine onde o visitante escolhe orçamento/desejo sem informar CPF, recebe cupom imediato e sinaliza demanda real ao lojista.
-6. **Telas 06 e 07 — User Stories (Roleta) & Governança LGPD/Rust:**
-   - Painel rastreável ligando cada história obrigatória à tela correspondente + trilha de auditoria SHA-256 e verificação do motor matemático Rust/TypeScript.
+6. **Telas 06 e 07 — User Stories (Roleta) & Governança LGPD:**
+   - Painel rastreável ligando cada história obrigatória à tela correspondente + trilha de auditoria SHA-256 dos registros.
 
 ---
 
@@ -44,24 +44,26 @@ Toda a documentação estruturante da Fase 1 está versionada no diretório `mis
 
 ## 3. Linguagem de Programação Escolhida
 
-- **TypeScript (`Strict Mode`):** Linguagem principal da aplicação web e camada de serviços (`React 19`), garantindo segurança de tipos em tempo de compilação para os modelos de telemetria, zonas (`L1`/`L2`), eventos de balcão e integração com API de IA.
-- **Rust (`engine-rust/src/lib.rs`):** Núcleo matemático de cálculo do `VitrineIQ Score` (`calculate_retail_opportunity_score`), escolhido para processamento determinístico de alta velocidade, segurança de memória e paridade exata de regras com o TypeScript (`opportunityEngine.ts`), permitindo compilação nativa/WASM em escala multi-loja.
+- **TypeScript (`Strict Mode`) com React — frontend:** interface (`React 19`), mapa 3D e sensor de vitrine, com segurança de tipos para os modelos de telemetria, zonas (`L1`/`L2`), eventos de balcão e respostas da IA.
+- **Python — backend:** API em **FastAPI** que calcula o Score de Oportunidade (`backend/app/engine.py`), sanitiza as entradas e chama o Agente de IA guardando a chave da API no servidor. Escolhido por ser forte em dados e integração com IA, e por facilitar as evoluções previstas (importação de vendas em planilha com pandas).
 
 ---
 
 ## 4. Arquitetura Proposta
 
-Arquitetura **Modular Edge-First em 4 Camadas** com zero dependência de servidor pesado para privacidade absoluta:
+Arquitetura **frontend + backend** em 3 camadas, sem coleta de dados pessoais:
 
-1. **Camada de Captação Multimodal Anônima (Client/Edge):**
-   - *Sensor Óptico (WebRTC `getUserMedia` + Canvas Frame-Diff):* Analisa variação de pixels em zonas geométricas (Corredor vs. Vitrine vs. Porta) 100% na RAM do navegador do lojista — nenhum frame ou imagem facial é salvo ou enviado à nuvem.
-   - *Sinais Ativos:* Totem/QR do consumidor (`ConsumerConcierge`) e registro tátil do vendedor (`CounterQuickLog`).
-2. **Camada de Motor Determinístico & Score (Rust + TypeScript Parity):**
-   - Combina `vitrineStops`, `qrSearches`, `lostSales` e multiplicadores contextuais (clima de Palmas, horário e eventos do cinema) produzindo o **IQ Score (0–100)**.
-3. **Camada de Visualização Espacial & Decisão (React + Three.js WebGL):**
-   - Renderiza o Gêmeo Digital 3D do Capim Dourado e o Bento Cockpit reativo em tempo real.
-4. **Camada de Copiloto IA Resiliente (Gemini Flash + Fallback Heurístico):**
-   - Consome apenas agregados numéricos anônimos para gerar planos táticos e copywriting de ofertas com fallback instantâneo offline (`latency < 300ms`), blindado contra prompt injection e em conformidade estrita com a LGPD (sem PII).
+1. **Frontend — Captação anônima e visualização (React + TypeScript, navegador):**
+   - *Sensor óptico (WebRTC `getUserMedia` + Canvas Frame-Diff):* analisa variação de pixels em zonas (Corredor, Vitrine e Porta) na memória do navegador; nenhum quadro é salvo ou enviado.
+   - *Sinais ativos:* Concierge QR (`ConsumerConcierge`) e registro do vendedor (`CounterQuickLog`).
+   - *Visualização:* Painel do Lojista e Gêmeo Digital 3D (Three.js).
+2. **Backend — API Python (FastAPI):**
+   - `POST /api/score`: Score de Oportunidade (0–100) e multiplicador de contexto (clima de Palmas, horário, eventos do shopping).
+   - `POST /api/ia/plano`: Agente de IA com provedor intercambiável (Gemini no MVP), timeout de 4,5 s e **fallback heurístico**; bloqueia prompt injection e envia à IA apenas dados agregados.
+   - Documentação automática em `/docs`; testes com `pytest`.
+3. **Provedor de IA (externo):** recebe só números agregados, nunca dados pessoais. A chave fica apenas no backend.
+
+> Evolução prevista: persistência dos registros em banco (SQLite → PostgreSQL), importação de vendas do PDV e percurso agregado pelo Wi-Fi do shopping.
 
 ---
 
@@ -69,13 +71,13 @@ Arquitetura **Modular Edge-First em 4 Camadas** com zero dependência de servido
 
 | Camada | Tecnologia / Ferramenta | Papel na Solução |
 | :--- | :--- | :--- |
-| **Frontend Web (PWA)** | **React 19 + TypeScript + Vite 6** | Interface responsiva de baixa latência para tablet do balcão, notebook da gerência e celular do visitante |
-| **Visualização 3D** | **Three.js (`OrbitControls` + WebGL)** | Maquete 3D navegável com scroll zoom, corredores L1/L2, escada rolante e modo Street View |
-| **Estilização** | **Tailwind CSS 3 + Lucide Icons** | Design system Editorial Bento UI (Obsidian `#111318`, Gold `#E2A83B`, Stone `#F4F2EE`) |
-| **Visão Computacional Edge** | **HTML5 Canvas + `MediaDevices API`** | Detecção de movimento em vitrine/porta na borda com privacidade absoluta (zero gravação) |
-| **Motor de Cálculo Crítico** | **Rust (`cargo test`) + Espelho TS** | Cálculo determinístico do Opportunity Score com paridade validada por testes |
-| **Inteligência Artificial** | **Google Gemini Flash API + Fallback** | Copiloto estratégico contextual para vitrine, reposição de grade e campanhas relâmpago |
-| **Qualidade & Entrega** | **Vitest + GitHub + Vercel/Edge** | Testes automatizados contínuos (`cargo test` + `vitest`) e deploy versionado |
+| **Frontend Web (PWA)** | **React 19 + TypeScript + Vite 6** | Interface responsiva para tablet do balcão, notebook da gerência e celular do visitante |
+| **Visualização 3D** | **Three.js (`OrbitControls` + WebGL)** | Maquete 3D navegável com zoom, corredores L1/L2, escada rolante e modo Street View |
+| **Estilização** | **Tailwind CSS 3 + Lucide Icons** | Design system Editorial Bento UI |
+| **Visão Computacional de Borda** | **HTML5 Canvas + `MediaDevices API`** | Detecção de movimento em vitrine/porta no navegador, sem gravação |
+| **Backend / API** | **Python + FastAPI + Uvicorn** | Cálculo do score, sanitização e Agente de IA |
+| **Inteligência Artificial** | **Agente de IA via API (Gemini no MVP, provedor intercambiável) + fallback** | Plano de ação, texto de cupom e sugestão de parceria |
+| **Qualidade & Entrega** | **Vitest + pytest + GitHub + Vercel** | Testes automatizados do frontend e do backend, versionamento e deploy |
 
 ---
 

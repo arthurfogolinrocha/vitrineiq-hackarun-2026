@@ -18,7 +18,7 @@ Documento alinhado exatamente à folha oficial **"Acordo de trabalho do time | H
 - **Objetivo:** Melhorar a compreensão dos lojistas do Capim Dourado sobre o comportamento do público (horário de pico, fluxo nos corredores L1/L2, entrada vs. vitrine e motivos de perda no caixa) gerando planos de ação imediatos sem violar a LGPD.
 - **Resultado 1:** Lojista visualiza em < 10s o horário de pico do seu segmento (`10h–22h`) e o funil físico (`passantes → vitrine → entrada → compra`) alimentado por webcam em borda.
 - **Resultado 2:** Gêmeo Digital 3D navegável (Térreo L1, 2º Piso L2, Street View, 4 entradas e 3 estacionamentos) validando deslocamentos cross-segment sem cliques confusos.
-- **Resultado 3:** 100% das 5 User Stories obrigatórias (`US-01` a `US-05`) rastreadas na solução e validadas com testes automatizados (`Vitest` + `Rust`).
+- **Resultado 3:** 100% das 5 User Stories obrigatórias (`US-01` a `US-05`) rastreadas na solução e validadas com testes automatizados (`Vitest` + `pytest`).
 
 ---
 
@@ -47,6 +47,6 @@ Documento alinhado exatamente à folha oficial **"Acordo de trabalho do time | H
 | Cartão | Responsável | Prazo / Critério de Pronto |
 | :--- | :--- | :--- |
 | **Publicar link oficial da Missão 1 no formulário do professor** | Arthur (`@arthurfogolinrocha`) | Sexta `13/11 até 12h00` |
-| **Calibrar roteiro do Pitch de 3 min (Problema + Demo Webcam ao vivo + Tour 3D + Rust/LGPD)** | Time completo | Antes da banca final (`14/11`) |
+| **Calibrar roteiro do Pitch de 3 min (Problema + Demo Webcam ao vivo + Tour 3D + backend Python/LGPD)** | Time completo | Antes da banca final (`14/11`) |
 | **Assinar fisicamente a folha `Nosso acordo` e validar impedimentos na Daily** | Todos os 4 membros | Na próxima Daily |
 

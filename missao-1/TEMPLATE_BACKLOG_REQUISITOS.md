@@ -29,7 +29,7 @@
 
 ### 🔴 MUST HAVE (Essenciais para o MVP — Missão 2)
 
-#### US-01: Horário de Pico, Clima e Ação Comercial em 1 Clique (Painel Lojista & Copiloto IA)
+#### US-01: Horário de Pico, Clima e Ação Comercial em 1 Clique (Painel Lojista & Agente de IA)
 * **Como** lojista de shopping no Capim Dourado Shopping,
 * **Eu quero** saber o horário de pico, o efeito do clima/eventos no meu segmento e gerar campanhas relâmpago em 1 clique,
 * **Para que** eu ajuste escala, estoque e promoções antes da concorrência sem depender de planilhas.
