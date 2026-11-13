@@ -7,7 +7,7 @@
 > **🌐 App Web Ao Vivo:** https://vitrineiq-capim-dourado.vercel.app  
 > **⚡ API Python (FastAPI / Swagger):** https://vitrineiq-hackarun-2026-api.vercel.app/docs  
 > **📊 Quadro Kanban (GitHub Projects):** https://github.com/users/arthurfogolinrocha/projects/1  
-> **📋 Primeira Entrega (`Missão 1`):** [`PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md`](./missao-1/PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md) • [`Acordo & Kanban`](./missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md)
+> **📋 Primeira Entrega (`Missão 1`):** [`docs/missao-1`](./docs/missao-1/) • [`Acordo & Kanban`](./docs/materiais-de-apoio/planejamento/ACORDO_DE_TRABALHO_E_KANBAN.md)
 
 O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolver o maior ponto cego do lojista de shopping: entender **por que o consumidor não comprou**, **o que ele procura no corredor agora** e **quais fatores externos e rotas entre segmentos** geram oportunidades imediatas de venda — tudo **100% anônimo (Privacy by Design / LGPD)** e sem depender de câmeras invasivas ou instalação de hardware caro.
 
@@ -33,10 +33,10 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 
 ## 📁 Estrutura do Repositório
 
-* [`missao-1/`](./missao-1) — Planejamento técnico inicial, telas propostas, arquitetura e integração da Roleta Tecnológica *(Entrega: Sexta 13/11 até 12h)*.
+* [`docs/materiais-de-apoio/planejamento/`](./docs/materiais-de-apoio/planejamento) — Planejamento técnico inicial, telas propostas, arquitetura e integração da Roleta Tecnológica *(Entrega: Sexta 13/11 até 12h)*.
 * [`missao-2/app/`](./missao-2/app) — Aplicação React 19 + TypeScript + Vite + Tailwind CSS + Suíte Vitest (`19` testes).
 * [`missao-2/backend/`](./missao-2/backend) — Backend Python + FastAPI + Uvicorn (`/api/score`, `/api/ia/plano`, `/api/audit/hash`) + Suíte `pytest` (`27` testes).
-* [`missao-3/`](./missao-3) — Documentação final, declaração ética de uso de IA (Artigo 6) e roteiro do pitch.
+* [`docs/materiais-de-apoio/pitch-e-entrega-final/`](./docs/materiais-de-apoio/pitch-e-entrega-final) — Documentação final, declaração ética de uso de IA (Artigo 6) e roteiro do pitch.
 
 ---
 
