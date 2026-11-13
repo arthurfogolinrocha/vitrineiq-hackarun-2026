@@ -1,0 +1,24 @@
+[project]
+name = "vitrine-camera"
+version = "0.1.0"
+description = "VitrineIQ: contagem anônima de quem passa e olha a vitrine (YOLO pose)"
+requires-python = ">=3.14"
+dependencies = [
+    "lap>=0.5.12",
+    "requests>=2.34.2",
+    "ultralytics>=8.4.212",
+]
+
+[project.scripts]
+vitrine-camera = "vitrine_camera.camera:main"
+vitrine-relatorio = "vitrine_camera.relatorio:main"
+vitrine-lojista = "vitrine_camera.lojista:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

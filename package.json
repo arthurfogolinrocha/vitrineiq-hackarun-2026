@@ -4,10 +4,10 @@
   "private": true,
   "description": "Workspace Oficial de Engenharia para o 1º HackaRun UniCatólica 2026",
   "scripts": {
-    "dev": "npm --prefix missao-2/app run dev",
-    "build": "npm --prefix missao-2/app run build",
-    "test:vitest": "npm --prefix missao-2/app run test",
-    "test:python": "missao-2/backend/.venv/bin/python -m pytest -q missao-2/backend/tests",
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "test:vitest": "npm --prefix frontend run test",
+    "test:python": "api/.venv/bin/python -m pytest -q api/tests",
     "test": "npm run test:vitest && npm run test:python",
     "open:canvas": "open docs/materiais-de-apoio/planejamento/canvas_executivo.html"
   }

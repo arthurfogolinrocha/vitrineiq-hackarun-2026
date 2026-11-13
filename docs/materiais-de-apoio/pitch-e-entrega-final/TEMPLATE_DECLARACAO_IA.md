@@ -23,7 +23,7 @@
 | Ferramenta / Modelo | Provedor / Stack | Finalidade de Uso no Projeto |
 |---|---|---|
 | **Agente de IA via Backend Python (`POST /api/ia/plano`)** | FastAPI + Gemini Flash (provedor intercambiável) | Geração sob demanda de planos táticos de vitrine, reposição de grade e copywriting de ofertas relâmpago a partir de métricas agregadas anônimas, com chave protegida no servidor. |
-| **Motor de Score VitrineIQ (Python + Espelho TS)** | Autoria Própria (`missao-2/backend/app/engine.py` + `opportunityEngine.ts`) | Cálculo matemático auditável do `IQ Score (0–100)` e multiplicadores de clima/horário/evento, com paridade garantida por testes (`Vitest` + `pytest`). |
+| **Motor de Score VitrineIQ (Python + Espelho TS)** | Autoria Própria (`api/app/engine.py` + `opportunityEngine.ts`) | Cálculo matemático auditável do `IQ Score (0–100)` e multiplicadores de clima/horário/evento, com paridade garantida por testes (`Vitest` + `pytest`). |
 | **Visão Computacional em Borda (`EdgeVisionSensor`)** | WebRTC + HTML5 Canvas (Local RAM) | Análise anônima por diferença de pixels em zonas geométricas (Corredor, Vitrine, Porta) com borramento LGPD em tempo real — zero gravação de vídeo e zero biometria facial. |
 | **Three.js / WebGL** | Open Source | Construção e renderização do Gêmeo Digital 3D do Capim Dourado Shopping (Pavimentos L1/L2, Subsolo SS1, escada rolante, 4 portarias, 3 estacionamentos e modo Street View). |
 | **Google Antigravity IDE** | Google | Apoio estrutural na arquitetura de software, geração de suíte de testes automatizados (`19` Vitest + `27` pytest = `46` testes), revisão de acessibilidade WCAG e documentação técnica. |
