@@ -11,7 +11,7 @@ Documento alinhado exatamente à folha oficial **"Acordo de trabalho do time | H
 - **Prática Obrigatória da Roleta:** `STORIES: User Stories`
 - **Time:** `VitrineIQ` — Arthur Fogolin Rocha (`@arthurfogolinrocha`), Jessé (`@jesseLR-stack`), `@MCPS9`, Leonardo Capistrano (`@LCapistrano25`)
 - **Data:** `12/11/2026 – 14/11/2026`
-- **Quadro / Link:** `https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026` *(Issues / aba Projects)*
+- **Quadro / Link (Kanban Oficial):** `https://github.com/users/arthurfogolinrocha/projects/1` *(vinculado a `arthurfogolinrocha/vitrineiq-hackarun-2026`)*
 - **Daily (horário):** `Diária às 08h30 e 18h30 (máx. 10 minutos — O que avancei / Próximo passo / Impedimentos)`
 
 ### Nossa Direção (`01 OKRs`)
@@ -49,3 +49,4 @@ Documento alinhado exatamente à folha oficial **"Acordo de trabalho do time | H
 | **Publicar link oficial da Missão 1 no formulário do professor** | Arthur (`@arthurfogolinrocha`) | Sexta `13/11 até 12h00` |
 | **Calibrar roteiro do Pitch de 3 min (Problema + Demo Webcam ao vivo + Tour 3D + Rust/LGPD)** | Time completo | Antes da banca final (`14/11`) |
 | **Assinar fisicamente a folha `Nosso acordo` e validar impedimentos na Daily** | Todos os 4 membros | Na próxima Daily |
+

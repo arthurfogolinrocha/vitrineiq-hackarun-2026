@@ -3,6 +3,7 @@
 > **1º HackaRun UniCatólica 2026 • Capim Dourado Shopping (Palmas – TO)**  
 > **Desafio 06:** *Inteligência comercial para lojistas* | **Roleta:** *STORIES (User Stories)*  
 > **🌐 Sistema Ao Vivo (Preview):** https://vitrineiq-capim-dourado.vercel.app  
+> **📊 Quadro Kanban (GitHub Projects):** https://github.com/users/arthurfogolinrocha/projects/1  
 > **📋 Primeira Entrega (`Missão 1`):** [`PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md`](./missao-1/PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md) • [`Acordo & Kanban`](./missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md)
 
 O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolver o maior ponto cego do lojista de shopping: entender **por que o consumidor não comprou**, **o que ele procura no corredor agora** e **quais fatores externos e rotas entre segmentos** geram oportunidades imediatas de venda — tudo **100% anônimo (Privacy by Design / LGPD)** e sem depender de câmeras invasivas ou instalação de hardware caro.
