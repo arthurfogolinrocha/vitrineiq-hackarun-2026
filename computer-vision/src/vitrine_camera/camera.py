@@ -5,7 +5,8 @@ import time
 
 from .analise import atualizar_parado, olhar_frame, resumir, segurou, zona_de
 from .armazenamento import hora, salvar
-from .config import (ALERTAS, ARQUIVO, CELULAR_S, CONF_PESSOA, GATILHO_S, JANELA_S, LOJA_ID, LOTACAO_INTERVALO_S, LOTACAO_N,
+from .envio import enviar
+from .config import (ALERTAS, ARQUIVO, CAMERA, CELULAR_S, CONF_PESSOA, GATILHO_S, JANELA_S, LOJA_ID, LOTACAO_INTERVALO_S, LOTACAO_N,
                      MODELO, MOSTRAR, OLHAR_S, PERTO_FRAC, SUMIR_S, URL_MODELO)
 from .pose import apontando, de_frente, no_celular
 
@@ -13,6 +14,8 @@ from .pose import apontando, de_frente, no_celular
 def alertar(evento, agora, **dados):
     alerta = {"loja_id": LOJA_ID, "evento": evento, "momento": hora(agora), **dados}
     salvar(alerta, ALERTAS)
+    # na API, "zona" é a ala do shopping; a parte da vitrine vai como zonaVitrine
+    enviar("alertas", {("zonaVitrine" if k == "zona" else k): v for k, v in alerta.items() if k != "loja_id"})
     print("ALERTA", alerta)
 
 
@@ -81,6 +84,7 @@ class Sessao:
         registro = {"loja_id": LOJA_ID, "inicio": hora(self.t_janela), "fim": hora(fim),
                     **resumir(self.foram_embora, self.largura), "pico_simultaneo": self.pico}
         salvar(registro)
+        enviar("eventos", {k: v for k, v in registro.items() if k != "loja_id"})
         print(registro)
         self.total["passantes"] += registro["passantes"]
         self.total["olharam"] += registro["olharam"]
@@ -138,9 +142,9 @@ def main():
     baixar_modelo()
     model = YOLO(str(MODELO))
     sessao = Sessao()
-    print(f"Câmera ligada. Gravando em {ARQUIVO.resolve()} (Ctrl+C ou q na janela para parar)")
+    print(f"Câmera {CAMERA} ligada. Gravando em {ARQUIVO.resolve()} (Ctrl+C ou q na janela para parar)")
     try:
-        for r in model.track(source=0, stream=True, persist=True, classes=[0], conf=CONF_PESSOA, verbose=False):
+        for r in model.track(source=CAMERA, stream=True, persist=True, classes=[0], conf=CONF_PESSOA, verbose=False):
             sessao.processar(r, time.time())
             if MOSTRAR and not mostrar(r, sessao):
                 break

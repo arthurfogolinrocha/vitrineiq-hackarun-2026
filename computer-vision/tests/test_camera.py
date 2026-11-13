@@ -28,3 +28,25 @@ def test_sessao_grava_janela_e_alerta(monkeypatch):
     assert len(eventos) == 1
     assert (eventos[0]["olharam"], eventos[0]["olhares_por_zona"]["centro"], eventos[0]["pico_simultaneo"]) == (1, 1, 1)
     assert s.total == {"passantes": 1, "olharam": 1} and not s.pessoas
+
+
+def test_sessao_envia_resumo_e_alerta_para_a_api(monkeypatch):
+    enviados = []
+    monkeypatch.setattr(camera, "salvar", lambda reg, arquivo="eventos": None)
+    monkeypatch.setattr(camera, "enviar", lambda caminho, dados: enviados.append((caminho, dados)))
+    deteccoes = [(1, 300, 100, XY, DE_FRENTE)]
+    monkeypatch.setattr(camera, "deteccoes", lambda r: deteccoes)
+    frame = SimpleNamespace(orig_shape=(480, 600))
+
+    s = camera.Sessao()
+    for t in (100.0, 102.0, 103.5):  # relógio real nunca é 0 (t_janela usa `or`)
+        s.processar(frame, t)
+    deteccoes = []
+    s.processar(frame, 106.0)
+    s.processar(frame, 110.0)
+
+    caminhos = [c for c, _ in enviados]
+    assert caminhos == ["alertas", "eventos"]
+    alerta, evento = enviados[0][1], enviados[1][1]
+    assert alerta["evento"] == "atencao_alta" and alerta["zonaVitrine"] == "centro" and "zona" not in alerta
+    assert evento["passantes"] == 1 and "loja_id" not in evento

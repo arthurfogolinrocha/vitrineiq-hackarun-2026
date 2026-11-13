@@ -1,5 +1,6 @@
 """Parâmetros do VitrineIQ. Calibre na vitrine real."""
 
+import os
 from pathlib import Path
 
 ARQUIVO = Path("vitrine_eventos.json")    # um resumo a cada JANELA_S
@@ -7,6 +8,10 @@ ALERTAS = Path("vitrine_alertas.json")    # gatilho para a campanha relâmpago
 MODELO = Path("yolo11n-pose.pt")
 URL_MODELO = "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-pose.pt"
 LOJA_ID = 1
+# Índice da câmera no OpenCV: 0 = webcam do notebook. Na demo, a Logitech C925e (USB) costuma ser 1.
+CAMERA = int(os.environ.get("VITRINE_CAMERA", "0"))
+# No Windows o backend padrão (MSMF) trava ao abrir webcams USB como a Logitech; DirectShow abre em ~4 s.
+os.environ.setdefault("OPENCV_VIDEOIO_PRIORITY_MSMF", "0")
 
 OLHAR_S = 1.5         # segundos de frente para contar como "olhou"
 GATILHO_S = 3.0       # segundos de frente para disparar o alerta de atenção alta

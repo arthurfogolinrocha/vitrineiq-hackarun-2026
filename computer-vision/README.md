@@ -37,11 +37,27 @@ uv run vitrine-lojista     # gera e abre o relatorio_lojista.html
 uv run pytest              # testes
 ```
 
+### Variáveis
+
+| Variável | Para quê | Exemplo |
+|---|---|---|
+| `VITRINE_CAMERA` | índice da câmera (0 = webcam do notebook) | `1` para a Logitech C925e USB |
+| `VITRINE_API_URL` | envia resumos e alertas para a API; sem ela, só grava os JSON locais | `http://localhost:8000` |
+| `VITRINE_ALA` | ala do shopping que a câmera observa (id do painel) | `ala-lazer-cinema` |
+
+Na demo (PowerShell):
+
+```powershell
+$env:VITRINE_CAMERA = '1'; $env:VITRINE_API_URL = 'http://localhost:8000'; $env:VITRINE_ALA = 'ala-lazer-cinema'; uv run vitrine-camera
+```
+
+Para descobrir o índice de cada câmera, o Windows lista os nomes com `Get-PnpDevice -Class Camera`; o índice da USB costuma ser o seguinte ao da integrada. No Windows o projeto usa o DirectShow, porque o backend padrão (MSMF) trava ao abrir webcams USB.
+
 Na primeira execução, o modelo é baixado do GitHub da Ultralytics. Atrás de um proxy corporativo que troca o certificado SSL, rode com `VITRINE_SSL_VERIFY=0`, que vale só para esse download.
 
 ## Integração com a API (T3, issue #29)
 
-Os resumos e alertas ainda ficam só nos JSON locais. A T3 liga a câmera à API:
+Com `VITRINE_API_URL` definida, cada resumo e cada alerta também vão para a API (`envio.py`, numa thread para não travar o vídeo). Se a API cair, o JSON local continua valendo:
 
 - `POST /vitrine/eventos`: cada resumo de 10 s, no mesmo formato do `vitrine_eventos.json`;
 - `POST /vitrine/alertas`: `atencao_alta`, `lotacao` e `apontou`;
