@@ -1,7 +1,9 @@
 # VitrineIQ — Inteligência Comercial em Tempo Real
 
 > **1º HackaRun UniCatólica 2026 • Capim Dourado Shopping (Palmas – TO)**  
-> **Desafio 06:** *Inteligência comercial para lojistas*
+> **Desafio 06:** *Inteligência comercial para lojistas* | **Roleta:** *STORIES (User Stories)*  
+> **🌐 Sistema Ao Vivo (Preview):** https://vitrineiq-capim-dourado.vercel.app  
+> **📋 Primeira Entrega (`Missão 1`):** [`PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md`](./missao-1/PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md) • [`Acordo & Kanban`](./missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md)
 
 O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolver o maior ponto cego do lojista de shopping: entender **por que o consumidor não comprou**, **o que ele procura no corredor agora** e **quais fatores externos e rotas entre segmentos** geram oportunidades imediatas de venda — tudo **100% anônimo (Privacy by Design / LGPD)** e sem depender de câmeras invasivas ou instalação de hardware caro.
 
@@ -14,8 +16,8 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
    * Integração com **Google Gemini (`gemini-3.8-flash`)** + fallback heurístico resiliente para gerar planos de ação imediatos, textos prontos de WhatsApp e **Campanhas Relâmpago** em 1 clique.
 2. **Sensor Webcam na Vitrine — Borda LGPD (`EdgeVisionSensor`):**
    * Conecta uma **webcam real** (ou simulador 60fps) para detectar movimento por região (**Corredor**, **Vitrine** e **Porta**) em RAM sem gravar imagens, contando quem passa, quem para na vitrine, quem entra e quem sai e alimentando o Painel em tempo real.
-3. **Mapa 3D Oficial do Capim Dourado Shopping (`ShoppingMap`):**
-   * Planta arquitetônica em **2 pavimentos (1º Pavimento Térreo e 2º Pavimento Praça de Alimentação)** fiel à Planta Mix oficial (38.800,50 m²), com perspectiva 3D isométrica, rotas quentes animadas e espaços vagos.
+3. **Tour 3D WebGL Oficial do Capim Dourado Shopping (`ShoppingMap3D` + `ShoppingMap`):**
+   * Maquete interativa em **Three.js** com **scroll zoom (`OrbitControls`)**, **4 Portarias de Entrada iluminadas**, **3 Estacionamentos demarcados (`Av. NS-05`, `Av. JK`, `Av. LO-2A`)**, **2º Piso (`Praça de Alimentação`)** com escada rolante e modo **Street View ("Entrar no Shopping")** para caminhar pelos corredores e olhar as vitrines.
 4. **Modo Balcão — 1 Toque (`CounterQuickLog`):**
    * Registro em 2 segundos pelo vendedor do motivo de venda perdida (*Preço/Parcelamento*, *Sem Tamanho/Estoque*, *Só Olhando*, *Fila/Demora*).
 5. **Concierge QR do Consumidor (`ConsumerConcierge`):**
