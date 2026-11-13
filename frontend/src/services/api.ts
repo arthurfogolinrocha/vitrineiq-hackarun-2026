@@ -1,5 +1,6 @@
 import { ConsumerSignal, FlashCampaign, LostSaleEvent, LostSaleReason, ZoneId } from '../types';
 import { resolveApiUrl } from './ai';
+import { PerfilPorHora } from '../utils/horario';
 
 /** Resumo da câmera de uma ala, como `GET /api/estado` devolve (api/app/ciclo.py). */
 export interface VitrineResumo {
@@ -33,6 +34,7 @@ export interface CicloEstado {
   campaigns: FlashCampaign[];
   vitrine: Partial<Record<ZoneId, VitrineResumo>>;
   alertas: VitrineAlerta[];
+  porHora: Partial<Record<ZoneId, PerfilPorHora>>;
 }
 
 const TIMEOUT_MS = 5000;
