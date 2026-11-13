@@ -45,6 +45,7 @@ uv run pytest              # testes
 | `VITRINE_CAMERA` | índice da câmera (0 = webcam do notebook) | `1` para a Logitech C925e USB |
 | `VITRINE_API_URL` | envia resumos e alertas para a API; sem ela, só grava os JSON locais | `http://localhost:8000` |
 | `VITRINE_ALA` | ala do shopping que a câmera observa (id do painel) | `ala-lazer-cinema` |
+| `VITRINE_TOKEN` | enviado no cabeçalho `X-Vitrine-Token`; precisa ser igual ao `VITRINE_TOKEN` da API. Com ele definido na API, envio sem token recebe 401 | valor longo e aleatório, nunca versionado |
 
 Na demo (PowerShell):
 

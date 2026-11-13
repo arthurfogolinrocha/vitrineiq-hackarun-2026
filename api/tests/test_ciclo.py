@@ -92,3 +92,31 @@ def test_data_invalida_da_camera_e_recusada_e_estado_segue_de_pe():
     assert client.post("/api/vitrine/eventos", json=EVENTO).status_code == 201
     res = client.get("/api/estado")
     assert res.status_code == 200 and res.json()["vitrine"][ALA]["atualizadoEm"] == "2026-11-13T19:00:10"
+
+
+def test_campo_extra_da_camera_nao_e_gravado():
+    assert client.post("/api/vitrine/eventos", json={**EVENTO, "lixo": "x" * 100_000}).status_code == 201
+    assert all("lixo" not in r for r in db.listar("vitrine"))
+
+
+def test_token_da_camera(monkeypatch):
+    monkeypatch.delenv("VITRINE_TOKEN", raising=False)
+    assert client.post("/api/vitrine/eventos", json=EVENTO).status_code == 201  # sem token configurado: aberto
+
+    monkeypatch.setenv("VITRINE_TOKEN", "segredo-de-teste")
+    for rota, corpo in (("eventos", EVENTO), ("alertas", {"zona": ALA, "evento": "lotacao", "momento": "2026-11-13T19:00:05"})):
+        assert client.post(f"/api/vitrine/{rota}", json=corpo).status_code == 401
+        assert client.post(f"/api/vitrine/{rota}", json=corpo, headers={"X-Vitrine-Token": "errado"}).status_code == 401
+        assert client.post(f"/api/vitrine/{rota}", json=corpo, headers={"X-Vitrine-Token": "segredo-de-teste"}).status_code == 201
+
+
+def test_na_vercel_sem_token_a_camera_e_recusada(monkeypatch):
+    monkeypatch.delenv("VITRINE_TOKEN", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+    assert client.post("/api/vitrine/eventos", json=EVENTO).status_code == 503
+
+
+def test_contagem_por_zona_negativa_ou_gigante_e_recusada():
+    for valor in (-1, 10**30):
+        corpo = {**EVENTO, "olhares_por_zona": {"centro": valor}}
+        assert client.post("/api/vitrine/eventos", json=corpo).status_code == 422

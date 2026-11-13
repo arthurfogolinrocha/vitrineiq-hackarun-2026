@@ -7,12 +7,14 @@ Os campos seguem os nomes dos tipos do front (camelCase).
 
 from __future__ import annotations
 
+import hmac
+import os
 from collections import Counter
 from datetime import datetime, timedelta
-from typing import Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from pydantic import BaseModel, Field, StringConstraints
 
 from . import db
 from .engine import ZoneId
@@ -130,6 +132,19 @@ def buscar_oferta(body: BuscaIn) -> dict[str, Any]:
 
 # ---------- Câmera da vitrine ----------
 
+def exigir_token_vitrine(x_vitrine_token: Optional[str] = Header(default=None)) -> None:
+    """Com VITRINE_TOKEN definida, só a câmera com o mesmo token grava. Sem ela, rotas abertas (dev local)."""
+    esperado = os.getenv("VITRINE_TOKEN")
+    if not esperado and os.getenv("VERCEL"):
+        # Em produção, sem token configurado, recusa em vez de deixar qualquer um injetar dados na vitrine.
+        raise HTTPException(503, "VITRINE_TOKEN não configurada no servidor.")
+    if esperado and not hmac.compare_digest((x_vitrine_token or "").encode(), esperado.encode()):
+        raise HTTPException(401, "Token da câmera ausente ou inválido.")
+
+
+ParteVitrine = Annotated[str, StringConstraints(max_length=20)]
+
+
 class VitrineEventoIn(BaseModel):
     """Resumo de 10 s que o computer-vision grava (formato do vitrine_eventos.json) + a ala."""
     zona: ZoneId
@@ -139,10 +154,10 @@ class VitrineEventoIn(BaseModel):
     olharam: int = Field(ge=0, le=10_000)
     pararam_sem_olhar: int = Field(default=0, ge=0, le=10_000)
     atencao_media_s: float = Field(default=0, ge=0, le=3600)
-    olhares_por_zona: dict[str, int] = Field(default_factory=dict)
+    olhares_por_zona: dict[ParteVitrine, Annotated[int, Field(ge=0, le=10_000)]] = Field(default_factory=dict, max_length=10)
     pico_simultaneo: int = Field(default=0, ge=0, le=1000)
 
-    model_config = {"extra": "allow"}  # demais contagens (fluxo, grupos...) vão junto, sem validação extra
+    model_config = {"extra": "ignore"}  # a câmera manda mais contagens (fluxo, grupos...); a API não usa nem grava
 
 
 class VitrineAlertaIn(BaseModel):
@@ -150,17 +165,17 @@ class VitrineAlertaIn(BaseModel):
     evento: Literal["atencao_alta", "lotacao", "apontou"]
     momento: datetime
     zonaVitrine: Optional[str] = Field(default=None, max_length=20)
-    olhando_s: Optional[float] = None
-    pessoas: Optional[int] = None
+    olhando_s: Optional[float] = Field(default=None, ge=0, le=3600)
+    pessoas: Optional[int] = Field(default=None, ge=0, le=1000)
 
 
 # mode="json" grava as datas em ISO: o JSON continua serializável e resumo_vitrine lê com fromisoformat.
-@router.post("/vitrine/eventos", status_code=201)
+@router.post("/vitrine/eventos", status_code=201, dependencies=[Depends(exigir_token_vitrine)])
 def receber_evento(body: VitrineEventoIn) -> dict[str, Any]:
     return db.inserir("vitrine", body.zona, body.model_dump(mode="json"))
 
 
-@router.post("/vitrine/alertas", status_code=201)
+@router.post("/vitrine/alertas", status_code=201, dependencies=[Depends(exigir_token_vitrine)])
 def receber_alerta(body: VitrineAlertaIn) -> dict[str, Any]:
     return db.inserir("alerta", body.zona, body.model_dump(mode="json", exclude_none=True))
 

@@ -61,3 +61,17 @@ def test_deteccoes_conta_so_quem_passa_de_conf_pessoa():
     kps = SimpleNamespace(xy=torch.zeros(2, 17, 2), conf=torch.ones(2, 17))
     dets = camera.deteccoes(SimpleNamespace(boxes=boxes, keypoints=kps))
     assert [d[:3] for d in dets] == [[1, 10.0, 50.0]]
+
+
+def test_envio_manda_token_so_quando_definido(monkeypatch):
+    import requests
+
+    from vitrine_camera import envio
+
+    chamadas = []
+    monkeypatch.setattr(requests, "post", lambda url, **kw: chamadas.append(kw["headers"]) or SimpleNamespace(status_code=201))
+    monkeypatch.setattr(envio, "TOKEN", "")
+    envio._post("eventos", {})
+    monkeypatch.setattr(envio, "TOKEN", "segredo")
+    envio._post("eventos", {})
+    assert chamadas == [None, {"X-Vitrine-Token": "segredo"}]
