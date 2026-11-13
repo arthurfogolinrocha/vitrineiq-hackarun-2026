@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .ai_agent import generate_plan
+from .ciclo import router as ciclo_router
 from .engine import (
     calculate_retail_opportunity_score,
     classify_score,
@@ -43,9 +44,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_origin_regex=r"https://vitrineiq-capim-dourado.*\.vercel\.app",
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
+
+app.include_router(ciclo_router)
 
 
 def _now() -> str:

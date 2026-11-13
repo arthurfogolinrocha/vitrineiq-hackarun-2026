@@ -4,3 +4,7 @@ __pycache__/
 .env
 .vercel
 .env*
+!.env.example
+
+# Banco local (SQLite)
+*.db
