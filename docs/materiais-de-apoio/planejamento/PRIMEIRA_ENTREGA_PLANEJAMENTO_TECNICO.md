@@ -35,7 +35,7 @@ A interface adota o conceito **Capim Dourado Editorial Bento UI** (Sidebar escur
 
 ## 2. Documentação Inicial do Projeto
 
-Toda a documentação estruturante da Fase 1 está versionada no diretório `missao-1/`:
+Toda a documentação estruturante da Fase 1 está versionada no diretório `docs/materiais-de-apoio/planejamento/`:
 - [`TEMPLATE_DEFESA_DO_PROBLEMA.md`](./TEMPLATE_DEFESA_DO_PROBLEMA.md): Dor real dos lojistas de shopping ("efeito vitrine sem dados"), impacto financeiro e alinhamento com o consumidor local.
 - [`TEMPLATE_LEAN_CANVAS.md`](./TEMPLATE_LEAN_CANVAS.md) e [`canvas_executivo.html`](./canvas_executivo.html): Modelo de negócio completo em 9 blocos focado em SaaS B2B para lojistas e inteligência de mix para a administração do shopping.
 - [`TEMPLATE_BACKLOG_REQUISITOS.md`](./TEMPLATE_BACKLOG_REQUISITOS.md): Backlog priorizado com **MoSCoW** e critérios de aceitação **BDD (Dado / Quando / Então)** das 5 User Stories centrais.

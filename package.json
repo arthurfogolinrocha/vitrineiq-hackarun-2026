@@ -9,7 +9,7 @@
     "test:vitest": "npm --prefix missao-2/app run test",
     "test:python": "missao-2/backend/.venv/bin/python -m pytest -q missao-2/backend/tests",
     "test": "npm run test:vitest && npm run test:python",
-    "open:canvas": "open missao-1/canvas_executivo.html"
+    "open:canvas": "open docs/materiais-de-apoio/planejamento/canvas_executivo.html"
   }
 }
 

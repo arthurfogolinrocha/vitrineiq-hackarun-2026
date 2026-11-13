@@ -46,10 +46,10 @@ Aplicação web única, com navegação lateral entre sete telas. Funciona no no
 | Artefato | Onde está |
 |---|---|
 | Documento de Requisitos (RF, RNF, casos de uso, regras, glossário, User Stories) | [`02_Documento_de_Requisitos_v1.1.pdf`](./02_Documento_de_Requisitos_v1.1.pdf) |
-| Defesa do problema | [`missao-1/TEMPLATE_DEFESA_DO_PROBLEMA.md`](../../missao-1/TEMPLATE_DEFESA_DO_PROBLEMA.md) |
-| Lean Canvas | [`missao-1/TEMPLATE_LEAN_CANVAS.md`](../../missao-1/TEMPLATE_LEAN_CANVAS.md) · [versão visual](../../missao-1/canvas_executivo.html) |
-| Backlog MoSCoW | [`missao-1/TEMPLATE_BACKLOG_REQUISITOS.md`](../../missao-1/TEMPLATE_BACKLOG_REQUISITOS.md) |
-| Acordo do time, OKRs e daily | [`missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md`](../../missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md) |
+| Defesa do problema | [`materiais-de-apoio/planejamento/TEMPLATE_DEFESA_DO_PROBLEMA.md`](../materiais-de-apoio/planejamento/TEMPLATE_DEFESA_DO_PROBLEMA.md) |
+| Lean Canvas | [`materiais-de-apoio/planejamento/TEMPLATE_LEAN_CANVAS.md`](../materiais-de-apoio/planejamento/TEMPLATE_LEAN_CANVAS.md) · [versão visual](../materiais-de-apoio/planejamento/canvas_executivo.html) |
+| Backlog MoSCoW | [`materiais-de-apoio/planejamento/TEMPLATE_BACKLOG_REQUISITOS.md`](../materiais-de-apoio/planejamento/TEMPLATE_BACKLOG_REQUISITOS.md) |
+| Acordo do time, OKRs e daily | [`materiais-de-apoio/planejamento/ACORDO_DE_TRABALHO_E_KANBAN.md`](../materiais-de-apoio/planejamento/ACORDO_DE_TRABALHO_E_KANBAN.md) |
 | Kanban | https://github.com/users/arthurfogolinrocha/projects/1 |
 
 ## 3. Linguagem de programação escolhida
