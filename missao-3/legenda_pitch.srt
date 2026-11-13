@@ -1,0 +1,44 @@
+1
+00:00:00,800 --> 00:00:07,500
+No Capim Dourado Shopping, lojistas só descobrem os dados depois que o cliente passa no caixa.
+
+2
+00:00:07,500 --> 00:00:14,200
+Ninguém sabe quantos passaram na frente, pararam na vitrine ou desistiram sem comprar.
+
+3
+00:00:14,200 --> 00:00:19,800
+VitrineIQ: Inteligência de vitrine e fluxo físico em tempo real.
+
+4
+00:00:20,200 --> 00:00:29,500
+Para resolver o Desafio 06, criamos o Painel Executivo com IQ Score em tempo real.
+
+5
+00:00:29,500 --> 00:00:39,500
+Gráfico interativo de pico (10h às 22h), funil físico da porta e plano estratégico com Gemini IA.
+
+6
+00:00:40,200 --> 00:00:51,800
+Usando uma webcam comum com borramento LGPD em RAM — sem gravar vídeo nem identificar rostos.
+
+7
+00:00:52,200 --> 00:01:00,000
+Mapa 3D WebGL mostrando estacionamentos, portarias de entrada e fluxo real entre alas.
+
+8
+00:01:00,000 --> 00:01:07,800
+Caminhe estilo Street View pelas vitrines e suba até a Praça de Alimentação no 2º piso.
+
+9
+00:01:08,200 --> 00:01:17,800
+Registro de perda em 1 toque no balcão + QR Code na vitrine que capta desejos e libera cupom.
+
+10
+00:01:18,200 --> 00:01:32,800
+Em produção na Vercel com motor Rust + TypeScript, 14 testes automatizados e zero coleta de PII.
+
+11
+00:01:33,200 --> 00:01:44,800
+O Google Analytics em 3D do varejo físico — pronto para o Capim Dourado Shopping!
+
