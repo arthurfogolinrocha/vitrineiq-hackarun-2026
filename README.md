@@ -1,5 +1,7 @@
 # VitrineIQ — Inteligência Comercial em Tempo Real
 
+> 📁 **Documentação e entregas:** veja a pasta [`docs/`](./docs/). Missão 1: [`docs/missao-1/`](./docs/missao-1/).
+
 > **1º HackaRun UniCatólica 2026 • Capim Dourado Shopping (Palmas – TO)**  
 > **Desafio 06:** *Inteligência comercial para lojistas* | **Roleta:** *STORIES (User Stories)*  
 > **🌐 Sistema Ao Vivo (Preview):** https://vitrineiq-capim-dourado.vercel.app  
