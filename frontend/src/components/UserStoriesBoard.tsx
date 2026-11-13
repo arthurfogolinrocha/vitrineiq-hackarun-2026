@@ -93,9 +93,9 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     asA: 'Como visitante caminhando pelo shopping',
     iWant: 'quero escanear um QR Code para achar produtos no meu orçamento sem baixar app',
     soThat: 'para desbloquear um cupom imediato e ir direto à loja certa.',
-    kpi: 'Zero PII • Descoberta cross-segmento',
+    kpi: 'Sem cadastro • Descoberta cross-segmento',
     acceptance: [
-      'Não coleta nome, CPF ou telefone (100% Privacy by Design).',
+      'Não pede nome, CPF nem telefone.',
       'Retorna cupom da campanha relâmpago ativa ou sugestão inteligente da ala.',
     ],
     targetTab: 'concierge',
@@ -173,7 +173,7 @@ export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTa
               </h3>
             </div>
             <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-full">
-              100% Rastreável no MVP
+              Rastreável no MVP
             </span>
           </div>
 

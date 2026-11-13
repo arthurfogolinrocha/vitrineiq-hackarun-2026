@@ -28,10 +28,10 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2 text-xs">
           <div className="flex items-center gap-2 font-extrabold text-emerald-700 text-sm">
             <Lock className="w-4 h-4" aria-hidden="true" />
-            LGPD &amp; Privacy by Design
+            Privacidade (LGPD)
           </div>
           <p className="text-slate-600 leading-relaxed">
-            Zero coleta de CPF, biometria facial ou histórico pessoal. Câmera de borda processada em RAM e sinais do Concierge QR 100% anônimos.
+            Não pedimos nome, CPF nem contato. A câmera processa a imagem no próprio aparelho, não grava nem envia imagem, pixeliza rostos no preview e envia só contagens. O Concierge QR não pede cadastro.
           </p>
         </div>
 
@@ -51,7 +51,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
             Transparência IA (Artigo 6)
           </div>
           <p className="text-slate-600 leading-relaxed">
-            Agente de IA no backend Python (provedor intercambiável, chave só no servidor), bloqueio de prompt injection, fallback heurístico e hash SHA-256.
+            Agente de IA no backend Python (provedor intercambiável, chave só no servidor), filtro de prompt injection e heurística sem IA quando o provedor não responde; a tela indica qual dos dois gerou o plano. O registro de ações usa hash encadeado para apontar alterações, não como garantia de segurança.
           </p>
         </div>
       </div>

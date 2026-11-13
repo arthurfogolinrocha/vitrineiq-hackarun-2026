@@ -695,7 +695,15 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           {lastAnalysis ? (
             <div className="bg-[#FAF8F5] border border-stone-200 rounded-2xl p-4 space-y-2.5">
               <div className="flex items-center justify-between text-[11px] text-stone-500 font-semibold">
-                <span>Confiança: {Math.round(lastAnalysis.confidence * 100)}%</span>
+                {lastAnalysis.source === 'GEMINI_API' ? (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold">
+                    Agente de IA (Gemini)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-bold">
+                    Heurística (sem IA)
+                  </span>
+                )}
                 <span>Latência: {lastAnalysis.latencyMs}ms</span>
               </div>
               <div className="text-xs sm:text-sm text-[#111318] leading-relaxed whitespace-pre-line font-medium">

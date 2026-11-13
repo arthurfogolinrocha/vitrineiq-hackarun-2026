@@ -35,7 +35,7 @@ from .security import contains_restricted_patterns, generate_audit_hash, sanitiz
 app = FastAPI(
     title="VitrineIQ API",
     version=__version__,
-    description="Backend do VitrineIQ: Score de Oportunidade, Agente de IA e trilha de auditoria SHA-256.",
+    description="Backend do VitrineIQ: Score de Oportunidade, Agente de IA e hash encadeado para apontar alterações nos registros.",
 )
 
 _default_origins = "http://localhost:3000,https://vitrineiq-capim-dourado.vercel.app"

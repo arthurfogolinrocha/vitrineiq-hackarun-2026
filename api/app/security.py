@@ -1,4 +1,4 @@
-"""Segurança: sanitização de entradas, bloqueio de prompt injection e trilha SHA-256."""
+"""Segurança: sanitização de entradas, bloqueio de prompt injection e hash encadeado (aponta alterações; não é garantia de segurança)."""
 
 from __future__ import annotations
 

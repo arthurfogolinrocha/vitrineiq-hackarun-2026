@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   sanitizeInput,
   validateRequiredFields,
@@ -78,9 +78,9 @@ describe('Módulo de Inteligência Artificial & Fallback Resiliente', () => {
     );
 
     expect(response.success).toBe(true);
-    expect(response.confidence).toBeGreaterThan(0.9);
-    expect(response.content).toContain('Análise Concluída pelo Motor de Inteligência');
-    expect(response.latencyMs).toBeGreaterThan(0);
+    expect(response.source).toBe('FALLBACK_LOCAL');
+    expect(response.content).toContain('heurística local, sem IA');
+    expect(response.latencyMs).toBeGreaterThanOrEqual(0);
   });
 
   it('deve rejeitar e sinalizar requisições maliciosas antes do processamento de IA', async () => {
@@ -374,5 +374,28 @@ describe('Garantias de QA Multi-Persona — Milestone 1 (F1 a F21)', () => {
       expect(wepink).toBeDefined();
       expect(wepink.segment).toBe('moda');
     });
+  });
+});
+
+describe('Origem do plano (Issue #11: selo IA/Heurística)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const mockBackend = (source: string) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ success: true, content: 'Plano', source }), { status: 200 }))
+    );
+
+  it('marca GEMINI_API só quando o backend respondeu com IA', async () => {
+    mockBackend('GEMINI_API');
+    const response = await analyzeWithAI({ prompt: 'Plano para Ala Sul' }, 'http://api.test');
+    expect(response.source).toBe('GEMINI_API');
+    expect(response).not.toHaveProperty('confidence');
+  });
+
+  it('marca BACKEND_FALLBACK quando o backend usou heurística (chave da IA desligada)', async () => {
+    mockBackend('FALLBACK_LOCAL');
+    const response = await analyzeWithAI({ prompt: 'Plano para Ala Sul' }, 'http://api.test');
+    expect(response.source).toBe('BACKEND_FALLBACK');
   });
 });

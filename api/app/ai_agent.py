@@ -101,17 +101,17 @@ def heuristic_plan(prompt: str, category: Optional[str], context: Optional[str])
     wing = wing_match.group(1).strip() if wing_match else f"{cat} • Capim Dourado Shopping"
 
     return (
-        f"⚡ Análise Concluída pelo Motor de Inteligência [{cat}]\n\n"
+        f"Plano gerado por heurística no servidor, sem IA [{cat}]\n\n"
         "1. Diagnóstico Executivo (VitrineIQ):\n"
         f"Demanda ativa detectada para {wing}. Oportunidade imediata de conversão aproveitando o fluxo "
-        "em circulação na ala sem captura de dados pessoais (100% LGPD).\n\n"
+        "em circulação na ala, usando só contagens anônimas.\n\n"
         "2. Ação Imediata na Vitrine & Balcão:\n"
         f"• {action}\n\n"
         "3. Copy Pronta para WhatsApp / Cupom Relâmpago:\n"
         f"• \"{whatsapp}\"\n\n"
         "4. Oportunidade Cross-Segmento no Capim Dourado:\n"
         f"• {cross}\n\n"
-        "Status: Motor de Contingência Local Ativo (backend Python, 100% em conformidade com LGPD e Artigo 6 HackaRun 2026)."
+        "Status: IA indisponível ou sem chave; regras fixas por palavra-chave, sem IA."
     )
 
 

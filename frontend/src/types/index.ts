@@ -18,8 +18,6 @@ export interface AIAnalysisRequest {
 export interface AIAnalysisResponse {
   success: boolean;
   content: string;
-  confidence: number;
-  tokensUsed?: number;
   latencyMs: number;
   cached?: boolean;
   timestamp: string;

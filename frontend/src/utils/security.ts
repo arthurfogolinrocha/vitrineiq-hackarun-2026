@@ -1,6 +1,6 @@
 /**
  * Módulo de Segurança & Integridade Governamental
- * Implementa sanitização contra XSS, verificação de integridade SHA-256 e guardrails éticos.
+ * Implementa sanitização contra XSS, hash encadeado para apontar alterações (não é garantia de segurança) e guardrails.
  * Mantém paridade exata com `vitrineiq-hackarun-2026-api` (`app/security.py`).
  */
 

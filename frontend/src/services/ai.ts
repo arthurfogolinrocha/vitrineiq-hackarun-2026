@@ -31,7 +31,6 @@ export async function analyzeWithAI(
     return {
       success: false,
       content: 'Aviso de Segurança: O prompt fornecido contém padrões restritos de segurança ou injeção.',
-      confidence: 0,
       latencyMs: elapsed,
       timestamp: new Date().toISOString(),
     };
@@ -66,7 +65,6 @@ export async function analyzeWithAI(
           return {
             success: data.success,
             content: stripMarkdown(data.content),
-            confidence: data.source === 'GEMINI_API' ? 0.98 : data.success ? 0.94 : 0,
             latencyMs: elapsed,
             cached: data.source !== 'GEMINI_API',
             source: data.source === 'GEMINI_API' ? 'GEMINI_API' : data.success ? 'BACKEND_FALLBACK' : undefined,
@@ -81,8 +79,7 @@ export async function analyzeWithAI(
     }
   }
 
-  // Fallback Inteligente (Alta Confiabilidade — Zero Quebra no Pitch)
-  await new Promise((resolve) => setTimeout(resolve, 260));
+  // Backend fora do ar: heurística local (sem IA), para a demo não quebrar.
   const elapsed = Math.round(performance.now() - startTime);
 
   const fallbackOutput = generateIntelligentFallback(cleanPrompt, request.category, request.context);
@@ -90,8 +87,6 @@ export async function analyzeWithAI(
   return {
     success: true,
     content: fallbackOutput,
-    confidence: 0.94,
-    tokensUsed: Math.floor(cleanPrompt.length / 4) + 110,
     latencyMs: elapsed,
     cached: true,
     source: 'FALLBACK_LOCAL',
@@ -146,10 +141,10 @@ function generateIntelligentFallback(
   const wingMatch = context?.match(/Ala:\s*([^|]+)/i);
   const wingName = wingMatch ? wingMatch[1].trim() : `${cat} • Capim Dourado Shopping`;
 
-  return `⚡ Análise Concluída pelo Motor de Inteligência [${cat}]
+  return `Plano gerado por heurística local, sem IA [${cat}]
 
 1. Diagnóstico Executivo (VitrineIQ):
-Demanda ativa detectada para ${wingName}. Oportunidade imediata de conversão aproveitando o fluxo em circulação na ala sem captura de dados pessoais (100% LGPD).
+Demanda ativa detectada para ${wingName}. Oportunidade imediata de conversão aproveitando o fluxo em circulação na ala, usando só contagens anônimas.
 
 2. Ação Imediata na Vitrine & Balcão:
 • ${actionTip}
@@ -160,5 +155,5 @@ Demanda ativa detectada para ${wingName}. Oportunidade imediata de conversão ap
 4. Oportunidade Cross-Segmento no Capim Dourado:
 • ${crossTip}
 
-Status: Motor de Contingência Local Ativo (100% em conformidade com LGPD e Artigo 6 HackaRun 2026).`;
+Status: backend indisponível; regras fixas por palavra-chave, sem IA.`;
 }

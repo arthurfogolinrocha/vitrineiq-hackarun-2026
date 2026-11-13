@@ -91,7 +91,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             </div>
           </div>
           <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono font-bold border border-slate-200 shrink-0 whitespace-nowrap">
-            LGPD OK
+            Sem cadastro
           </span>
         </div>
 
@@ -119,7 +119,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               O que você procura ou achou das lojas hoje?
             </label>
             <span id="qr-query-hint" className="block text-[11px] text-slate-500 mb-1.5">
-              Mínimo de 3 caracteres. Sua busca libera cupons na hora (100% anônimo).
+              Mínimo de 3 caracteres. Sua busca libera cupons na hora (não pedimos nome nem contato; não escreva dados pessoais).
             </span>
             <input
               id="qr-query"

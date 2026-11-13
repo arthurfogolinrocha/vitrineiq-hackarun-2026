@@ -540,7 +540,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               Câmera na Vitrine — Entrada, Saída &amp; Fluxo
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Conecte a webcam para alimentar o Painel do Lojista ao vivo sem gravar vídeo ou reconhecer rostos (100% LGPD).
+              Conecte a webcam para alimentar o Painel do Lojista ao vivo sem gravar vídeo nem reconhecer rostos: a imagem fica no aparelho e só as contagens vão para a API.
             </p>
           </div>
 

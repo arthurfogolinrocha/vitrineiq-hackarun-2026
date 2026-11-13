@@ -91,7 +91,7 @@ const TAB_META: Record<
     number: '07',
     label: 'LGPD & Backend Python',
     shortLabel: 'Auditoria',
-    subtitle: 'Trilha de integridade SHA-256 e zero coleta de PII',
+    subtitle: 'Registro das ações do sistema e o que coletamos (só contagens)',
   },
 };
 
@@ -187,7 +187,7 @@ export function App() {
       action: 'VITRINEIQ_BOOT_SECURE',
       status: 'SUCCESS',
       details:
-        'Gêmeo Digital Capim Dourado Shopping inicializado com backend Python + espelho TS e conformidade LGPD.',
+        'Gêmeo Digital Capim Dourado Shopping inicializado com backend Python + espelho TS; câmera envia só contagens.',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       securityHash: generateAuditHash('VITRINEIQ_BOOT_SECURE:CAPIM_DOURADO', 'GENESIS_BLOCK_0000', 'audit-boot', '00:00'),
       prevHash: 'GENESIS_BLOCK_0000',
@@ -283,7 +283,7 @@ export function App() {
           : 'SUCCESS';
       appendAudit(
         'COPILOT_STRATEGY_GENERATED',
-        `Plano IA gerado para ${telemetry.zone.shortName} (IQ ${telemetry.opportunityScore}) [${response.source || 'GEMINI_API'}]`,
+        `Plano IA gerado para ${telemetry.zone.shortName} (IQ ${telemetry.opportunityScore}) [${response.source ?? 'BLOQUEADO'}]`,
         auditStatus
       );
     } finally {
