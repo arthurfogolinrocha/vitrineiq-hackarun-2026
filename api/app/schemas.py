@@ -50,3 +50,21 @@ class AuditHashRequest(BaseModel):
 class AuditHashResponse(BaseModel):
     hash: str
 
+
+class ContextoResponse(BaseModel):
+    weather: Weather
+    time_slot: TimeSlot
+    mall_event: MallEvent
+    temperature_c: Optional[float] = None
+    precipitation_mm: Optional[float] = None
+    weather_code: Optional[int] = None
+    weather_description: str
+    event_reason: str
+    active_events: list[str]
+    cinema_movies_count: int
+    cinema_highlights: list[str]
+    holiday_name: Optional[str] = None
+    updated_at: str
+    sources: dict[str, str]
+
+

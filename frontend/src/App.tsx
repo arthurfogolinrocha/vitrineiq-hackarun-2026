@@ -34,7 +34,7 @@ import {
   ZoneLiveTelemetry,
 } from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
-import { api, VitrineAlerta, VitrineResumo } from './services/api';
+import { api, LiveContextPayload, VitrineAlerta, VitrineResumo } from './services/api';
 import { generateAuditHash } from './utils/security';
 import { readUrlView } from './utils/urlView';
 import { RetailerCockpit } from './components/RetailerCockpit';
@@ -146,6 +146,32 @@ export function App() {
   const [vitrine, setVitrine] = useState<Partial<Record<ZoneId, VitrineResumo>>>({});
   const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
   const [alertasVistos, setAlertasVistos] = useState<string[]>([]);
+  const [liveContext, setLiveContext] = useState<LiveContextPayload | null>(null);
+  const [isContextAuto, setIsContextAuto] = useState(true);
+  const [isSyncingContext, setIsSyncingContext] = useState(false);
+
+  const syncLiveContext = useCallback(async (force = false) => {
+    setIsSyncingContext(true);
+    try {
+      const ctx = await api.contexto(force);
+      setLiveContext(ctx);
+      setFactors({
+        weather: ctx.weather,
+        timeSlot: ctx.time_slot,
+        mallEvent: ctx.mall_event,
+      });
+      setIsContextAuto(true);
+    } catch {
+      // Mantém contexto local atual se a API estiver offline
+    } finally {
+      setIsSyncingContext(false);
+    }
+  }, []);
+
+  const handleManualFactorsChange = useCallback((next: ShopContextFactors) => {
+    setIsContextAuto(false);
+    setFactors(next);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -164,9 +190,10 @@ export function App() {
 
   useEffect(() => {
     refresh();
+    syncLiveContext(false);
     const timer = window.setInterval(refresh, 3000);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, syncLiveContext]);
 
   /** Com a API no ar, grava nela e relê o estado; se a chamada falhar, cai no modo local. */
   const viaApi = (chamada: () => Promise<unknown>, local: () => void) => {
@@ -701,7 +728,11 @@ export function App() {
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
                 factors={factors}
-                onChangeFactors={setFactors}
+                onChangeFactors={handleManualFactorsChange}
+                liveContext={liveContext}
+                isContextAuto={isContextAuto}
+                isSyncingContext={isSyncingContext}
+                onSyncLiveContext={() => syncLiveContext(true)}
                 campaigns={campaigns}
                 onLaunchCampaign={handleLaunchCampaign}
                 onToggleCampaign={handleToggleCampaign}

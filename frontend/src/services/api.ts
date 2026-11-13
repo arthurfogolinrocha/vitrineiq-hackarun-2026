@@ -1,5 +1,32 @@
-import { ConsumerSignal, FlashCampaign, LostSaleEvent, LostSaleReason, ZoneId } from '../types';
+import {
+  ConsumerSignal,
+  FlashCampaign,
+  LostSaleEvent,
+  LostSaleReason,
+  MallEvent,
+  TimeSlot,
+  WeatherCondition,
+  ZoneId,
+} from '../types';
 import { resolveApiUrl } from './ai';
+
+/** Telemetria real de clima, calendário e eventos de Palmas-TO (`GET /api/contexto`). */
+export interface LiveContextPayload {
+  weather: WeatherCondition;
+  time_slot: TimeSlot;
+  mall_event: MallEvent;
+  temperature_c: number | null;
+  precipitation_mm: number | null;
+  weather_code: number | null;
+  weather_description: string;
+  event_reason: string;
+  active_events: string[];
+  cinema_movies_count: number;
+  cinema_highlights: string[];
+  holiday_name: string | null;
+  updated_at: string;
+  sources: Record<string, string>;
+}
 
 /** Resumo da câmera de uma ala, como `GET /api/estado` devolve (api/app/ciclo.py). */
 export interface VitrineResumo {
@@ -56,6 +83,7 @@ async function chamar<T>(caminho: string, method = 'GET', body?: unknown): Promi
 
 export const api = {
   estado: () => chamar<CicloEstado>('/estado'),
+  contexto: (force = false) => chamar<LiveContextPayload>(force ? '/contexto?force=true' : '/contexto'),
   registrarVenda: (zoneId: ZoneId, storeName: string) =>
     chamar('/balcao', 'POST', { zoneId, storeName, tipo: 'venda' }),
   registrarPerda: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) =>
