@@ -1,493 +1,369 @@
-import React, { useState } from 'react';
-import { 
-  ShieldCheck, 
-  Sparkles, 
-  Activity, 
-  Terminal, 
-  FileCheck, 
-  CheckCircle2, 
-  Cpu, 
-  Send, 
-  Layers, 
-  Play,
-  Download,
-  Lock
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  BarChart3,
+  Compass,
+  Lock,
+  QrCode,
+  ShieldCheck,
+  Sparkles,
+  Store,
 } from 'lucide-react';
+import {
+  AIAnalysisResponse,
+  ConsumerSignal,
+  FlashCampaign,
+  FloorId,
+  LostSaleEvent,
+  LostSaleReason,
+  ShopContextFactors,
+  SystemAuditLog,
+  ZoneId,
+} from './types';
+import {
+  CAPIM_DOURADO_ZONES,
+  CROSS_SEGMENT_ROUTES,
+  INITIAL_FLASH_CAMPAIGNS,
+  INITIAL_LOST_SALES,
+  LOST_SALE_LABELS,
+} from './data/shoppingData';
+import {
+  computeZoneTelemetry,
+  matchConsumerOffer,
+  ZoneLiveTelemetry,
+} from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
-import { sanitizeInput, generateAuditHash } from './utils/security';
-import { AIAnalysisResponse, SystemAuditLog } from './types';
+import { generateAuditHash, sanitizeInput } from './utils/security';
+import { RetailerCockpit } from './components/RetailerCockpit';
+import { ShoppingMap } from './components/ShoppingMap';
+import { CounterQuickLog } from './components/CounterQuickLog';
+import { ConsumerConcierge } from './components/ConsumerConcierge';
+import { SecurityAuditPanel } from './components/SecurityAuditPanel';
+
+type ActiveTab = 'cockpit' | 'map' | 'counter' | 'concierge' | 'audit';
+
+const TAB_TITLES: Record<ActiveTab, string> = {
+  cockpit: 'Painel do Lojista & IA | VitrineIQ',
+  map: 'Mapa Capim Dourado | VitrineIQ',
+  counter: 'Modo Balcão 1-Toque | VitrineIQ',
+  concierge: 'Concierge QR Consumidor | VitrineIQ',
+  audit: 'Segurança, LGPD & Auditoria | VitrineIQ',
+};
+
+function getInitialTab(): ActiveTab {
+  if (typeof window === 'undefined') return 'cockpit';
+  const params = new URLSearchParams(window.location.search);
+  const mode = params.get('mode');
+  if (mode === 'consumer' || mode === 'concierge') return 'concierge';
+  if (mode === 'counter') return 'counter';
+  if (mode === 'map') return 'map';
+  return 'cockpit';
+}
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'operation' | 'ai' | 'audit' | 'criteria'>('operation');
-  const [inputTitle, setInputTitle] = useState('');
-  const [inputDescription, setInputDescription] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTab);
+  const [floor, setFloor] = useState<FloorId>('L1');
+  const [selectedZoneId, setSelectedZoneId] = useState<ZoneId>('ala-lazer-cinema');
+  const [factors, setFactors] = useState<ShopContextFactors>({
+    weather: 'calor_38c',
+    timeSlot: 'pos_cinema_20h',
+    mallEvent: 'estreia_cinemark',
+  });
+
+  const [campaigns, setCampaigns] = useState<FlashCampaign[]>(INITIAL_FLASH_CAMPAIGNS);
+  const [lostSales, setLostSales] = useState<LostSaleEvent[]>(INITIAL_LOST_SALES);
+  const [signals, setSignals] = useState<ConsumerSignal[]>([
+    {
+      id: 'sig-1',
+      zoneId: 'ala-lazer-cinema',
+      query: 'Tênis leve e combo pós-cinema',
+      budget: '80_200',
+      preference: 'Conforto',
+      couponCode: 'VITRINE-CINE18',
+      matchedOffer: 'Vitrine Calçados & Sport (Demo) — Relâmpago Pós-Cinema: 18% OFF',
+      timestamp: '20:54',
+    },
+    {
+      id: 'sig-2',
+      zoneId: 'praca-alimentacao-l2',
+      query: 'Lanche rápido sem fila',
+      budget: 'ate_80',
+      preference: 'Rapidez',
+      couponCode: 'EXPRESS-PISO2',
+      matchedOffer: 'Sabores Express 2º Piso (Demo) — Combo Sem Fila',
+      timestamp: '21:05',
+    },
+  ]);
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<AIAnalysisResponse | null>(null);
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([
     {
       id: 'log-001',
-      action: 'BOOT_SYSTEM_INITIALIZED',
+      action: 'VITRINEIQ_BOOT_OK',
       status: 'SUCCESS',
-      details: 'Ambiente do 1º HackaRun UniCatólica 2026 carregado com salvaguardas ativas.',
+      details: 'VitrineIQ inicializado com Planta Mix Capim Dourado (1º e 2º Pavimentos) e Privacy by Design.',
       timestamp: new Date().toLocaleTimeString(),
-      securityHash: generateAuditHash('BOOT_SYSTEM_INITIALIZED'),
+      securityHash: generateAuditHash('VITRINEIQ_BOOT_OK'),
     },
     {
       id: 'log-002',
-      action: 'SECURITY_MODULE_ARMED',
+      action: 'SECURITY_GUARDRAILS_ON',
       status: 'SUCCESS',
-      details: 'Módulo de sanitização e proteção contra XSS e Prompt Injection validado.',
+      details: 'Proteção anti-XSS, anti-Prompt Injection e anonimização LGPD ativas.',
       timestamp: new Date().toLocaleTimeString(),
-      securityHash: generateAuditHash('SECURITY_MODULE_ARMED'),
-    }
+      securityHash: generateAuditHash('SECURITY_GUARDRAILS_ON'),
+    },
   ]);
 
-  const handleExecuteOperation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputTitle.trim()) return;
+  useEffect(() => {
+    document.title = TAB_TITLES[activeTab];
+  }, [activeTab]);
 
-    setIsProcessing(true);
-    const sanitizedTitle = sanitizeInput(inputTitle);
-    const sanitizedDesc = sanitizeInput(inputDescription);
+  const zonesTelemetry = useMemo(
+    () =>
+      CAPIM_DOURADO_ZONES.map((zone) =>
+        computeZoneTelemetry(zone, factors, signals, lostSales)
+      ),
+    [factors, signals, lostSales]
+  );
 
-    try {
-      const response = await analyzeWithAI({
-        prompt: `${sanitizedTitle}: ${sanitizedDesc}`,
-        category: 'Operacional',
-      });
-
-      setLastAnalysis(response);
-
-      const newLog: SystemAuditLog = {
+  const appendAudit = (action: string, status: SystemAuditLog['status'], details: string) => {
+    setAuditLogs((prev) => [
+      {
         id: `log-${Date.now().toString().slice(-4)}`,
-        action: response.success ? 'OPERATION_ANALYZED_SUCCESS' : 'OPERATION_BLOCKED_SECURITY',
-        status: response.success ? 'SUCCESS' : 'WARNING',
-        details: `Processamento concluído em ${response.latencyMs}ms (Confiança: ${Math.round(response.confidence * 100)}%)`,
+        action,
+        status,
+        details,
         timestamp: new Date().toLocaleTimeString(),
-        securityHash: generateAuditHash(sanitizedTitle + response.content),
-      };
+        securityHash: generateAuditHash(`${action}:${details}`),
+      },
+      ...prev,
+    ]);
+  };
 
-      setAuditLogs((prev) => [newLog, ...prev]);
-    } catch {
-      alert('Erro inesperado no processamento.');
+  const handleRunCopilot = async (telemetry: ZoneLiveTelemetry) => {
+    setIsAnalyzing(true);
+    try {
+      const prompt = `Ala: ${telemetry.zone.name} (${telemetry.zone.segment}). Fluxo/h: ${telemetry.footTraffic}, Paradas na Vitrine: ${telemetry.vitrineStops}, Score IQ: ${telemetry.opportunityScore}/100, Buscas QR: ${telemetry.qrSearchCount}, Vendas Perdidas: ${telemetry.lostSalesCount}, Principal Objeção: ${LOST_SALE_LABELS[telemetry.dominantReason]}. Buscas quentes: ${telemetry.zone.hotSearches.join(', ')}.`;
+      const response = await analyzeWithAI({
+        prompt,
+        category: telemetry.zone.segment,
+        context: `Clima=${factors.weather}, Horário=${factors.timeSlot}, Evento=${factors.mallEvent}`,
+      });
+      setLastAnalysis(response);
+      appendAudit(
+        response.success ? 'COPILOT_ACTION_GENERATED' : 'COPILOT_BLOCKED_SECURITY',
+        response.success ? 'SUCCESS' : 'WARNING',
+        `Diagnóstico IA para ${telemetry.zone.shortName} concluído em ${response.latencyMs}ms.`
+      );
     } finally {
-      setIsProcessing(false);
+      setIsAnalyzing(false);
     }
   };
 
+  const handleLaunchCampaign = (
+    draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>
+  ) => {
+    const cleanTitle = sanitizeInput(draft.title);
+    const cleanStore = sanitizeInput(draft.storeName);
+    const created: FlashCampaign = {
+      ...draft,
+      id: `camp-${Date.now()}`,
+      title: cleanTitle,
+      storeName: cleanStore,
+      active: true,
+      createdAt: new Date().toLocaleTimeString().slice(0, 5),
+    };
+    setCampaigns((prev) => [created, ...prev]);
+    appendAudit(
+      'FLASH_CAMPAIGN_PUBLISHED',
+      'SUCCESS',
+      `Campanha "${cleanTitle}" (${created.couponCode}) ativada no Concierge QR.`
+    );
+  };
+
+  const handleLogLostSale = (
+    zoneId: ZoneId,
+    storeName: string,
+    reason: LostSaleReason,
+    note?: string
+  ) => {
+    const cleanStore = sanitizeInput(storeName);
+    const cleanNote = note ? sanitizeInput(note) : undefined;
+    const event: LostSaleEvent = {
+      id: `ls-${Date.now()}`,
+      zoneId,
+      storeName: cleanStore,
+      reason,
+      note: cleanNote,
+      timestamp: new Date().toLocaleTimeString().slice(0, 5),
+    };
+    setLostSales((prev) => [event, ...prev]);
+    appendAudit(
+      'COUNTER_LOST_SALE_LOGGED',
+      'SUCCESS',
+      `Balcão (${cleanStore}): ${LOST_SALE_LABELS[reason]}.`
+    );
+  };
+
+  const handleSubmitConsumerSignal = (
+    zoneId: ZoneId,
+    rawQuery: string,
+    budget: ConsumerSignal['budget']
+  ): ConsumerSignal => {
+    const cleanQuery = sanitizeInput(rawQuery);
+    const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId) || CAPIM_DOURADO_ZONES[0];
+    const offer = matchConsumerOffer(cleanQuery, zone, campaigns);
+    const created: ConsumerSignal = {
+      id: `sig-${Date.now()}`,
+      zoneId,
+      query: cleanQuery,
+      budget,
+      preference: 'Tempo Real',
+      couponCode: offer.couponCode,
+      matchedOffer: offer.matchedOffer,
+      timestamp: new Date().toLocaleTimeString().slice(0, 5),
+    };
+    setSignals((prev) => [created, ...prev]);
+    appendAudit(
+      'CONCIERGE_QR_SIGNAL_RECEIVED',
+      'SUCCESS',
+      `Busca anônima na ${zone.shortName}: "${cleanQuery}" -> Cupom ${created.couponCode}.`
+    );
+    return created;
+  };
+
+  const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'cockpit', label: 'Painel Lojista & IA', icon: <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'map', label: 'Mapa Capim Dourado', icon: <Compass className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'counter', label: 'Modo Balcão (1-Toque)', icon: <Store className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'concierge', label: 'Concierge QR (Cliente)', icon: <QrCode className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'audit', label: 'Segurança & LGPD', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
+  ];
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      
-      {/* Top Bar Governamental / HackaRun Header */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5">
+      <a href="#conteudo-principal" className="skip-link visually-hidden">
+        Pular para o conteúdo principal
+      </a>
+
+      {/* Top Bar VitrineIQ */}
+      <header className="border-b border-slate-800 bg-slate-900/75 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-blue-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+              <Sparkles className="w-5 h-5 text-white" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base tracking-tight text-white">HACKARUN 2026</span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  MVP ONLINE
+                <h1 className="font-extrabold text-base sm:text-lg tracking-tight text-white">
+                  VitrineIQ
+                </h1>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                  CAPIM DOURADO • DESAFIO 06
                 </span>
               </div>
-              <p className="text-xs text-slate-400">UniCatólica • Capim Dourado Shopping • Palmas - TO</p>
+              <p className="text-xs text-slate-400">
+                Inteligência Comercial em Tempo Real • HackaRun UniCatólica 2026
+              </p>
             </div>
           </div>
 
           {/* Telemetria Rápida */}
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
-            <div className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-700/50">
-              <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-              <span>Latência: &lt;2ms</span>
+          <div className="hidden xl:flex items-center gap-3 text-xs font-mono text-slate-300">
+            <div className="flex items-center gap-1.5 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
+              <Activity className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+              <span>Tempo Real</span>
             </div>
-            <div className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1.5 rounded-lg border border-slate-700/50">
-              <Lock className="w-3.5 h-3.5 text-blue-400" />
-              <span>Artigo 6: 100% Ético</span>
+            <div className="flex items-center gap-1.5 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
+              <Lock className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+              <span>LGPD • Zero Dados Pessoais</span>
             </div>
           </div>
 
-          {/* Navegação de Abas */}
-          <nav className="flex items-center gap-1 bg-slate-900 border border-slate-800 p-1 rounded-xl">
-            <button
-              onClick={() => setActiveTab('operation')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
-                activeTab === 'operation'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Play className="w-3.5 h-3.5" />
-              Operação & Core
-            </button>
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
-                activeTab === 'ai'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Cpu className="w-3.5 h-3.5" />
-              Motor de IA
-            </button>
-            <button
-              onClick={() => setActiveTab('audit')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
-                activeTab === 'audit'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Auditoria
-            </button>
-            <button
-              onClick={() => setActiveTab('criteria')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 ${
-                activeTab === 'criteria'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <FileCheck className="w-3.5 h-3.5" />
-              Critérios da Banca
-            </button>
+          {/* Navegação Principal */}
+          <nav
+            aria-label="Principal"
+            className="flex flex-wrap items-center gap-1 bg-slate-950/90 border border-slate-800 p-1 rounded-xl"
+          >
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-amber-500 text-slate-950 shadow'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                  }`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
-
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
-        
-        {/* ABA 1: OPERAÇÃO & CORE DO MVP */}
-        {activeTab === 'operation' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Formulário de Ação Rápida */}
-            <div className="lg:col-span-1 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold text-white flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-blue-400" />
-                    Executar Demanda / Desafio
-                  </h2>
-                  <span className="text-[10px] mono bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded">
-                    MVP PRONTO
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mb-5">
-                  Submeta parâmetros do desafio para acionar o fluxo automatizado com validação e enriquecimento neural.
-                </p>
-
-                <form onSubmit={handleExecuteOperation} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Título do Caso / Demanda:
-                    </label>
-                    <input
-                      type="text"
-                      value={inputTitle}
-                      onChange={(e) => setInputTitle(e.target.value)}
-                      placeholder="Ex: Otimização de Rota Logística no Capim Dourado"
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Detalhamento do Problema / Dados:
-                    </label>
-                    <textarea
-                      value={inputDescription}
-                      onChange={(e) => setInputDescription(e.target.value)}
-                      placeholder="Descreva as variáveis, gargalos e metas exigidas pela missão..."
-                      rows={4}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isProcessing}
-                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold py-3 rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Activity className="w-4 h-4 animate-spin text-white" />
-                        <span>Processando Inteligência...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        <span>Processar com IA & Testes</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-slate-800 text-[11px] text-slate-500 flex items-center justify-between">
-                <span>Sanitização: Ativa</span>
-                <span>Fallback: Zero-Failure</span>
-              </div>
-            </div>
-
-            {/* Painel Central de Saída e Insights */}
-            <div className="lg:col-span-2 space-y-6">
-              
-              {/* Card de Métricas de Alto Impacto */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Desempenho</span>
-                  <div className="text-2xl font-black text-emerald-400 mt-1 flex items-baseline gap-1">
-                    99.8%
-                    <span className="text-xs text-slate-500 font-normal">disponibilidade</span>
-                  </div>
-                </div>
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Testes Unitários</span>
-                  <div className="text-2xl font-black text-blue-400 mt-1 flex items-baseline gap-1">
-                    100%
-                    <span className="text-xs text-slate-500 font-normal">passando (Vitest)</span>
-                  </div>
-                </div>
-                <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">Conformidade IA</span>
-                  <div className="text-2xl font-black text-purple-400 mt-1 flex items-baseline gap-1">
-                    Nota 10
-                    <span className="text-xs text-slate-500 font-normal">Artigo 6</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Resultado da Última Análise */}
-              <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl min-h-[300px]">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-amber-400" />
-                    <h3 className="text-sm font-bold text-white">Resultado do Motor de Decisão & IA</h3>
-                  </div>
-                  {lastAnalysis && (
-                    <span className="text-[10px] mono bg-slate-800 text-slate-300 px-2.5 py-1 rounded-full border border-slate-700">
-                      {lastAnalysis.latencyMs}ms • Confiança: {Math.round(lastAnalysis.confidence * 100)}%
-                    </span>
-                  )}
-                </div>
-
-                {lastAnalysis ? (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-slate-200 leading-relaxed whitespace-pre-line font-sans">
-                      {lastAnalysis.content}
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-slate-500">
-                      <span>Timestamp: {lastAnalysis.timestamp}</span>
-                      <span>Modo: {lastAnalysis.cached ? 'Resiliente (Heurística Ativa)' : 'API Live Gemini'}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-16 text-center text-slate-500 space-y-3">
-                    <Layers className="w-10 h-10 text-slate-700" />
-                    <p className="text-xs max-w-sm">
-                      Nenhuma demanda processada ainda. Preencha o formulário ao lado com os dados da missão para ver o fluxo em tempo real.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-            </div>
-
-          </div>
+      <main id="conteudo-principal" tabIndex={-1} className="max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
+        {activeTab === 'cockpit' && (
+          <RetailerCockpit
+            zonesTelemetry={zonesTelemetry}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            factors={factors}
+            onChangeFactors={setFactors}
+            campaigns={campaigns}
+            onLaunchCampaign={handleLaunchCampaign}
+            onRunCopilot={handleRunCopilot}
+            isAnalyzing={isAnalyzing}
+            lastAnalysis={lastAnalysis}
+          />
         )}
 
-        {/* ABA 2: MOTOR DE IA */}
-        {activeTab === 'ai' && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-indigo-400" />
-                  Arquitetura do Motor de Inteligência Artificial
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Operando em conformidade estrita com o Artigo 6 (Uso Ético, Transparente e Auditável).
-                </p>
-              </div>
-              <span className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-semibold rounded-lg">
-                Gemini Multi-Layer Engine
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="font-bold text-blue-400 block mb-1">1. Camada de Sanitização</span>
-                <p className="text-slate-400">Varredura e neutralização de injeções de script (XSS) e prompt injection antes de qualquer chamada.</p>
-              </div>
-              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="font-bold text-indigo-400 block mb-1">2. Inferência & Roteamento</span>
-                <p className="text-slate-400">Processamento rápido com temperatura calibrada para respostas determinísticas e estruturadas.</p>
-              </div>
-              <div className="p-4 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="font-bold text-emerald-400 block mb-1">3. Fallback Resiliente</span>
-                <p className="text-slate-400">Mecanismo à prova de falhas: se a internet ou quota oscilar, a suíte heurística assume com zero quebra.</p>
-              </div>
-            </div>
-          </div>
+        {activeTab === 'map' && (
+          <ShoppingMap
+            floor={floor}
+            onFloorChange={setFloor}
+            zonesTelemetry={zonesTelemetry}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            routes={CROSS_SEGMENT_ROUTES}
+          />
         )}
 
-        {/* ABA 3: AUDITORIA GOVERNAMENTAL */}
-        {activeTab === 'audit' && (
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                  Livro de Auditoria Imutável (Audit Trail)
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Registros criptograficamente rastreáveis de todas as operações e requisições executadas.
-                </p>
-              </div>
-              <button 
-                onClick={() => alert('Relatório de auditoria pronto para exportação.')}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-1.5 transition"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Exportar Logs
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[10px]">
-                    <th className="pb-3 font-semibold">ID</th>
-                    <th className="pb-3 font-semibold">Ação Registrada</th>
-                    <th className="pb-3 font-semibold">Status</th>
-                    <th className="pb-3 font-semibold">Detalhes</th>
-                    <th className="pb-3 font-semibold">Horário</th>
-                    <th className="pb-3 font-semibold">Hash de Integridade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono">
-                  {auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-800/30 transition">
-                      <td className="py-3 text-slate-400">{log.id}</td>
-                      <td className="py-3 text-white font-semibold">{log.action}</td>
-                      <td className="py-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          log.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
-                        }`}>
-                          {log.status}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-300 font-sans">{log.details}</td>
-                      <td className="py-3 text-slate-400">{log.timestamp}</td>
-                      <td className="py-3 text-blue-400 text-[10px]">{log.securityHash}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        {activeTab === 'counter' && (
+          <CounterQuickLog
+            zones={CAPIM_DOURADO_ZONES}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            lostSales={lostSales}
+            onLogLostSale={handleLogLostSale}
+          />
         )}
 
-        {/* ABA 4: CRITÉRIOS DA BANCA */}
-        {activeTab === 'criteria' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-              <h2 className="text-lg font-bold text-white mb-2">
-                Estratégia de Atendimento aos Critérios Oficiais
-              </h2>
-              <p className="text-xs text-slate-400 mb-6">
-                Como nossa arquitetura pontua no topo de cada um dos 5 pesos avaliados pela banca examinadora:
-              </p>
-
-              <div className="space-y-4">
-                
-                <div className="p-4 bg-slate-950 rounded-xl border border-blue-500/30 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-blue-400 text-sm">1. Funcionalidade e Requisitos</span>
-                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-[10px] font-bold rounded">PESO SUPREMO: 30%</span>
-                      <span className="text-[10px] text-amber-400 font-semibold">• 1º Desempate</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Fluxo de ponta a ponta funcional, rápido e sem bugs. O usuário resolve o problema real em segundos.
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                </div>
-
-                <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-white text-sm">2. Qualidade Técnica e Testes</span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded">PESO: 20%</span>
-                      <span className="text-[10px] text-amber-400 font-semibold">• 2º Desempate</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Suíte automatizada com Vitest cobrindo segurança, regras de negócio e integridade. Código limpo e componentizado.
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                </div>
-
-                <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-white text-sm">3. Inovação e Inteligência Artificial</span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded">PESO: 20%</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      IA generativa aplicada no cerne do produto com transparência total (Artigo 6), enriquecendo os dados da solução.
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                </div>
-
-                <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-white text-sm">4. Cumprimento de Missões e Evidências</span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded">PESO: 20%</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Entrega no prazo fatal das 3 missões com documentação técnica impecável, commits no Git e Lean Canvas em PDF.
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                </div>
-
-                <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-white text-sm">5. Pitch Presencial & Demonstração</span>
-                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[10px] font-bold rounded">PESO: 10%</span>
-                    </div>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Roteiro de vídeo cravado entre 1m15s e 2m00s e apresentação com segurança técnica absoluta na grande final.
-                    </p>
-                  </div>
-                  <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-                </div>
-
-              </div>
-            </div>
-          </div>
+        {activeTab === 'concierge' && (
+          <ConsumerConcierge
+            zones={CAPIM_DOURADO_ZONES}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            campaigns={campaigns}
+            signals={signals}
+            onSubmitConsumerSignal={handleSubmitConsumerSignal}
+          />
         )}
 
+        {activeTab === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
       </main>
 
-      {/* Footer Executivo */}
-      <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-500">
-        Equipe Arthur Fogolin Rocha • UniCatólica • HackaRun 2026 • Palmas – TO
+      <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-400">
+        VitrineIQ • 1º HackaRun UniCatólica 2026 • Capim Dourado Shopping — Palmas, TO
       </footer>
-
     </div>
   );
 }

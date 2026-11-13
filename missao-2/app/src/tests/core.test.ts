@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeInput, validateRequiredFields, containsRestrictedPatterns, generateAuditHash } from '../utils/security';
+import {
+  sanitizeInput,
+  validateRequiredFields,
+  containsRestrictedPatterns,
+  generateAuditHash,
+} from '../utils/security';
 import { analyzeWithAI } from '../services/ai';
+import {
+  calculateRetailOpportunityScore,
+  computeContextMultiplier,
+  computeZoneTelemetry,
+  matchConsumerOffer,
+} from '../services/opportunityEngine';
+import { CAPIM_DOURADO_ZONES, INITIAL_FLASH_CAMPAIGNS, INITIAL_LOST_SALES } from '../data/shoppingData';
 
 describe('Módulo de Segurança & Integridade Governamental', () => {
   it('deve sanitizar tags de script e prevenir injeções maliciosas (XSS)', () => {
@@ -43,10 +55,13 @@ describe('Módulo de Segurança & Integridade Governamental', () => {
 
 describe('Módulo de Inteligência Artificial & Fallback Resiliente', () => {
   it('deve responder com sucesso através do motor resiliente mesmo sem API key externa', async () => {
-    const response = await analyzeWithAI({
-      prompt: 'Otimizar processo de triagem',
-      category: 'Operacional',
-    });
+    const response = await analyzeWithAI(
+      {
+        prompt: 'Otimizar processo de triagem',
+        category: 'Operacional',
+      },
+      ''
+    );
 
     expect(response.success).toBe(true);
     expect(response.confidence).toBeGreaterThan(0.9);
@@ -64,3 +79,44 @@ describe('Módulo de Inteligência Artificial & Fallback Resiliente', () => {
   });
 });
 
+describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', () => {
+  it('deve calcular o Score de Oportunidade respeitando os limites de 0 a 100', () => {
+    const score = calculateRetailOpportunityScore(100, 5, 4, 1.25);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThanOrEqual(100);
+
+    const capped = calculateRetailOpportunityScore(2000, 100, 50, 2.0);
+    expect(capped).toBe(100);
+  });
+
+  it('deve aumentar o multiplicador da Praça de Alimentação no horário de almoço', () => {
+    const lunchMult = computeContextMultiplier('praca-alimentacao-l2', {
+      weather: 'calor_38c',
+      timeSlot: 'almoco',
+      mallEvent: 'fluxo_normal',
+    });
+    const morningMult = computeContextMultiplier('praca-alimentacao-l2', {
+      weather: 'ameno',
+      timeSlot: 'manha',
+      mallEvent: 'fluxo_normal',
+    });
+
+    expect(lunchMult).toBeGreaterThan(morningMult);
+  });
+
+  it('deve consolidar telemetria por ala com vendas perdidas e recomendações de oferta', () => {
+    const cinemaZone = CAPIM_DOURADO_ZONES.find((z) => z.id === 'ala-lazer-cinema')!;
+    const telemetry = computeZoneTelemetry(
+      cinemaZone,
+      { weather: 'calor_38c', timeSlot: 'pos_cinema_20h', mallEvent: 'estreia_cinemark' },
+      [],
+      INITIAL_LOST_SALES
+    );
+
+    expect(telemetry.footTraffic).toBeGreaterThan(cinemaZone.baseFootTraffic);
+    expect(telemetry.opportunityScore).toBeGreaterThan(0);
+
+    const matched = matchConsumerOffer('Tênis casual pós cinema', cinemaZone, INITIAL_FLASH_CAMPAIGNS);
+    expect(matched.couponCode).toBe('VITRINE-CINE18');
+  });
+});
