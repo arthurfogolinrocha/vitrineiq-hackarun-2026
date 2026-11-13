@@ -32,10 +32,16 @@ export function validateRequiredFields<T extends Record<string, unknown>>(
   };
 }
 
-export function generateAuditHash(payload: string): string {
+export function generateAuditHash(
+  payload: string,
+  prevHash: string = 'GENESIS_BLOCK_0000',
+  id?: string,
+  timestamp?: string
+): string {
+  const combined = `${prevHash}:${id || ''}:${timestamp || ''}:${payload}`;
   let hash = 0;
-  for (let i = 0; i < payload.length; i++) {
-    const char = payload.charCodeAt(i);
+  for (let i = 0; i < combined.length; i++) {
+    const char = combined.charCodeAt(i);
     hash = (hash << 5) - hash + char;
     hash |= 0; // Converte para inteiro de 32 bits
   }

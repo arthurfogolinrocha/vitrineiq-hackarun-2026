@@ -38,10 +38,10 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2 text-xs">
           <div className="flex items-center gap-2 font-extrabold text-blue-700 text-sm">
             <Cpu className="w-4 h-4" aria-hidden="true" />
-            Motor de Score (Rust + TypeScript)
+            Core Nativo Rust &amp; Espelho Determinístico TypeScript
           </div>
           <p className="text-slate-600 leading-relaxed">
-            Cálculo determinístico de Score de Oportunidade (<code>engine-rust/src/lib.rs</code>). Exemplo calibrado: <strong>{sampleScore} pts</strong>.
+            O core nativo em Rust (<code>missao-2/engine-rust/src/lib.rs</code>) atua como especificação formal e motor nativo compilável de alta performance. O runtime web utiliza o espelho determinístico TypeScript com <strong>100% de paridade matemática</strong> validada por suíte de testes. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
           </p>
         </div>
 
@@ -101,15 +101,26 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
                       className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         log.status === 'SUCCESS'
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : log.status === 'FALLBACK_LOCAL'
+                          ? 'bg-sky-100 text-sky-800 border border-sky-300 font-extrabold'
+                          : log.status === 'ERROR'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
                           : 'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}
                     >
-                      {log.status}
+                      {log.status === 'FALLBACK_LOCAL' ? 'FALLBACK LOCAL' : log.status}
                     </span>
                   </td>
                   <td className="py-3 text-slate-700 font-sans">{log.details}</td>
                   <td className="py-3 text-slate-500">{log.timestamp}</td>
-                  <td className="py-3 text-blue-700 text-[10px]">{log.securityHash}</td>
+                  <td className="py-3 text-blue-700 text-[10px]">
+                    <span className="font-bold block">{log.securityHash}</span>
+                    {log.prevHash && (
+                      <span className="text-[9px] text-slate-400 block truncate max-w-[140px]">
+                        ← {log.prevHash}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

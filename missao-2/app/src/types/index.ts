@@ -23,18 +23,20 @@ export interface AIAnalysisResponse {
   latencyMs: number;
   cached?: boolean;
   timestamp: string;
+  source?: 'GEMINI_API' | 'FALLBACK_LOCAL';
 }
 
 export interface SystemAuditLog {
   id: string;
   action: string;
-  status: 'SUCCESS' | 'WARNING' | 'ERROR';
+  status: 'SUCCESS' | 'WARNING' | 'ERROR' | 'FALLBACK_LOCAL';
   details: string;
   timestamp: string;
   securityHash: string;
+  prevHash?: string;
 }
 
-export type FloorId = 'L1' | 'L2';
+export type FloorId = 'L1' | 'L2' | 'SS1';
 
 export type ZoneId =
   | 'ala-sul-esporte'

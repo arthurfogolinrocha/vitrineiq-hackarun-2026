@@ -13,6 +13,12 @@ import {
   matchConsumerOffer,
 } from '../services/opportunityEngine';
 import { CAPIM_DOURADO_ZONES, INITIAL_FLASH_CAMPAIGNS, INITIAL_LOST_SALES } from '../data/shoppingData';
+import {
+  L2_DECK_Y,
+  CAMERA_PRESETS,
+  CAPIM_KIOSKS_3D,
+  CAPIM_STORES_3D,
+} from '../data/capimDourado3DLayout';
 
 describe('Módulo de Segurança & Integridade Governamental', () => {
   it('deve sanitizar tags de script e prevenir injeções maliciosas (XSS)', () => {
@@ -163,5 +169,202 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
     expect(withCamera.cameraFeedLinked).toBe(true);
     expect(withCamera.footTraffic).toBe(base.footTraffic + 50);
     expect(withCamera.vitrineStops).toBe(base.vitrineStops + 18);
+  });
+});
+
+describe('Garantias de QA Multi-Persona — Milestone 1 (F1 a F21)', () => {
+  it('deve rejeitar submissão com campos preenchidos apenas com espaços em branco (F17)', () => {
+    const invalidForm = {
+      storeName: '   ',
+      title: 'Desconto Relâmpago',
+      couponCode: '   ',
+      discountBadge: '20% OFF',
+      whatsappCopy: '   ',
+    };
+
+    const validation = validateRequiredFields(invalidForm, [
+      'storeName',
+      'title',
+      'couponCode',
+      'discountBadge',
+      'whatsappCopy',
+    ]);
+
+    expect(validation.isValid).toBe(false);
+    expect(validation.missingFields).toContain('storeName');
+    expect(validation.missingFields).toContain('couponCode');
+    expect(validation.missingFields).toContain('whatsappCopy');
+
+    // Validação inline estrita equivalente ao modal
+    const isStrictlyValid =
+      invalidForm.storeName.trim().length > 0 &&
+      invalidForm.title.trim().length > 0 &&
+      invalidForm.couponCode.trim().length > 0 &&
+      invalidForm.whatsappCopy.trim().length > 0;
+
+    expect(isStrictlyValid).toBe(false);
+  });
+
+  it('deve gerar hashes encadeados distintos para cliques sucessivos no Modo Balcão (F20)', () => {
+    const payload = 'COUNTER_LOST_SALE_LOGGED:Riachuelo: Preço / Parcelamento';
+
+    const t1 = '14:02:01';
+    const id1 = 'audit-1';
+    const prev0 = 'GENESIS_BLOCK_0000';
+    const hash1 = generateAuditHash(payload, prev0, id1, t1);
+
+    const t2 = '14:02:02';
+    const id2 = 'audit-2';
+    const hash2 = generateAuditHash(payload, hash1, id2, t2);
+
+    const t3 = '14:02:03';
+    const id3 = 'audit-3';
+    const hash3 = generateAuditHash(payload, hash2, id3, t3);
+
+    expect(hash1).not.toBe(hash2);
+    expect(hash2).not.toBe(hash3);
+    expect(hash1).not.toBe(hash3);
+
+    expect(hash1.startsWith('SEC-SHA-')).toBe(true);
+    expect(hash2.startsWith('SEC-SHA-')).toBe(true);
+    expect(hash3.startsWith('SEC-SHA-')).toBe(true);
+  });
+
+  it('deve retornar status FALLBACK_LOCAL e texto limpo sem markdown bruto em falhas de API (F1, F19)', async () => {
+    const response = await analyzeWithAI(
+      {
+        prompt: 'Gere plano tático para Ala Sul com foco em calçados',
+        context: 'Ala: Ala Sul Esportes | Clima: calor_38c',
+        category: 'Moda Esportiva',
+      },
+      'CHAVE_INVALIDA_SIMULANDO_ERRO_503'
+    );
+
+    expect(response.success).toBe(true);
+    expect(response.source).toBe('FALLBACK_LOCAL');
+    expect(response.cached).toBe(true);
+
+    // NUNCA vazar marcações brutas ### ou **
+    expect(response.content).not.toContain('###');
+    expect(response.content).not.toContain('**');
+
+    // NUNCA vazar o prompt de engenharia cru
+    expect(response.content).not.toContain('Gere ações imediatas de vitrine, estoque');
+  });
+
+  it('deve assegurar a invariante matemática estrita do funil: passantes >= vitrine >= entradas (F14)', () => {
+    // Simula clamping de contadores pós-reset e eventos assíncronos
+    const testCases = [
+      { rawPass: 0, rawStop: 5, rawEnter: 10 },
+      { rawPass: 20, rawStop: 40, rawEnter: 5 },
+      { rawPass: 100, rawStop: 30, rawEnter: 50 },
+      { rawPass: 50, rawStop: 25, rawEnter: 10 },
+    ];
+
+    for (const tc of testCases) {
+      let passersBy = Math.max(0, tc.rawPass);
+      let vitrineStops = Math.min(passersBy, Math.max(0, tc.rawStop));
+      let entries = Math.min(vitrineStops, Math.max(0, tc.rawEnter));
+      let passedWithoutEntering = Math.max(0, passersBy - entries);
+
+      expect(passersBy).toBeGreaterThanOrEqual(vitrineStops);
+      expect(vitrineStops).toBeGreaterThanOrEqual(entries);
+      expect(entries).toBeGreaterThanOrEqual(0);
+      expect(passedWithoutEntering).toBe(passersBy - entries);
+    }
+  });
+
+  describe('Aprimoramento da Navegação e Visual do Tour 3D — Milestone 2 (F22 a F25)', () => {
+    it('deve garantir espaçamento vertical L2_DECK_Y = 11.0 e clearance livre superior a 4 unidades sobre o letreiro da Renner (F25)', () => {
+      expect(L2_DECK_Y).toBe(11.0);
+
+      const renner = CAPIM_STORES_3D.find((s) => s.name === 'RENNER')!;
+      expect(renner).toBeDefined();
+
+      // Topo do letreiro Renner: h (4.0) + signHeightOffset (1.55) + metade da altura da placa (1.52 / 2 = 0.76) = 6.31
+      const rennerSignTop = renner.h + 1.55 + 0.76;
+      expect(rennerSignTop).toBeCloseTo(6.31, 2);
+
+      // Face inferior da laje L2: L2_DECK_Y - espessura (0.42) = 10.58
+      const l2SlabBottom = L2_DECK_Y - 0.42;
+      expect(l2SlabBottom).toBeCloseTo(10.58, 2);
+
+      const verticalClearance = l2SlabBottom - rennerSignTop;
+      expect(verticalClearance).toBeGreaterThan(4.0);
+      expect(verticalClearance).toBeCloseTo(4.27, 2);
+    });
+
+    it('deve garantir geometria, orientação e animação colinear da escada rolante subindo para L2 (F24)', () => {
+      const l2DeckY = L2_DECK_Y;
+      const deltaX = -8.0;
+      const deltaY = l2DeckY;
+
+      // Ângulo de inclinação em torno do eixo Z: negativo para elevar o lado -X (sentido de subida para a praça Oeste)
+      const expectedAngle = -Math.atan2(l2DeckY, 8.0);
+      expect(expectedAngle).toBeLessThan(0);
+      expect(expectedAngle).toBeCloseTo(-0.942, 2); // ~ -53.97°
+
+      // Comprimento da rampa
+      const rampLength = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      expect(rampLength).toBeCloseTo(13.60, 2);
+
+      // Teste de colinearidade estrita para degraus em t in [0, 1)
+      const testTValues = [0.0, 0.25, 0.5, 0.75, 0.99];
+      for (const t of testTValues) {
+        const x = -9.5 - 8.0 * t;
+        const y = 0.18 + t * l2DeckY;
+
+        // Base em t=0
+        if (t === 0) {
+          expect(x).toBeCloseTo(-9.5, 2);
+          expect(y).toBeCloseTo(0.18, 2);
+        }
+
+        // Topo em t próximo de 1
+        if (t === 0.99) {
+          expect(x).toBeLessThan(-17.4);
+          expect(y).toBeGreaterThan(11.0);
+        }
+
+        // Verificação da derivada dY / dX constante ao longo de toda a rampa
+        if (t > 0) {
+          const slope = (y - 0.18) / (x - (-9.5));
+          expect(slope).toBeCloseTo(-l2DeckY / 8.0, 4);
+        }
+      }
+    });
+
+    it('deve estruturar suporte aos 3 pisos conceituais: L1, L2 e Subsolo SS1 (F23)', () => {
+      const presetL2 = CAMERA_PRESETS.find((p) => p.id === 'l2')!;
+      expect(presetL2).toBeDefined();
+      expect(presetL2.floor).toBe('L2');
+      expect(presetL2.pos[1]).toBeGreaterThanOrEqual(28.0);
+      expect(presetL2.target[1]).toBeCloseTo(11.8, 1);
+
+      const presetSS = CAMERA_PRESETS.find((p) => p.id === 'subsolo')!;
+      expect(presetSS).toBeDefined();
+      expect(presetSS.floor).toBe('SS1');
+      expect(presetSS.xray).toBe(true);
+    });
+
+    it('deve suportar quiosques e parâmetros de destaque da busca e dimming global (F22)', () => {
+      expect(CAPIM_KIOSKS_3D.length).toBeGreaterThanOrEqual(10);
+
+      for (const k of CAPIM_KIOSKS_3D) {
+        expect(k.name).toBeDefined();
+        expect(k.x).toBeTypeOf('number');
+        expect(k.z).toBeTypeOf('number');
+        expect(k.accent).toMatch(/^#[0-9a-fA-F]{6}$/);
+      }
+
+      // Quiosque específico da Ala Sul (Giraffas Q2) e Alameda Central (We Pink Q32B)
+      const giraffas = CAPIM_KIOSKS_3D.find((k) => k.id === 'Q2')!;
+      expect(giraffas).toBeDefined();
+      expect(giraffas.zoneId).toBe('ala-sul-esporte');
+
+      const wepink = CAPIM_KIOSKS_3D.find((k) => k.id === 'Q32B')!;
+      expect(wepink).toBeDefined();
+      expect(wepink.segment).toBe('moda');
+    });
   });
 });

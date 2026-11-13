@@ -66,17 +66,18 @@ export async function analyzeWithAI(
         if (generatedText.trim()) {
           return {
             success: true,
-            content: generatedText,
+            content: stripMarkdown(generatedText),
             confidence: 0.98,
             tokensUsed: data?.usageMetadata?.totalTokenCount || 180,
             latencyMs: elapsed,
             cached: false,
+            source: 'GEMINI_API',
             timestamp: new Date().toISOString(),
           };
         }
       }
     } catch (err) {
-      console.warn('Erro ou timeout ao conectar à API Gemini, acionando motor heurístico VitrineIQ:', err);
+      console.warn('Erro ou timeout ao conectar à API Gemini (HTTP/Rede), acionando motor resiliente VitrineIQ:', err);
     } finally {
       clearTimeout(timeoutId);
     }
@@ -95,8 +96,20 @@ export async function analyzeWithAI(
     tokensUsed: Math.floor(cleanPrompt.length / 4) + 110,
     latencyMs: elapsed,
     cached: true,
+    source: 'FALLBACK_LOCAL',
     timestamp: new Date().toISOString(),
   };
+}
+
+export function stripMarkdown(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/_(.*?)_/g, '$1')
+    .trim();
 }
 
 function generateIntelligentFallback(
@@ -110,7 +123,7 @@ function generateIntelligentFallback(
   let actionTip =
     'Posicionar placa de oferta-âncora na entrada da vitrine com QR Code de resgate válido por 2 horas.';
   let whatsappTip =
-    '"⚡ Só nas próximas 2h no Capim Dourado: apresente o cupom VITRINE-HOJE no balcão e garanta condição exclusiva!"';
+    '⚡ Só nas próximas 2h no Capim Dourado: apresente o cupom VITRINE-HOJE no balcão e garanta condição exclusiva!';
   let crossTip =
     'Criar voucher cruzado com a Praça de Alimentação / Cinemark para converter o fluxo que já está circulando na ala.';
 
@@ -118,12 +131,12 @@ function generateIntelligentFallback(
     actionTip =
       'Destacar kit de entrada/combo de menor ticket na frente da vitrine e oferecer condição relâmpago de parcelamento sem juros.';
     whatsappTip =
-      '"🔥 Achado do dia no Capim Dourado: baixamos o combo mais procurado por tempo limitado. Mostre VITRINE-PRECO no balcão!"';
+      '🔥 Achado do dia no Capim Dourado: baixamos o combo mais procurado por tempo limitado. Mostre VITRINE-PRECO no balcão!';
   } else if (lower.includes('estoque') || lower.includes('tamanho') || lower.includes('grade')) {
     actionTip =
       'Ativar reserva expressa com entrega gratuita em casa ou retirada no dia seguinte para não perder o cliente por falta de grade.';
     whatsappTip =
-      '"📦 Não achou sua numeração na vitrine? Garantimos entrega expressa amanhã com 10% OFF usando VITRINE-GRADE!"';
+      '📦 Não achou sua numeração na vitrine? Garantimos entrega expressa amanhã com 10% OFF usando VITRINE-GRADE!';
   } else if (lower.includes('fila') || lower.includes('almo') || lower.includes('cinema')) {
     actionTip =
       'Liberar fila expressa para pedidos pré-selecionados via QR Code (retirada em balcão dedicado em até 5 min).';
@@ -131,19 +144,23 @@ function generateIntelligentFallback(
       'Integrar alerta pós-sessão do Cinemark e saída da Morofit para antecipar produção em horários de pico.';
   }
 
-  return `### ⚡ Análise Concluída pelo Motor de Inteligência [${cat}]
+  // Extrai nome amigável da ala se presente no contexto
+  const wingMatch = context?.match(/Ala:\s*([^|]+)/i);
+  const wingName = wingMatch ? wingMatch[1].trim() : `${cat} • Capim Dourado Shopping`;
 
-**1. Diagnóstico Executivo (VitrineIQ):**
-Sinais processados para "${prompt}". Detectado alto potencial de conversão imediata aproveitando o fluxo ativo da ala sem depender de hardware invasivo.
+  return `⚡ Análise Concluída pelo Motor de Inteligência [${cat}]
 
-**2. Ação Imediata na Vitrine & Balcão:**
+1. Diagnóstico Executivo (VitrineIQ):
+Demanda ativa detectada para ${wingName}. Oportunidade imediata de conversão aproveitando o fluxo em circulação na ala sem captura de dados pessoais (100% LGPD).
+
+2. Ação Imediata na Vitrine & Balcão:
 • ${actionTip}
 
-**3. Copy Pronta para WhatsApp / Cupom Relâmpago:**
-• ${whatsappTip}
+3. Copy Pronta para WhatsApp / Cupom Relâmpago:
+• "${whatsappTip}"
 
-**4. Oportunidade Cross-Segmento no Capim Dourado:**
+4. Oportunidade Cross-Segmento no Capim Dourado:
 • ${crossTip}
 
-*Status: Motor resiliente VitrineIQ • 100% em conformidade com LGPD e Artigo 6 (HackaRun 2026).*`;
+Status: Motor de Contingência Local Ativo (100% em conformidade com LGPD e Artigo 6 HackaRun 2026).`;
 }

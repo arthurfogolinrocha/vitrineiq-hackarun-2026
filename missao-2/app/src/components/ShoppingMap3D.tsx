@@ -1,19 +1,39 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
   ArrowDown,
   ArrowUp,
   Compass,
+  Eye,
   Footprints,
-  Layers,
+  MapPin,
+  MoveDown,
   MoveUp,
+  Pause,
+  Play,
   RotateCcw,
+  Search,
+  Sparkles,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
 import { FloorId, ZoneId } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
+import {
+  CAMERA_PRESETS,
+  CAPIM_KIOSKS_3D,
+  CAPIM_PARKING_3D,
+  CAPIM_PORTALS_3D,
+  CAPIM_STORES_3D,
+  GUIDED_TOUR_STOPS,
+  Kiosk3DDef,
+  L2_DECK_Y,
+  SegmentFilter,
+  Store3DDef,
+  StoreTier,
+} from '../data/capimDourado3DLayout';
 
 interface ShoppingMap3DProps {
   floor: FloorId;
@@ -21,79 +41,69 @@ interface ShoppingMap3DProps {
   zonesTelemetry: ZoneLiveTelemetry[];
   selectedZoneId: ZoneId;
   onSelectZone: (zoneId: ZoneId) => void;
+  selectedStoreName?: string | null;
+  onSelectStoreName?: (name: string | null) => void;
 }
 
-interface Store3DDef {
-  name: string;
+interface SearchHit {
+  label: string;
+  subtitle: string;
   zoneId: ZoneId;
-  floor: FloorId;
+  floor: FloorId | 'SS1';
+  segment: Exclude<SegmentFilter, 'all'>;
+  nearestPortal: string;
   x: number;
   z: number;
-  w: number;
-  d: number;
   h: number;
-  color: string;
-  accent: string;
-  isVacant?: boolean;
+  isKiosk?: boolean;
 }
 
-const STORES_3D: Store3DDef[] = [
-  // === 1º PAVIMENTO — TÉRREO (Y base = 0) ===
-  { name: 'RENNER', zoneId: 'ala-sul-esporte', floor: 'L1', x: -24, z: 5, w: 7.5, d: 8.5, h: 3.8, color: '#fee2e2', accent: '#dc2626' },
-  { name: 'CENTAURO', zoneId: 'ala-sul-esporte', floor: 'L1', x: -15, z: 9, w: 6.5, d: 4.5, h: 3.4, color: '#ffe4e6', accent: '#e11d48' },
-  { name: 'STILO • RESOLVE', zoneId: 'ala-sul-esporte', floor: 'L1', x: -15, z: -2.5, w: 6.2, d: 4.0, h: 3.2, color: '#f1f5f9', accent: '#475569' },
-
-  { name: 'C&A', zoneId: 'ala-central-ancoras', floor: 'L1', x: -3.5, z: -8.5, w: 7.2, d: 5.5, h: 3.8, color: '#e0f2fe', accent: '#0284c7' },
-  { name: 'RCHLO', zoneId: 'ala-central-ancoras', floor: 'L1', x: -3.5, z: -0.5, w: 7.8, d: 4.8, h: 3.8, color: '#f8fafc', accent: '#0f172a' },
-  { name: 'LEITURA', zoneId: 'ala-central-ancoras', floor: 'L1', x: 5.2, z: -6.8, w: 5.4, d: 3.8, h: 3.3, color: '#ede9fe', accent: '#7c3aed' },
-
-  { name: 'OUTBACK', zoneId: 'alameda-gourmet', floor: 'L1', x: -2.0, z: 9.2, w: 5.6, d: 4.4, h: 3.4, color: '#fee2e2', accent: '#b91c1c' },
-  { name: 'MADERO', zoneId: 'alameda-gourmet', floor: 'L1', x: 4.5, z: 9.2, w: 4.8, d: 4.2, h: 3.4, color: '#fef3c7', accent: '#d97706' },
-  { name: 'MARISA', zoneId: 'alameda-gourmet', floor: 'L1', x: 10.6, z: 9.2, w: 5.2, d: 4.2, h: 3.4, color: '#fce7f3', accent: '#db2777' },
-
-  { name: 'CINEMARK', zoneId: 'ala-lazer-cinema', floor: 'L1', x: 20.5, z: 6.8, w: 8.6, d: 8.2, h: 4.4, color: '#fecaca', accent: '#b91c1c' },
-  { name: 'STZ (Studio Z)', zoneId: 'ala-lazer-cinema', floor: 'L1', x: 20.5, z: -1.8, w: 8.2, d: 3.8, h: 3.4, color: '#e0f2fe', accent: '#0369a1' },
-  { name: 'PERNAMBUCANAS', zoneId: 'ala-lazer-cinema', floor: 'L1', x: 20.5, z: -6.4, w: 8.2, d: 3.2, h: 3.4, color: '#fef9c3', accent: '#ca8a04' },
-  { name: 'SUPERBIG • ZIGZAG', zoneId: 'ala-lazer-cinema', floor: 'L1', x: 20.5, z: -10.8, w: 8.2, d: 3.2, h: 3.4, color: '#ffedd5', accent: '#ea580c' },
-  { name: 'WOW • MOROFIT', zoneId: 'ala-lazer-cinema', floor: 'L1', x: 20.5, z: -15.4, w: 8.2, d: 3.4, h: 3.6, color: '#d1fae5', accent: '#059669' },
-
-  // === 2º PAVIMENTO — PRAÇA DE ALIMENTAÇÃO (Y base = 6.2) ===
-  { name: 'MUNDO IMERSIVO', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: -11.5, z: -7.5, w: 6.0, d: 4.2, h: 3.2, color: '#e0f2fe', accent: '#0284c7' },
-  { name: "McDONALD'S", zoneId: 'praca-alimentacao-l2', floor: 'L2', x: -4.2, z: -8.2, w: 5.2, d: 3.8, h: 3.2, color: '#fef08a', accent: '#ca8a04' },
-  { name: 'SPOLETTO • PIZZA HUT', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: 2.8, z: -7.8, w: 6.2, d: 3.5, h: 3.0, color: '#ffedd5', accent: '#ea580c' },
-  { name: 'DIVINO FOGÃO', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: 9.5, z: -7.0, w: 4.8, d: 3.4, h: 3.0, color: '#d1fae5', accent: '#059669' },
-
-  { name: 'KIN SUI', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: -11.0, z: 7.2, w: 5.4, d: 3.8, h: 3.0, color: '#ede9fe', accent: '#7c3aed' },
-  { name: 'GIRAFFAS', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: -4.6, z: 7.8, w: 4.6, d: 3.6, h: 3.0, color: '#ffedd5', accent: '#f97316' },
-  { name: 'VAGA 203 (58m²)', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: 1.0, z: 7.8, w: 4.4, d: 3.6, h: 3.0, color: '#ffe4e6', accent: '#e11d48', isVacant: true },
-  { name: 'SUBWAY • EXPRESS', zoneId: 'praca-alimentacao-l2', floor: 'L2', x: 7.8, z: 7.5, w: 6.2, d: 3.6, h: 3.0, color: '#dcfce7', accent: '#16a34a' },
-];
-
-function createSignTexture(title: string, badge: string, accent: string, isVacant?: boolean): THREE.CanvasTexture {
+function createSignTexture(
+  title: string,
+  badge: string,
+  accent: string,
+  tier: StoreTier,
+  isVacant?: boolean,
+  isHighlighted?: boolean
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = 160;
+  canvas.height = 148;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = isVacant ? '#fff1f2' : '#ffffff';
+    ctx.fillStyle = isVacant
+      ? '#fff1f2'
+      : isHighlighted
+      ? '#111318'
+      : tier === 'anchor'
+      ? '#0f172a'
+      : '#ffffff';
     ctx.beginPath();
-    ctx.roundRect(8, 8, 496, 144, 24);
+    ctx.roundRect(8, 8, 496, 132, 22);
     ctx.fill();
 
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = accent;
+    ctx.lineWidth = isHighlighted ? 11 : tier === 'anchor' ? 9 : 7;
+    ctx.strokeStyle = isHighlighted ? '#E2A83B' : accent;
     ctx.stroke();
 
-    ctx.fillStyle = accent;
-    ctx.fillRect(24, 26, 14, 108);
+    ctx.fillStyle = isHighlighted ? '#E2A83B' : accent;
+    ctx.fillRect(22, 24, 14, 100);
 
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '800 36px Inter, system-ui, sans-serif';
-    ctx.fillText(title, 56, 72);
+    ctx.fillStyle = isVacant
+      ? '#be123c'
+      : isHighlighted || tier === 'anchor'
+      ? '#ffffff'
+      : '#0f172a';
+    ctx.font = '800 30px Inter, system-ui, sans-serif';
+    ctx.fillText(title, 52, 66);
 
-    ctx.fillStyle = isVacant ? '#be123c' : '#475569';
-    ctx.font = '700 24px Inter, system-ui, sans-serif';
-    ctx.fillText(badge, 56, 118);
+    ctx.fillStyle = isVacant
+      ? '#e11d48'
+      : isHighlighted || tier === 'anchor'
+      ? '#fde68a'
+      : '#475569';
+    ctx.font = '700 21px Inter, system-ui, sans-serif';
+    ctx.fillText(badge, 52, 108);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -109,31 +119,108 @@ function createBadgeTexture(
   subHex: string
 ): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 560;
-  canvas.height = 150;
+  canvas.width = 580;
+  canvas.height = 146;
   const ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.fillStyle = bgHex;
     ctx.beginPath();
-    ctx.roundRect(8, 8, 544, 134, 24);
+    ctx.roundRect(8, 8, 564, 130, 22);
     ctx.fill();
 
-    ctx.lineWidth = 8;
+    ctx.lineWidth = 7;
     ctx.strokeStyle = borderHex;
     ctx.stroke();
 
     ctx.fillStyle = textHex;
-    ctx.font = '900 33px Inter, system-ui, sans-serif';
+    ctx.font = '900 29px Inter, system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(title, 280, 68);
+    ctx.fillText(title, 290, 64);
 
     ctx.fillStyle = subHex;
-    ctx.font = '700 23px Inter, system-ui, sans-serif';
-    ctx.fillText(subtitle, 280, 114);
+    ctx.font = '700 20px Inter, system-ui, sans-serif';
+    ctx.fillText(subtitle, 290, 108);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+/** Constrói rotatória viária 3D realista */
+function buildRoundabout(cx: number, cz: number, outerR: number, roadMat: THREE.Material) {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(outerR, outerR, 0.14, 32), roadMat);
+  ring.position.set(cx, -0.05, cz);
+  g.add(ring);
+
+  const island = new THREE.Mesh(
+    new THREE.CylinderGeometry(outerR * 0.48, outerR * 0.5, 0.24, 32),
+    new THREE.MeshStandardMaterial({ color: '#15803d', roughness: 0.85 })
+  );
+  island.position.set(cx, 0.04, cz);
+  g.add(island);
+
+  const curb = new THREE.Mesh(
+    new THREE.TorusGeometry(outerR * 0.5, 0.16, 8, 32),
+    new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.7 })
+  );
+  curb.rotation.x = Math.PI / 2;
+  curb.position.set(cx, 0.06, cz);
+  g.add(curb);
+
+  return g;
+}
+
+/** Constrói palmeira/árvore estilizada de paisagismo */
+function buildTree(x: number, z: number, heightScale = 1) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.14, 0.22, 2.2 * heightScale, 7),
+    new THREE.MeshStandardMaterial({ color: '#78350f', roughness: 0.9 })
+  );
+  trunk.position.set(x, 1.1 * heightScale, z);
+  g.add(trunk);
+
+  const crown = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(0.95 * heightScale, 0),
+    new THREE.MeshStandardMaterial({ color: '#16a34a', roughness: 0.75 })
+  );
+  crown.position.set(x, 2.4 * heightScale, z);
+  g.add(crown);
+  return g;
+}
+
+/** Constrói torre panorâmica de elevador vidro + aço */
+function buildElevatorTower(x: number, z: number, yStart: number, yEnd: number) {
+  const h = yEnd - yStart;
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(
+    new THREE.BoxGeometry(1.9, h, 1.9),
+    new THREE.MeshStandardMaterial({
+      color: '#bae6fd',
+      transparent: true,
+      opacity: 0.38,
+      roughness: 0.1,
+      metalness: 0.35,
+    })
+  );
+  shaft.position.set(x, yStart + h / 2, z);
+  g.add(shaft);
+
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(2.05, 0.25, 2.05),
+    new THREE.MeshStandardMaterial({ color: '#0f172a', metalness: 0.6 })
+  );
+  frame.position.set(x, yEnd + 0.12, z);
+  g.add(frame);
+
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.4, 1.8, 1.4),
+    new THREE.MeshStandardMaterial({ color: '#E2A83B', emissive: '#b45309', emissiveIntensity: 0.35 })
+  );
+  cabin.position.set(x, yStart + h * 0.4, z);
+  g.add(cabin);
+  return { group: g, cabin, yStart, h };
 }
 
 export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
@@ -142,31 +229,399 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   zonesTelemetry,
   selectedZoneId,
   onSelectZone,
+  selectedStoreName,
+  onSelectStoreName,
 }) => {
   const activeZone = zonesTelemetry.find((z) => z.zone.id === selectedZoneId);
   const mountRef = useRef<HTMLDivElement>(null);
+
   const [viewMode, setViewMode] = useState<'orbit' | 'walk'>('orbit');
+  const [showSubsoloXray, setShowSubsoloXray] = useState<boolean>(false);
+  const [activeSegment, setActiveSegment] = useState<SegmentFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStore, setSelectedStore] = useState<SearchHit | null>(null);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStepIndex, setTourStepIndex] = useState(0);
   const [webglUnsupported, setWebglUnsupported] = useState(false);
 
-  // Refs para sincronizar estado React com o loop WebGL sem recriar a cena inteira
   const viewModeRef = useRef<'orbit' | 'walk'>('orbit');
   viewModeRef.current = viewMode;
   const floorRef = useRef<FloorId>(floor);
   floorRef.current = floor;
+  const xrayRef = useRef<boolean>(showSubsoloXray);
+  xrayRef.current = showSubsoloXray;
+  const activeSegmentRef = useRef<SegmentFilter>(activeSegment);
+  activeSegmentRef.current = activeSegment;
+  const zonesRef = useRef<ZoneLiveTelemetry[]>(zonesTelemetry);
+  zonesRef.current = zonesTelemetry;
+  const selectedZoneRef = useRef<ZoneId>(selectedZoneId);
+  selectedZoneRef.current = selectedZoneId;
+  const selectedStoreNameRef = useRef<string | null>(null);
+  selectedStoreNameRef.current = selectedStore?.label ?? null;
+
   const onSelectZoneRef = useRef(onSelectZone);
   onSelectZoneRef.current = onSelectZone;
   const onFloorChangeRef = useRef(onFloorChange);
   onFloorChangeRef.current = onFloorChange;
 
-  // Refs para controles externos (botões Zoom+, Zoom-, Entrar/Sair, Andar, Subir L2)
+  const sceneRefs = useRef<{
+    l1DeckMat: THREE.MeshStandardMaterial | null;
+    subsoloCover: THREE.Mesh | null;
+    groundMat: THREE.MeshStandardMaterial | null;
+    beaconGroup: THREE.Group | null;
+    beaconHalo: THREE.Mesh | null;
+    beaconCone: THREE.Mesh | null;
+    l2Materials: THREE.MeshStandardMaterial[];
+    l2Objects: THREE.Object3D[];
+    subsoloObjects: THREE.Object3D[];
+    storeEntries: Array<{
+      def: Store3DDef;
+      mesh: THREE.Mesh;
+      mat: THREE.MeshStandardMaterial;
+      trimMat: THREE.MeshStandardMaterial;
+      sprite: THREE.Sprite;
+    }>;
+    kioskEntries: Array<{
+      def: Kiosk3DDef;
+      segment: Exclude<SegmentFilter, 'all'>;
+      zoneId: ZoneId;
+      sprite: THREE.Sprite;
+      mesh: THREE.Mesh;
+      mat: THREE.MeshStandardMaterial;
+      pos: THREE.Vector3;
+    }>;
+    routeGroups: Record<Exclude<SegmentFilter, 'all'>, THREE.Object3D[]>;
+    flyTarget: { camPos: THREE.Vector3; lookAt: THREE.Vector3 } | null;
+  }>({
+    l1DeckMat: null,
+    subsoloCover: null,
+    groundMat: null,
+    beaconGroup: null,
+    beaconHalo: null,
+    beaconCone: null,
+    l2Materials: [],
+    l2Objects: [],
+    subsoloObjects: [],
+    storeEntries: [],
+    kioskEntries: [],
+    routeGroups: { moda: [], mercado: [], gastronomia: [] },
+    flyTarget: null,
+  });
+
   const actionsRef = useRef<{
     zoom: (factor: number) => void;
-    resetOrbit: (targetFloor: FloorId) => void;
+    flyTo: (pos: [number, number, number], target: [number, number, number]) => void;
+    resetOrbit: (targetFloor: FloorId, focusSubsolo?: boolean) => void;
     enterWalk: (targetFloor: FloorId) => void;
     nudgeWalk: (forward: number, strafe: number, turnYaw: number) => void;
   } | null>(null);
 
-  // Efeito principal Three.js (cria cena, prédios, letreiros, escada rolante, fluxo e controles)
+  const searchableItems = useMemo<SearchHit[]>(() => {
+    const stores: SearchHit[] = CAPIM_STORES_3D.map((st) => ({
+      label: st.name,
+      subtitle: st.sublabel ?? st.floor,
+      zoneId: st.zoneId,
+      floor: st.floor,
+      segment: st.segment,
+      nearestPortal: st.nearestPortal,
+      x: st.x,
+      z: st.z,
+      h: st.h,
+    }));
+    const kiosks: SearchHit[] = CAPIM_KIOSKS_3D.map((k) => ({
+      label: k.name,
+      subtitle: 'Quiosque Térreo L1',
+      zoneId: k.zoneId,
+      floor: 'L1',
+      segment: k.segment,
+      nearestPortal: 'Corredor Principal',
+      x: k.x,
+      z: k.z,
+      h: 1.8,
+      isKiosk: true,
+    }));
+    return [...stores, ...kiosks];
+  }, []);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return searchableItems
+      .filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          item.subtitle.toLowerCase().includes(q)
+      )
+      .slice(0, 6);
+  }, [searchQuery, searchableItems]);
+
+  // Atualiza Score IQ, Foco por Piso (F23), Destaque e Beacon em Busca de Loja (F22) e filtro de segmento em <1ms sem resetar câmera!
+  useEffect(() => {
+    const {
+      storeEntries,
+      kioskEntries,
+      routeGroups,
+      beaconGroup,
+      l1DeckMat,
+      groundMat,
+      subsoloCover,
+      l2Materials,
+      l2Objects,
+      subsoloObjects,
+    } = sceneRefs.current;
+
+    const hasStoreSelection = Boolean(selectedStore);
+
+    // 1. Atualizar Beacon 3D Luminoso Vertical e Halo (F22)
+    if (beaconGroup) {
+      if (hasStoreSelection && selectedStore) {
+        const yBase =
+          selectedStore.floor === 'L2' ? L2_DECK_Y : selectedStore.floor === 'SS1' ? -5.0 : 0;
+        const hOffset = selectedStore.isKiosk ? 1.8 : selectedStore.h;
+        beaconGroup.position.set(selectedStore.x, yBase + hOffset, selectedStore.z);
+        beaconGroup.visible = true;
+      } else {
+        beaconGroup.visible = false;
+      }
+    }
+
+    // 2. Foco e Isolamento por Piso (F23)
+    const isSubsolo = floor === 'SS1' || showSubsoloXray;
+    const isL2 = floor === 'L2';
+    const isL1 = floor === 'L1' && !isSubsolo;
+
+    // Laje L1 e Terreno
+    if (l1DeckMat) {
+      if (isSubsolo) {
+        l1DeckMat.transparent = true;
+        l1DeckMat.opacity = 0.20;
+      } else if (isL2) {
+        l1DeckMat.transparent = true;
+        l1DeckMat.opacity = 0.35;
+      } else {
+        l1DeckMat.transparent = false;
+        l1DeckMat.opacity = 1.0;
+      }
+      l1DeckMat.needsUpdate = true;
+    }
+
+    if (groundMat) {
+      if (isSubsolo) {
+        groundMat.transparent = true;
+        groundMat.opacity = 0.20;
+      } else if (isL2) {
+        groundMat.transparent = true;
+        groundMat.opacity = 0.35;
+      } else {
+        groundMat.transparent = false;
+        groundMat.opacity = 1.0;
+      }
+      groundMat.needsUpdate = true;
+    }
+
+    // Subsolo Cover e Objetos de Estacionamento/Esteiras
+    if (subsoloCover) {
+      subsoloCover.visible = !isSubsolo;
+    }
+    subsoloObjects.forEach((obj) => {
+      obj.visible = isSubsolo;
+    });
+
+    // Elementos Estruturais do 2º Piso L2
+    l2Materials.forEach((mat) => {
+      if (isL2) {
+        mat.transparent = false;
+        mat.opacity = 1.0;
+      } else if (isSubsolo) {
+        mat.transparent = true;
+        mat.opacity = 0.08;
+      } else {
+        // Térreo (L1): L2 esmaecido/fantasma para dar visibilidade total ao L1
+        mat.transparent = true;
+        mat.opacity = 0.08;
+      }
+      mat.needsUpdate = true;
+    });
+
+    l2Objects.forEach((obj) => {
+      if (isSubsolo) {
+        obj.visible = false;
+      } else {
+        obj.visible = true;
+      }
+    });
+
+    // 3. Atualizar Lojas (Dimming Global vs Foco por Piso)
+    for (const entry of storeEntries) {
+      const telemetry = zonesTelemetry.find((z) => z.zone.id === entry.def.zoneId);
+      const score = telemetry?.opportunityScore ?? 65;
+      const isZoneSelected = entry.def.zoneId === selectedZoneId;
+      const isStorePicked = selectedStore?.label === entry.def.name;
+      const segmentMatch =
+        activeSegment === 'all' || entry.def.segment === activeSegment;
+
+      if (hasStoreSelection) {
+        // F22: Esmaecimento Global (Dimming) — Loja selecionada destacada com emissivo forte; demais esmaecidas para ~0.22
+        if (isStorePicked) {
+          entry.mat.transparent = false;
+          entry.mat.opacity = 1.0;
+          entry.mat.emissive.set('#f59e0b');
+          entry.mat.emissiveIntensity = 0.85;
+          entry.trimMat.emissive.set('#f59e0b');
+          entry.trimMat.emissiveIntensity = 0.95;
+        } else {
+          entry.mat.transparent = true;
+          entry.mat.opacity = 0.22;
+          entry.mat.emissive.set('#000000');
+          entry.mat.emissiveIntensity = 0;
+          entry.trimMat.emissive.set('#000000');
+          entry.trimMat.emissiveIntensity = 0;
+        }
+      } else {
+        // F23: Foco e Isolamento por Piso
+        const isEntryL2 = entry.def.floor === 'L2';
+        const isEntrySS = entry.def.floor === 'SS1';
+        const isEntryL1 = entry.def.floor === 'L1';
+
+        if (isL1) {
+          if (isEntryL1) {
+            entry.mat.transparent = !segmentMatch;
+            entry.mat.opacity = segmentMatch ? 1.0 : 0.24;
+          } else {
+            entry.mat.transparent = true;
+            entry.mat.opacity = 0.08;
+          }
+        } else if (isL2) {
+          if (isEntryL2) {
+            entry.mat.transparent = !segmentMatch;
+            entry.mat.opacity = segmentMatch ? 1.0 : 0.24;
+          } else {
+            entry.mat.transparent = true;
+            entry.mat.opacity = 0.18;
+          }
+        } else {
+          // Subsolo
+          if (isEntrySS) {
+            entry.mat.transparent = false;
+            entry.mat.opacity = 1.0;
+          } else {
+            entry.mat.transparent = true;
+            entry.mat.opacity = 0.10;
+          }
+        }
+
+        entry.mat.emissive.set(isZoneSelected ? '#E2A83B' : '#000000');
+        entry.mat.emissiveIntensity = isZoneSelected ? 0.16 : 0;
+        entry.trimMat.emissive.set(isZoneSelected ? '#E2A83B' : '#000000');
+        entry.trimMat.emissiveIntensity = isZoneSelected ? 0.22 : 0;
+      }
+
+      const badgeText = entry.def.isVacant
+        ? 'ESPAÇO VAGO • EXPANSÃO'
+        : `${entry.def.sublabel ?? `IQ ${score}`} • IQ ${score}`;
+      const prevMat = entry.sprite.material as THREE.SpriteMaterial;
+      const nextTex = createSignTexture(
+        entry.def.name,
+        badgeText,
+        entry.def.accent,
+        entry.def.tier,
+        entry.def.isVacant,
+        isStorePicked
+      );
+      if (prevMat.map) prevMat.map.dispose();
+      prevMat.map = nextTex;
+      prevMat.needsUpdate = true;
+    }
+
+    // 4. Quiosques dos Corredores (F22 e F23)
+    for (const k of kioskEntries) {
+      const isKioskPicked = selectedStore?.label === k.def.name;
+      if (hasStoreSelection) {
+        if (isKioskPicked) {
+          k.mat.transparent = false;
+          k.mat.opacity = 1.0;
+          k.mat.emissive.set('#f59e0b');
+          k.mat.emissiveIntensity = 0.85;
+        } else {
+          k.mat.transparent = true;
+          k.mat.opacity = 0.20;
+          k.mat.emissive.set('#000000');
+          k.mat.emissiveIntensity = 0;
+        }
+      } else {
+        if (isL1) {
+          k.mat.transparent = false;
+          k.mat.opacity = 1.0;
+        } else if (isL2) {
+          k.mat.transparent = true;
+          k.mat.opacity = 0.15;
+        } else {
+          k.mat.transparent = true;
+          k.mat.opacity = 0.10;
+        }
+        k.mat.emissive.set('#000000');
+        k.mat.emissiveIntensity = 0;
+      }
+    }
+
+    // Rotas
+    (['moda', 'mercado', 'gastronomia'] as const).forEach((seg) => {
+      const visible = activeSegment === 'all' || activeSegment === seg;
+      routeGroups[seg].forEach((obj) => {
+        obj.visible = visible;
+      });
+    });
+  }, [floor, showSubsoloXray, zonesTelemetry, selectedZoneId, activeSegment, selectedStore]);
+
+  // Sincroniza câmera suavemente quando o usuário troca de piso/ala pelo painel externo ("Saltar para Ala")
+  const prevExternalFloorRef = useRef<FloorId>(floor);
+  const prevExternalZoneRef = useRef<ZoneId>(selectedZoneId);
+  useEffect(() => {
+    if (viewModeRef.current === 'walk' || tourActive) {
+      prevExternalFloorRef.current = floor;
+      prevExternalZoneRef.current = selectedZoneId;
+      return;
+    }
+    if (prevExternalFloorRef.current !== floor) {
+      prevExternalFloorRef.current = floor;
+      const isSS = floor === 'SS1';
+      setShowSubsoloXray(isSS);
+      actionsRef.current?.resetOrbit(floor, isSS);
+    } else if (prevExternalZoneRef.current !== selectedZoneId) {
+      prevExternalZoneRef.current = selectedZoneId;
+      const presetMap: Record<ZoneId, [number, number, number][]> = {
+        'alameda-gourmet': [[6, 22, 34], [4, 2, 7]],
+        'ala-central-ancoras': [[-16, 26, -32], [-2, 2, -4]],
+        'ala-sul-esporte': [[-40, 22, 24], [-22, 2, 3]],
+        'ala-lazer-cinema': [[46, 25, -12], [22, 2, -12]],
+        'praca-alimentacao-l2': [[-44, 29.0, 22], [-21, 11.8, 0]],
+      };
+      const pair = presetMap[selectedZoneId];
+      if (pair) {
+        actionsRef.current?.flyTo(
+          pair[0] as [number, number, number],
+          pair[1] as [number, number, number]
+        );
+      }
+    }
+  }, [floor, selectedZoneId, tourActive]);
+
+  // Efeito do Tour Guiado Automático
+  useEffect(() => {
+    if (!tourActive) return;
+    const stop = GUIDED_TOUR_STOPS[tourStepIndex];
+    setViewMode('orbit');
+    setShowSubsoloXray(stop.xray);
+    onFloorChangeRef.current(stop.floor);
+    actionsRef.current?.flyTo(stop.pos, stop.target);
+
+    const timer = window.setInterval(() => {
+      setTourStepIndex((prev) => (prev + 1) % GUIDED_TOUR_STOPS.length);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [tourActive, tourStepIndex]);
+
+  // Montagem única do WebGL 3D (dependência [] — zero flicker / perda de câmera!)
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -180,479 +635,822 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     }
 
     const width = container.clientWidth || 800;
-    const height = container.clientHeight || 480;
+    const height = container.clientHeight || 520;
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap; // Compatível com Three.js moderno sem warning
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#eef1f6');
-    scene.fog = new THREE.Fog('#eef1f6', 45, 130);
+    scene.background = new THREE.Color('#eaeef5');
+    scene.fog = new THREE.Fog('#eaeef5', 70, 185);
 
-    const camera = new THREE.PerspectiveCamera(52, width / height, 0.2, 220);
-      camera.position.set(0, 36, 48);
+    const camera = new THREE.PerspectiveCamera(48, width / height, 0.2, 260);
+    camera.position.set(-4, 46, 56);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
     controls.enableZoom = true;
-    controls.zoomSpeed = 1.1;
+    controls.zoomSpeed = 1.15;
     controls.minDistance = 8;
-    controls.maxDistance = 95;
-    controls.maxPolarAngle = Math.PI / 2 - 0.06;
-    controls.target.set(0, 2, 3);
+    controls.maxDistance = 128;
+    controls.maxPolarAngle = Math.PI / 2 + 0.2;
+    controls.target.set(-1, 1, -2);
 
-    // Iluminação arquitetônica de shopping claro
-    const hemiLight = new THREE.HemisphereLight('#ffffff', '#cbd5e1', 1.15);
+    const hemiLight = new THREE.HemisphereLight('#ffffff', '#cbd5e1', 1.2);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight('#fffbeb', 1.25);
-    dirLight.position.set(22, 46, 26);
+    const dirLight = new THREE.DirectionalLight('#fffbeb', 1.32);
+    dirLight.position.set(28, 56, 34);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
-    // === CHÃO EXTERNO (RUAS, ESTACIONAMENTOS & ENTRADAS) ===
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(165, 130),
-      new THREE.MeshStandardMaterial({ color: '#e7e5e4', roughness: 0.95 })
-    );
+    const l2Materials: THREE.MeshStandardMaterial[] = [];
+    const l2Objects: THREE.Object3D[] = [];
+    const subsoloObjects: THREE.Object3D[] = [];
+
+    // === TERRENO BASE (translúcido no modo Raio-X para revelar SS1 e SS2) ===
+    const groundMat = new THREE.MeshStandardMaterial({ color: '#e5e7eb', roughness: 0.95 });
+    sceneRefs.current.groundMat = groundMat;
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(210, 165), groundMat);
     ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.15;
+    ground.position.set(0, -0.22, -2);
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Avenidas principais ao redor (JK, NS-05, LO 2A)
-    const roadMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.85 });
+    // === MALHA VIÁRIA REAL (AV. NS-05 + 2 ROTATÓRIAS + 3ª ROTATÓRIA OESTE + VIA DIAGONAL + LO-2A + JK) ===
+    const roadMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.85 });
     const laneLineMat = new THREE.MeshBasicMaterial({ color: '#facc15' });
 
-    const avNS05 = new THREE.Mesh(new THREE.BoxGeometry(102, 0.12, 4.4), roadMat);
-    avNS05.position.set(-1, -0.06, 28.5);
+    // Avenida NS-05 (Fachada Principal Leste, +Z)
+    const avNS05 = new THREE.Mesh(new THREE.BoxGeometry(116, 0.14, 4.8), roadMat);
+    avNS05.position.set(0, -0.1, 24.5);
     scene.add(avNS05);
-    const avNS05Line = new THREE.Mesh(new THREE.BoxGeometry(96, 0.13, 0.2), laneLineMat);
-    avNS05Line.position.set(-1, -0.05, 28.5);
+    const avNS05Line = new THREE.Mesh(new THREE.BoxGeometry(106, 0.15, 0.22), laneLineMat);
+    avNS05Line.position.set(0, -0.09, 24.5);
     scene.add(avNS05Line);
 
-    const avJK = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.12, 62), roadMat);
-    avJK.position.set(-45, -0.06, 0);
+    // Avenida JK (Sul, -X)
+    const avJK = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.14, 68), roadMat);
+    avJK.position.set(-42.5, -0.1, -2);
     scene.add(avJK);
-    const avJKLine = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 56), laneLineMat);
-    avJKLine.position.set(-45, -0.05, 0);
+    const avJKLine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.15, 62), laneLineMat);
+    avJKLine.position.set(-42.5, -0.09, -2);
     scene.add(avJKLine);
 
-    const avLO2A = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.12, 62), roadMat);
-    avLO2A.position.set(42, -0.06, 0);
+    // Avenida LO-2A (Norte, +X)
+    const avLO2A = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.14, 70), roadMat);
+    avLO2A.position.set(37.5, -0.1, -3);
     scene.add(avLO2A);
-    const avLO2ALine = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 56), laneLineMat);
-    avLO2ALine.position.set(42, -0.05, 0);
+    const avLO2ALine = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.15, 64), laneLineMat);
+    avLO2ALine.position.set(37.5, -0.09, -3);
     scene.add(avLO2ALine);
 
-    // Placas visíveis das avenidas no contorno
-    const roadSigns: { text: string; sub: string; x: number; z: number }[] = [
-      { text: 'AV. NS-05 (FRONTAL)', sub: 'Acesso Principal & Estacionamento', x: -1, z: 32.2 },
-      { text: 'AV. JK (OESTE)', sub: 'Acesso Renner • Ala Sul', x: -45, z: 22 },
-      { text: 'AV. LO-2A (LESTE)', sub: 'Acesso Cinemark • MoroFit', x: 42, z: 22 },
-    ];
-    roadSigns.forEach((rs) => {
+    // Via Oeste interna em diagonal real (de Curva JK/Oeste até 3ª Rotatória e Cancelas Norte)
+    const westRoadSeg1 = new THREE.Mesh(new THREE.BoxGeometry(50, 0.12, 3.2), roadMat);
+    westRoadSeg1.position.set(-12, -0.11, -28.5);
+    westRoadSeg1.rotation.y = 0.12;
+    scene.add(westRoadSeg1);
+    const westRoadSeg2 = new THREE.Mesh(new THREE.BoxGeometry(28, 0.12, 3.2), roadMat);
+    westRoadSeg2.position.set(24, -0.11, -31.8);
+    westRoadSeg2.rotation.y = 0.08;
+    scene.add(westRoadSeg2);
+
+    // 2 Rotatórias da NS-05 + 3ª Rotatória Interna Oeste (acesso C&A / P2 / Subsolo)
+    scene.add(buildRoundabout(-42.5, 24.5, 5.2, roadMat));
+    scene.add(buildRoundabout(37.5, 24.5, 5.2, roadMat));
+    scene.add(buildRoundabout(12.5, -24.5, 3.2, roadMat));
+
+    // Paisagismo (Palmeiras nos canteiros da P1, Rotatórias e Estac. Oeste)
+    [
+      [-7.2, 14.5, 1.0],
+      [2.6, 14.5, 1.0],
+      [-42.5, 24.5, 1.15],
+      [37.5, 24.5, 1.15],
+      [-18, 17.5, 0.9],
+      [14, 17.5, 0.9],
+      [12.5, -24.5, 0.85],
+    ].forEach(([tx, tz, ts]) => scene.add(buildTree(tx, tz, ts)));
+
+    // Placas das Avenidas Reais + Bússola Norte + Docas Operacionais
+    [
+      { text: 'AV. NS-05 (FACHADA LESTE)', sub: 'Portaria P1 • 2 Rotatórias', x: -1, z: 28.5 },
+      { text: 'AV. JK (LADO SUL)', sub: 'Curva Renner & Praça L2', x: -42.5, z: 6 },
+      { text: 'AV. LO-2A (LADO NORTE • N→)', sub: 'Cinemark • Big • WoW • Morofit', x: 37.5, z: -8 },
+      { text: 'SENTIDO ORLA / LAGO (OESTE)', sub: '3ª Rotatória • Subsolos & Estac. Oeste', x: -6, z: -33.6 },
+    ].forEach((rs) => {
       const spr = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: createBadgeTexture(rs.text, rs.sub, '#1e293b', '#94a3b8', '#f8fafc', '#cbd5e1'),
+          map: createBadgeTexture(rs.text, rs.sub, '#0f172a', '#94a3b8', '#f8fafc', '#cbd5e1'),
           transparent: true,
         })
       );
-      spr.position.set(rs.x, 3.0, rs.z);
-      spr.scale.set(7.4, 2.0, 1);
+      spr.position.set(rs.x, 3.3, rs.z);
+      spr.scale.set(7.6, 1.9, 1);
       scene.add(spr);
     });
 
-    // Helper para desenhar bolsão de Estacionamento com vagas demarcadas, carros 3D e totem 🅿️
-    const buildParkingLot = (
-      cx: number,
-      cz: number,
-      width: number,
-      depth: number,
-      title: string,
-      subtitle: string,
-      rows: number,
-      cols: number
-    ) => {
+    // Sinalização discreta das Docas de Carga (Lado Leste/Norte - Planta Mix)
+    const dockSign = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createBadgeTexture('🚚 DOCAS DE CARGA', 'Doca Super Big • Doca 1 • DEXT 01-02', '#1e293b', '#64748b', '#e2e8f0', '#94a3b8'),
+        transparent: true,
+      })
+    );
+    dockSign.position.set(32.5, 3.0, -18);
+    dockSign.scale.set(5.8, 1.45, 1);
+    scene.add(dockSign);
+
+    // === ESTACIONAMENTOS (SUPERFÍCIE + SUBSOLO 1 & 2) ===
+    const parkingBadges: THREE.Sprite[] = [];
+    CAPIM_PARKING_3D.forEach((lot) => {
+      const baseY = lot.y ?? 0;
+      const isUnderground = baseY < 0;
       const group = new THREE.Group();
 
-      // Base asfáltica
       const asphalt = new THREE.Mesh(
-        new THREE.BoxGeometry(width, 0.14, depth),
-        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.9 })
+        new THREE.BoxGeometry(lot.w, 0.18, lot.d),
+        new THREE.MeshStandardMaterial({
+          color: isUnderground ? '#1e293b' : '#334155',
+          roughness: 0.9,
+        })
       );
-      asphalt.position.set(cx, -0.06, cz);
+      asphalt.position.set(lot.cx, baseY - 0.08, lot.cz);
       asphalt.receiveShadow = true;
       group.add(asphalt);
 
-      // Borda/calçada clara ao redor do bolsão
-      const border = new THREE.Mesh(
-        new THREE.BoxGeometry(width + 0.6, 0.1, depth + 0.6),
-        new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.8 })
-      );
-      border.position.set(cx, -0.09, cz);
-      group.add(border);
+      if (isUnderground) {
+        const deckEdge = new THREE.Mesh(
+          new THREE.BoxGeometry(lot.w + 0.5, 0.12, lot.d + 0.5),
+          new THREE.MeshStandardMaterial({
+            color: '#38bdf8',
+            emissive: '#0284c7',
+            emissiveIntensity: 0.3,
+          })
+        );
+        deckEdge.position.set(lot.cx, baseY - 0.15, lot.cz);
+        group.add(deckEdge);
+      }
 
-      const stripeMat = new THREE.MeshBasicMaterial({ color: '#f8fafc' });
+      const stripeMat = new THREE.MeshBasicMaterial({ color: isUnderground ? '#93c5fd' : '#f8fafc' });
       const carColors = ['#e2e8f0', '#94a3b8', '#38bdf8', '#f8fafc', '#f59e0b', '#64748b', '#ef4444'];
-      const stepX = (width - 2.4) / cols;
-      const stepZ = (depth - 2.0) / rows;
+      const stepX = (lot.w - 2.0) / lot.cols;
+      const stepZ = (lot.d - 1.8) / lot.rows;
 
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c <= cols; c++) {
-          const sx = cx - (width - 2.4) / 2 + c * stepX;
-          const sz = cz - (depth - 2.0) / 2 + r * stepZ + stepZ / 2;
+      for (let r = 0; r < lot.rows; r++) {
+        for (let c = 0; c <= lot.cols; c++) {
+          const sx = lot.cx - (lot.w - 2.0) / 2 + c * stepX;
+          const sz = lot.cz - (lot.d - 1.8) / 2 + r * stepZ + stepZ / 2;
 
-          // Linha branca da vaga
-          const line = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, stepZ * 0.72), stripeMat);
-          line.position.set(sx, 0.02, sz);
+          const line = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, stepZ * 0.7), stripeMat);
+          line.position.set(sx, baseY + 0.03, sz);
           group.add(line);
 
-          // Carro estilizado em ~70% das vagas
-          if (c < cols && (r * 7 + c * 3) % 10 < 7) {
+          if (c < lot.cols && (r * 7 + c * 3) % 10 < 6) {
             const carX = sx + stepX / 2;
-            const carBodyColor = carColors[(r + c * 2) % carColors.length];
             const car = new THREE.Mesh(
-              new THREE.BoxGeometry(Math.min(1.5, stepX * 0.68), 0.65, Math.min(2.6, stepZ * 0.56)),
-              new THREE.MeshStandardMaterial({ color: carBodyColor, roughness: 0.35, metalness: 0.2 })
+              new THREE.BoxGeometry(Math.min(1.4, stepX * 0.65), 0.6, Math.min(2.3, stepZ * 0.54)),
+              new THREE.MeshStandardMaterial({
+                color: carColors[(r + c * 2) % carColors.length],
+                roughness: 0.35,
+                metalness: 0.25,
+              })
             );
-            car.position.set(carX, 0.36, sz);
-            car.castShadow = true;
+            car.position.set(carX, baseY + 0.34, sz);
             group.add(car);
-
-            const cabin = new THREE.Mesh(
-              new THREE.BoxGeometry(Math.min(1.2, stepX * 0.54), 0.4, Math.min(1.4, stepZ * 0.32)),
-              new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.2 })
-            );
-            cabin.position.set(carX, 0.82, sz);
-            group.add(cabin);
           }
         }
       }
 
-      // Poste + Totem Azul P de Estacionamento
+      const totemY = isUnderground ? baseY + 2.8 : 4.8;
       const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.14, 0.14, 4.2, 10),
+        new THREE.CylinderGeometry(0.12, 0.12, isUnderground ? 2.4 : 4.0, 10),
         new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5 })
       );
-      pole.position.set(cx, 2.1, cz);
+      pole.position.set(lot.cx, baseY + (isUnderground ? 1.2 : 2.0), lot.cz);
       group.add(pole);
 
       const sign = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: createBadgeTexture(`🅿️ ${title}`, subtitle, '#0f172a', '#38bdf8', '#38bdf8', '#f8fafc'),
+          map: createBadgeTexture(
+            `🅿️ ${lot.title}`,
+            lot.subtitle,
+            isUnderground ? '#082f49' : '#0f172a',
+            isUnderground ? '#fbbf24' : '#38bdf8',
+            isUnderground ? '#fde68a' : '#38bdf8',
+            '#f8fafc'
+          ),
           transparent: true,
         })
       );
-      sign.position.set(cx, 4.9, cz);
-      sign.scale.set(7.6, 2.05, 1);
+      sign.position.set(lot.cx, totemY, lot.cz);
+      sign.scale.set(isUnderground ? 7.0 : 7.4, isUnderground ? 1.8 : 1.95, 1);
       group.add(sign);
+      parkingBadges.push(sign);
 
       scene.add(group);
-    };
+      if (isUnderground) {
+        subsoloObjects.push(group);
+      }
+    });
 
-    // 3 Estacionamentos claros no entorno do Capim Dourado
-    buildParkingLot(-2, 20.5, 44, 9.5, 'ESTACIONAMENTO FRONTAL', 'Portaria Principal • 1.200 Vagas', 2, 14);
-    buildParkingLot(-37.5, -1, 8.8, 30, 'ESTACIONAMENTO AV. JK', 'Acesso Rápido Renner / Ala Sul', 6, 3);
-    buildParkingLot(34.5, -1, 8.8, 30, 'ESTACIONAMENTO LAZER', 'Acesso Cinemark / MoroFit', 6, 3);
+    // Motos & Bicicletário na extremidade NORTE-LESTE do Subsolo 1 (Planta Mix p1_ss1) + Rampa Veicular próxima à P2
+    const motoSign = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createBadgeTexture('🏍️ MOTOS & BICICLETÁRIO', 'Subsolo 1 (Norte-Leste) • Rampa LO-2A', '#111827', '#34d399', '#6ee7b7', '#e2e8f0'),
+        transparent: true,
+      })
+    );
+    motoSign.position.set(17.5, -2.5, -25.5);
+    motoSign.scale.set(6.0, 1.5, 1);
+    scene.add(motoSign);
 
-    // Cancelas de Entrada de Veículos
+    // Rampa Veicular Dupla Subsolo (entre Estac. Oeste e bloco Ellus / P2)
+    const subRamp = new THREE.Mesh(
+      new THREE.BoxGeometry(10.5, 0.28, 3.2),
+      new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.7 })
+    );
+    subRamp.position.set(11.5, -2.5, -14.5);
+    subRamp.rotation.z = -0.45;
+    scene.add(subRamp);
+    subsoloObjects.push(motoSign, subRamp);
+
+    // Cancelas reais (2 na NS-05 + 4 faixas no acesso Norte Av. LO-2A)
     [
-      [-23, 25.5],
-      [19, 25.5],
+      [-18, 21.6],
+      [13, 21.6],
+      [27.2, -31.8],
+      [28.6, -31.8],
+      [30.0, -31.8],
+      [31.4, -31.8],
     ].forEach(([gx, gz]) => {
       const gateArm = new THREE.Mesh(
-        new THREE.BoxGeometry(2.8, 0.14, 0.14),
+        new THREE.BoxGeometry(2.0, 0.14, 0.14),
         new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.3 })
       );
-      gateArm.position.set(gx, 1.0, gz);
+      gateArm.position.set(gx, 0.9, gz);
       scene.add(gateArm);
     });
 
-    // === LAJE PRINCIPAL 1º PAVIMENTO (TÉRREO) ===
-    const l1Floor = new THREE.Mesh(
-      new THREE.BoxGeometry(60, 0.4, 34),
-      new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.35, metalness: 0.05 })
+    // === LAJE REAL DO 1º PAVIMENTO (CURVA RENNER + CORREDOR PC + RECUO P1) ===
+    const mallShape = new THREE.Shape();
+    mallShape.moveTo(-25, 13.5);
+    mallShape.quadraticCurveTo(-36.5, 11.5, -35.5, 0.5);
+    mallShape.quadraticCurveTo(-34.5, -9.5, -22.0, -12.5);
+    mallShape.lineTo(14.5, -12.5);
+    mallShape.lineTo(15.5, -30.8);
+    mallShape.lineTo(31.2, -30.8);
+    mallShape.lineTo(31.2, 13.5);
+    mallShape.lineTo(8.5, 13.5);
+    mallShape.quadraticCurveTo(-0.8, 10.6, -7.8, 13.5);
+    mallShape.closePath();
+
+    const l1Geo = new THREE.ExtrudeGeometry(mallShape, { depth: 0.42, bevelEnabled: false });
+    l1Geo.rotateX(Math.PI / 2);
+    const l1DeckMat = new THREE.MeshStandardMaterial({
+      color: '#f8fafc',
+      roughness: 0.38,
+      metalness: 0.04,
+      transparent: xrayRef.current,
+      opacity: xrayRef.current ? 0.28 : 1.0,
+    });
+    sceneRefs.current.l1DeckMat = l1DeckMat;
+    const l1Slab = new THREE.Mesh(l1Geo, l1DeckMat);
+    l1Slab.position.set(0, 0.05, 0);
+    l1Slab.receiveShadow = true;
+    scene.add(l1Slab);
+
+    // Praça de Eventos Oval Central (265,90 m² em frente à Riachuelo)
+    const ovalPlaza = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.6, 3.6, 0.14, 28),
+      new THREE.MeshStandardMaterial({ color: '#fde68a', roughness: 0.4 })
     );
-    l1Floor.position.set(-1, -0.1, -2);
-    l1Floor.receiveShadow = true;
-    scene.add(l1Floor);
+    ovalPlaza.scale.set(1.35, 1, 0.8);
+    ovalPlaza.position.set(-4.5, 0.1, 4.2);
+    scene.add(ovalPlaza);
 
-    // Grid arquitetônico discreto no piso do corredor Térreo
-    const l1Grid = new THREE.GridHelper(58, 29, '#cbd5e1', '#e2e8f0');
-    l1Grid.position.set(-1, 0.12, -2);
-    scene.add(l1Grid);
+    // Cobertura leve sobre área do Subsolo no nível 0 (some no Raio-X)
+    const subsoloRoofCover = new THREE.Mesh(
+      new THREE.BoxGeometry(19.5, 0.08, 11.2),
+      new THREE.MeshStandardMaterial({ color: '#dbeafe', transparent: true, opacity: 0.42 })
+    );
+    subsoloRoofCover.position.set(8.5, -0.05, -16.8);
+    subsoloRoofCover.visible = !xrayRef.current;
+    sceneRefs.current.subsoloCover = subsoloRoofCover;
+    scene.add(subsoloRoofCover);
 
-    // === 4 PORTARIAS / ENTRADAS ILUMINADAS DO SHOPPING ===
-    const buildEntrancePortal = (
-      x: number,
-      z: number,
-      rotY: number,
-      title: string,
-      subtitle: string
-    ) => {
-      const portal = new THREE.Group();
-      portal.position.set(x, 0, z);
-      portal.rotation.y = rotY;
-
-      // Marquise escura Obsidian + filete Dourado Champagne
-      const canopy = new THREE.Mesh(
-        new THREE.BoxGeometry(6.8, 0.45, 3.0),
-        new THREE.MeshStandardMaterial({ color: '#111318', roughness: 0.35, metalness: 0.25 })
+    // === 3 ESTEIRAS ROLANTES ANIMADAS (SUBSOLO 1 ↔ SUPER BIG / ZIG ZAG / WOW / MOROFIT) ===
+    const animatedTreads: Array<{ mesh: THREE.Mesh; phase: number; axis: 'esteira' | 'escalator' }> = [];
+    const travelatorGroup = new THREE.Group();
+    [-18.4, -17.6, -16.8].forEach((tz, idx) => {
+      const belt = new THREE.Mesh(
+        new THREE.BoxGeometry(7.6, 0.24, 0.55),
+        new THREE.MeshStandardMaterial({
+          color: '#f59e0b',
+          emissive: '#d97706',
+          emissiveIntensity: 0.35,
+          metalness: 0.4,
+        })
       );
-      canopy.position.set(0, 3.4, 0);
-      canopy.castShadow = true;
+      belt.position.set(17.2, -2.4, tz);
+      belt.rotation.z = Math.atan2(5.0, 5.8);
+      travelatorGroup.add(belt);
+
+      // Barra luminosa animada indicando direção de subida
+      const pulseStep = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.28, 0.44),
+        new THREE.MeshBasicMaterial({ color: '#fef08a' })
+      );
+      pulseStep.position.set(17.2, -2.25, tz);
+      pulseStep.rotation.z = Math.atan2(5.0, 5.8);
+      travelatorGroup.add(pulseStep);
+      animatedTreads.push({ mesh: pulseStep, phase: idx * 0.33, axis: 'esteira' });
+    });
+
+    const travelatorBadge = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: createBadgeTexture(
+          '🪜 3 ESTEIRAS ROLANTES (SUBSOLO)',
+          'Subsolo 1 ↔ Super Big / Zig Zag / Morofit',
+          '#78350f',
+          '#fbbf24',
+          '#fef3c7',
+          '#fde68a'
+        ),
+        transparent: true,
+      })
+    );
+    travelatorBadge.position.set(18.2, 2.9, -17.7);
+    travelatorBadge.scale.set(6.6, 1.7, 1);
+    travelatorGroup.add(travelatorBadge);
+    scene.add(travelatorGroup);
+    subsoloObjects.push(travelatorGroup);
+
+    // === 2 TORRES DE ELEVADORES (SS2↔SS1↔L1 na P2 e L1↔L2 na Praça) ===
+    const elevatorCabins = [
+      buildElevatorTower(15.6, -15.5, -9.6, 0.5),
+      buildElevatorTower(-12.6, -1.6, 0, 6.6),
+    ];
+    elevatorCabins.forEach((el) => scene.add(el.group));
+    subsoloObjects.push(elevatorCabins[0].group);
+
+    // === PORTARIAS REAIS (P1, P2, P3, P4 + ACESSO PC) ===
+    CAPIM_PORTALS_3D.forEach((pt) => {
+      const portal = new THREE.Group();
+      const baseY = pt.id === 'P4' ? L2_DECK_Y : 0;
+      portal.position.set(pt.x, baseY, pt.z);
+      portal.rotation.y = pt.rotY;
+
+      const canopy = new THREE.Mesh(
+        new THREE.BoxGeometry(5.6, 0.38, 2.4),
+        new THREE.MeshStandardMaterial({ color: '#111318', roughness: 0.35 })
+      );
+      canopy.position.set(0, 3.3, 0);
       portal.add(canopy);
 
       const goldRim = new THREE.Mesh(
-        new THREE.BoxGeometry(7.0, 0.16, 3.15),
-        new THREE.MeshStandardMaterial({ color: '#E2A83B', roughness: 0.25, metalness: 0.6 })
+        new THREE.BoxGeometry(5.8, 0.16, 2.55),
+        new THREE.MeshStandardMaterial({ color: '#E2A83B', emissive: '#d97706', emissiveIntensity: 0.3 })
       );
-      goldRim.position.set(0, 3.68, 0);
+      goldRim.position.set(0, 3.55, 0);
       portal.add(goldRim);
 
-      // Pilares laterais da portaria
-      const pillarMat = new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.3 });
-      [-3.0, 3.0].forEach((px) => {
-        const pil = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.4, 0.45), pillarMat);
-        pil.position.set(px, 1.7, 0.9);
-        portal.add(pil);
-      });
-
-      // Portas de vidro iluminadas
-      const doorGlass = new THREE.Mesh(
-        new THREE.PlaneGeometry(5.2, 2.9),
-        new THREE.MeshStandardMaterial({
-          color: '#10b981',
-          emissive: '#34d399',
-          emissiveIntensity: 0.35,
-          transparent: true,
-          opacity: 0.38,
-          side: THREE.DoubleSide,
-        })
-      );
-      doorGlass.position.set(0, 1.55, 0);
-      portal.add(doorGlass);
-
-      // Tapete esmeralda no chão indicando o fluxo de entrada
       const welcomeMat = new THREE.Mesh(
-        new THREE.BoxGeometry(4.4, 0.14, 3.8),
-        new THREE.MeshStandardMaterial({
-          color: '#10b981',
-          emissive: '#059669',
-          emissiveIntensity: 0.35,
-        })
+        new THREE.BoxGeometry(3.8, 0.14, 3.0),
+        new THREE.MeshStandardMaterial({ color: '#10b981', emissive: '#059669', emissiveIntensity: 0.4 })
       );
-      welcomeMat.position.set(0, 0.08, 0.6);
+      welcomeMat.position.set(0, 0.1, 0.4);
       portal.add(welcomeMat);
 
-      // Placa flutuante alta "🚪 ENTRADA ..."
       const badge = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: createBadgeTexture(`🚪 ${title}`, subtitle, '#065f46', '#34d399', '#ffffff', '#a7f3d0'),
+          map: createBadgeTexture(`🚪 ${pt.title}`, pt.subtitle, '#065f46', '#34d399', '#ffffff', '#a7f3d0'),
           transparent: true,
         })
       );
-      badge.position.set(0, 5.2, 0);
-      badge.scale.set(6.8, 1.85, 1);
+      badge.position.set(0, 4.9, 0);
+      badge.scale.set(6.2, 1.58, 1);
       portal.add(badge);
 
       scene.add(portal);
-    };
+    });
 
-    buildEntrancePortal(-8.5, 14.8, 0, 'ENTRADA PRINCIPAL', 'Portaria A • Estac. Frontal');
-    buildEntrancePortal(11.0, 14.8, 0, 'ENTRADA ALAMEDA', 'Outback / Madero • Portaria B');
-    buildEntrancePortal(-30.5, -1.5, Math.PI / 2, 'ENTRADA AV. JK', 'Portaria Sul • Renner');
-    buildEntrancePortal(28.5, 5.0, -Math.PI / 2, 'ENTRADA CINEMARK', 'Portaria Leste • Lazer');
+    // === 2º PAVIMENTO PARABÓLICO REAL (PRAÇA DE ALIMENTAÇÃO L2 + MESAS + GUARDA-CORPO + CLARABOIA) ===
+    // Espaçamento vertical elevado para 11.0 garantindo folga >4m sobre letreiros de L1 (F25)
+    const l2DeckY = L2_DECK_Y;
+    const foodCourtShape = new THREE.Shape();
+    foodCourtShape.moveTo(-32.8, -6.5);
+    foodCourtShape.quadraticCurveTo(-36.5, 0.5, -32.8, 7.6);
+    foodCourtShape.lineTo(-11.5, 7.6);
+    foodCourtShape.quadraticCurveTo(-7.2, 0.5, -11.5, -6.5); // Bico parabólico Leste conforme Planta Mix 2/2
+    foodCourtShape.closePath();
 
-    // === 2º PAVIMENTO (PRAÇA DE ALIMENTAÇÃO ELEVADA EM Y = 6.2) ===
-    const l2DeckY = 6.2;
-    const l2Floor = new THREE.Mesh(
-      new THREE.BoxGeometry(31, 0.45, 22),
-      new THREE.MeshStandardMaterial({
-        color: '#fefce8',
-        roughness: 0.3,
-        transparent: true,
-        opacity: 0.94,
-      })
-    );
-    l2Floor.position.set(-1.5, l2DeckY - 0.2, 0);
-    l2Floor.castShadow = true;
-    l2Floor.receiveShadow = true;
-    scene.add(l2Floor);
-
-    // Guarda-corpo de vidro do 2º andar (átrio central aberto para ver lá embaixo!)
-    const glassRailMat = new THREE.MeshStandardMaterial({
-      color: '#38bdf8',
+    const l2Geo = new THREE.ExtrudeGeometry(foodCourtShape, { depth: 0.42, bevelEnabled: false });
+    l2Geo.rotateX(Math.PI / 2);
+    const l2FoodSlabMat = new THREE.MeshStandardMaterial({
+      color: '#fefce8',
+      roughness: 0.3,
       transparent: true,
-      opacity: 0.32,
-      roughness: 0.1,
+      opacity: 0.9,
     });
-    const railFront = new THREE.Mesh(new THREE.BoxGeometry(28, 1.0, 0.15), glassRailMat);
-    railFront.position.set(-1.5, l2DeckY + 0.5, 4.4);
-    scene.add(railFront);
-    const railBack = new THREE.Mesh(new THREE.BoxGeometry(28, 1.0, 0.15), glassRailMat);
-    railBack.position.set(-1.5, l2DeckY + 0.5, -4.4);
-    scene.add(railBack);
+    l2Materials.push(l2FoodSlabMat);
+    const l2FoodSlab = new THREE.Mesh(l2Geo, l2FoodSlabMat);
+    l2FoodSlab.position.set(0, l2DeckY, 0);
+    scene.add(l2FoodSlab);
+    l2Objects.push(l2FoodSlab);
 
-    // Colunas estruturais elegantes sustentando o 2º piso
-    const colGeo = new THREE.CylinderGeometry(0.32, 0.32, l2DeckY, 16);
-    const colMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.3, roughness: 0.4 });
-    [
-      [-15, -9],
-      [-15, 9],
-      [12, -9],
-      [12, 9],
-    ].forEach(([cx, cz]) => {
-      const col = new THREE.Mesh(colGeo, colMat);
-      col.position.set(cx, l2DeckY / 2, cz);
-      scene.add(col);
-    });
-
-    // === ESCADA ROLANTE / RAMPA 3D LIGANDO 1º AO 2º PISO ===
-    const escalatorGroup = new THREE.Group();
-    const rampLen = 9.5;
-    const rampMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(rampLen, 0.35, 2.2),
-      new THREE.MeshStandardMaterial({ color: '#d97706', metalness: 0.4, roughness: 0.3 })
+    // Guarda-corpo de vidro do mezanino L2 + Claraboia curva
+    const balustradeMat = new THREE.MeshStandardMaterial({ color: '#7dd3fc', transparent: true, opacity: 0.42 });
+    l2Materials.push(balustradeMat);
+    const balustrade = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.9, 9.6),
+      balustradeMat
     );
-    rampMesh.position.set(14.5, 3.1, 0);
-    rampMesh.rotation.z = -Math.atan2(l2DeckY, rampLen * 0.72);
-    escalatorGroup.add(rampMesh);
-    scene.add(escalatorGroup);
+    balustrade.position.set(-9.6, l2DeckY + 0.45, 0.5);
+    scene.add(balustrade);
+    l2Objects.push(balustrade);
 
-    // === CONSTRUÇÃO DAS LOJAS 3D + VITRINES + LETREIROS ===
+    [-26, -20, -14].forEach((sx) => {
+      const archMat = new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.5, transparent: true, opacity: 0.38 });
+      l2Materials.push(archMat);
+      const arch = new THREE.Mesh(
+        new THREE.TorusGeometry(4.2, 0.14, 8, 24, Math.PI),
+        archMat
+      );
+      arch.position.set(sx, l2DeckY + 3.4, 0.4);
+      arch.rotation.y = Math.PI / 2;
+      scene.add(arch);
+      l2Objects.push(arch);
+    });
+
+    // Mesas & Cadeiras reais no miolo da Praça de Alimentação L2
+    const tableMat = new THREE.MeshStandardMaterial({ color: '#f8fafc', roughness: 0.3, transparent: true, opacity: 1.0 });
+    const chairMat = new THREE.MeshStandardMaterial({ color: '#b45309', roughness: 0.6, transparent: true, opacity: 1.0 });
+    l2Materials.push(tableMat, chairMat);
+    for (let tx = -24.5; tx <= -14.5; tx += 2.5) {
+      for (let tz = -1.6; tz <= 2.4; tz += 2.0) {
+        const tbl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.65, 10), tableMat);
+        tbl.position.set(tx, l2DeckY + 0.35, tz);
+        scene.add(tbl);
+        l2Objects.push(tbl);
+        const chr = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.42, 8), chairMat);
+        chr.position.set(tx + 0.55, l2DeckY + 0.22, tz);
+        scene.add(chr);
+        l2Objects.push(chr);
+      }
+    }
+
+    // Pilares estruturais brancos/metálicos cilíndricos sustentando elegantemente a laje de L2 a partir do piso térreo (F25)
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: '#f8fafc',
+      metalness: 0.35,
+      roughness: 0.25,
+      transparent: true,
+      opacity: 1.0,
+    });
+    l2Materials.push(pillarMat);
+    const pillarGeo = new THREE.CylinderGeometry(0.28, 0.28, l2DeckY, 16);
+    const pillarPositions: [number, number][] = [
+      [-31.0, -5.5],
+      [-31.0, 5.5],
+      [-23.0, -5.8],
+      [-23.0, 6.2],
+      [-15.0, -5.2],
+      [-15.0, 5.8],
+      [-11.5, 0.5],
+    ];
+    pillarPositions.forEach(([px, pz]) => {
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(px, l2DeckY / 2, pz);
+      pillar.castShadow = true;
+      pillar.receiveShadow = true;
+      scene.add(pillar);
+      l2Objects.push(pillar);
+    });
+
+    // Blocos extras reais L2 (Colégio Interação A8 & Unicesumar/IOA)
+    [
+      { x: 9.2, z: 5.8, w: 7.0, d: 4.8 },
+      { x: 11.4, z: -4.3, w: 6.0, d: 6.2 },
+    ].forEach((b) => {
+      const deckMat = new THREE.MeshStandardMaterial({ color: '#fef9c3', transparent: true, opacity: 0.88 });
+      l2Materials.push(deckMat);
+      const deck = new THREE.Mesh(
+        new THREE.BoxGeometry(b.w, 0.35, b.d),
+        deckMat
+      );
+      deck.position.set(b.x, l2DeckY - 0.1, b.z);
+      scene.add(deck);
+      l2Objects.push(deck);
+    });
+
+    // Escadas Rolantes L1 ↔ L2 (ao lado do Bistrô 81 → bico parabólico da Praça L2) (F24)
+    // Partem da circulação aberta do L1 (X ≈ -9.5, Y = 0.18) e sobem em direção a Oeste (-X),
+    // desembarcando no piso da Praça de Alimentação de L2 (X ≈ -17.5, Y = l2DeckY).
+    const escAngle = -Math.atan2(l2DeckY, 8.0);
+    const escLength = Math.sqrt(64.0 + l2DeckY * l2DeckY);
+    [-0.4, 1.4].forEach((ez, idx) => {
+      const esc = new THREE.Mesh(
+        new THREE.BoxGeometry(escLength, 0.3, 1.3),
+        new THREE.MeshStandardMaterial({ color: '#d97706', metalness: 0.45, roughness: 0.3 })
+      );
+      esc.position.set(-13.5, l2DeckY / 2, ez);
+      esc.rotation.z = escAngle;
+      scene.add(esc);
+      l2Objects.push(esc);
+
+      const stepPulse = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.36, 1.0),
+        new THREE.MeshBasicMaterial({ color: '#fde047' })
+      );
+      stepPulse.position.set(-9.5, 0.18, ez);
+      stepPulse.rotation.z = escAngle;
+      scene.add(stepPulse);
+      l2Objects.push(stepPulse);
+      animatedTreads.push({ mesh: stepPulse, phase: idx * 0.5, axis: 'escalator' });
+    });
+
+    // === BEACON 3D LUMINOSO VERTICAL + HALO PULSANTE (F22) ===
+    const beaconGroup = new THREE.Group();
+    // Cilindro / Cone invertido luminoso (altura 15 unidades) com MeshBasicMaterial translúcido aditivo #F59E0B
+    const beaconGeo = new THREE.ConeGeometry(1.6, 15.0, 16, 1, true);
+    beaconGeo.translate(0, 7.5, 0); // posiciona a ponta na base Y = 0
+    beaconGeo.rotateX(Math.PI);     // inverte o cone para a ponta apontar para a loja/quiosque
+    const beaconConeMat = new THREE.MeshBasicMaterial({
+      color: '#F59E0B',
+      transparent: true,
+      opacity: 0.65,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const beaconCone = new THREE.Mesh(beaconGeo, beaconConeMat);
+    beaconGroup.add(beaconCone);
+
+    // Halo pulsante horizontal no topo/base da loja
+    const haloGeo = new THREE.RingGeometry(1.2, 2.5, 32);
+    haloGeo.rotateX(-Math.PI / 2);
+    const beaconHaloMat = new THREE.MeshBasicMaterial({
+      color: '#F59E0B',
+      transparent: true,
+      opacity: 0.85,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    const beaconHalo = new THREE.Mesh(haloGeo, beaconHaloMat);
+    beaconHalo.position.set(0, 0.1, 0);
+    beaconGroup.add(beaconHalo);
+
+    beaconGroup.visible = false;
+    scene.add(beaconGroup);
+
+    sceneRefs.current.beaconGroup = beaconGroup;
+    sceneRefs.current.beaconHalo = beaconHalo;
+    sceneRefs.current.beaconCone = beaconCone;
+    sceneRefs.current.l2Materials = l2Materials;
+    sceneRefs.current.l2Objects = l2Objects;
+    sceneRefs.current.subsoloObjects = subsoloObjects;
+
+    // === CONSTRUÇÃO DAS 60+ LOJAS 3D + VITRINES DE VIDRO + LETREIROS COM LOD ===
     const interactiveMeshes: THREE.Mesh[] = [];
-    const storeSignSprites: THREE.Sprite[] = [];
+    const storeEntries: typeof sceneRefs.current.storeEntries = [];
 
-    STORES_3D.forEach((st) => {
-      const baseY = st.floor === 'L2' ? l2DeckY : 0;
-      const telemetry = zonesTelemetry.find((z) => z.zone.id === st.zoneId);
+    CAPIM_STORES_3D.forEach((st) => {
+      const baseY = st.floor === 'L2' ? l2DeckY : st.floor === 'SS1' ? -5.0 : 0;
+      const telemetry = zonesRef.current.find((z) => z.zone.id === st.zoneId);
       const score = telemetry?.opportunityScore ?? 65;
 
-      // Corpo da loja
-      const boxGeo = new THREE.BoxGeometry(st.w, st.h, st.d);
-      const boxMat = new THREE.MeshStandardMaterial({
+      const mat = new THREE.MeshStandardMaterial({
         color: st.color,
-        roughness: 0.45,
+        roughness: 0.42,
         metalness: 0.08,
       });
-      const mesh = new THREE.Mesh(boxGeo, boxMat);
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(st.w, st.h, st.d), mat);
       mesh.position.set(st.x, baseY + st.h / 2, st.z);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.userData = { zoneId: st.zoneId, floor: st.floor, storeName: st.name };
+      mesh.userData = {
+        zoneId: st.zoneId,
+        floor: st.floor === 'SS1' ? 'L1' : st.floor,
+        rawFloor: st.floor,
+        storeName: st.name,
+        subtitle: st.sublabel ?? st.floor,
+        segment: st.segment,
+        nearestPortal: st.nearestPortal,
+        x: st.x,
+        z: st.z,
+        h: st.h,
+      };
       scene.add(mesh);
       interactiveMeshes.push(mesh);
 
-      // Moldura / borda de destaque colorida no topo da loja
-      const trimGeo = new THREE.BoxGeometry(st.w + 0.12, 0.24, st.d + 0.12);
-      const trimMat = new THREE.MeshStandardMaterial({
-        color: st.accent,
-        roughness: 0.3,
-      });
-      const trim = new THREE.Mesh(trimGeo, trimMat);
+      // Vitrine de Vidro Frontal + Moldura Superior Metálica
+      const glass = new THREE.Mesh(
+        new THREE.BoxGeometry(st.w * 0.86, st.h * 0.62, st.d + 0.06),
+        new THREE.MeshStandardMaterial({
+          color: st.isVacant ? '#fecdd3' : '#bae6fd',
+          transparent: true,
+          opacity: 0.36,
+          roughness: 0.08,
+          metalness: 0.35,
+        })
+      );
+      glass.position.set(st.x, baseY + st.h * 0.36, st.z);
+      scene.add(glass);
+
+      const trimMat = new THREE.MeshStandardMaterial({ color: st.accent, roughness: 0.3 });
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(st.w + 0.12, 0.24, st.d + 0.12), trimMat);
       trim.position.set(st.x, baseY + st.h + 0.08, st.z);
       scene.add(trim);
 
-      // Vitrine iluminada na face voltada para o corredor
-      const vitrineZ = st.z > 0 ? st.z - st.d / 2 - 0.03 : st.z + st.d / 2 + 0.03;
-      const vitrineGlass = new THREE.Mesh(
-        new THREE.PlaneGeometry(st.w * 0.78, st.h * 0.65),
-        new THREE.MeshStandardMaterial({
-          color: '#38bdf8',
-          emissive: '#bae6fd',
-          emissiveIntensity: 0.25,
+      const badgeText = st.isVacant
+        ? 'ESPAÇO VAGO • EXPANSÃO'
+        : `${st.sublabel ?? `IQ ${score}`} • IQ ${score}`;
+      const tex = createSignTexture(st.name, badgeText, st.accent, st.tier, st.isVacant);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+
+      const signHeightOffset = st.tier === 'anchor' ? 1.55 : st.tier === 'megaloja' ? 1.15 : 0.78;
+      const signScale =
+        st.tier === 'anchor'
+          ? [5.3, 1.52]
+          : st.tier === 'megaloja'
+          ? [4.1, 1.18]
+          : [3.0, 0.88];
+
+      sprite.position.set(st.x, baseY + st.h + signHeightOffset, st.z);
+      sprite.scale.set(signScale[0], signScale[1], 1);
+      scene.add(sprite);
+
+      storeEntries.push({ def: st, mesh, mat, trimMat, sprite });
+    });
+    sceneRefs.current.storeEntries = storeEntries;
+
+    // === QUIOSQUES REAIS DOS CORREDORES L1 ===
+    const kioskEntries: typeof sceneRefs.current.kioskEntries = [];
+    CAPIM_KIOSKS_3D.forEach((k) => {
+      const kMat = new THREE.MeshStandardMaterial({
+        color: k.accent,
+        roughness: 0.35,
+        metalness: 0.2,
+      });
+      const kMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.95, 1.05, 1.25, 12),
+        kMat
+      );
+      kMesh.position.set(k.x, 0.65, k.z);
+      kMesh.userData = {
+        zoneId: k.zoneId,
+        floor: 'L1',
+        rawFloor: 'L1',
+        storeName: k.name,
+        subtitle: 'Quiosque Térreo L1',
+        segment: k.segment,
+        nearestPortal: 'Corredor L1',
+        x: k.x,
+        z: k.z,
+        h: 1.8,
+        isKiosk: true,
+      };
+      scene.add(kMesh);
+      interactiveMeshes.push(kMesh);
+
+      const kSprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: createSignTexture(k.name, 'Quiosque L1', k.accent, 'satellite'),
           transparent: true,
-          opacity: 0.55,
-          side: THREE.DoubleSide,
         })
       );
-      vitrineGlass.position.set(st.x, baseY + st.h * 0.42, vitrineZ);
-      scene.add(vitrineGlass);
+      kSprite.position.set(k.x, 2.35, k.z);
+      kSprite.scale.set(2.6, 0.76, 1);
+      scene.add(kSprite);
 
-      // Letreiro Flutuante Nítido (Sprite sempre legível ao caminhar ou girar!)
-      const signBadge = st.isVacant ? 'ESPAÇO VAGO • EXPANSÃO' : `IQ ${score} • ${telemetry?.footTraffic ?? 400}/h`;
-      const tex = createSignTexture(st.name, signBadge, st.accent, st.isVacant);
-      const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-      const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(st.x, baseY + st.h + 1.45, st.z);
-      sprite.scale.set(5.4, 1.7, 1);
-      scene.add(sprite);
-      storeSignSprites.push(sprite);
+      kioskEntries.push({
+        def: k,
+        segment: k.segment,
+        zoneId: k.zoneId,
+        sprite: kSprite,
+        mesh: kMesh,
+        mat: kMat,
+        pos: new THREE.Vector3(k.x, 1.2, k.z),
+      });
     });
+    sceneRefs.current.kioskEntries = kioskEntries;
 
-    // === FLUXO ANIMADO DE VISITANTES NOS CORREDORES (3 ROTAS DE CORES) ===
+    // === ROTAS DE FLUXO ANIMADO + CARROS NAS AVENIDAS ===
     interface FlowWalker {
       mesh: THREE.Mesh;
       path: THREE.CatmullRomCurve3;
       t: number;
       speed: number;
+      orientToPath?: boolean;
     }
 
     const walkers: FlowWalker[] = [];
-    const routesDefs = [
+    const routeGroups: Record<Exclude<SegmentFilter, 'all'>, THREE.Object3D[]> = {
+      moda: [],
+      mercado: [],
+      gastronomia: [],
+    };
+
+    const routesDefs: Array<{ seg: Exclude<SegmentFilter, 'all'>; color: string; points: THREE.Vector3[] }> = [
       {
-        color: '#2563eb', // Rota Azul: Moda & Âncoras (Renner -> RCHLO -> STZ)
+        seg: 'moda',
+        color: '#2563eb',
         points: [
-          new THREE.Vector3(-23, 0.55, 2.2),
-          new THREE.Vector3(-10, 0.55, 2.8),
-          new THREE.Vector3(6, 0.55, 2.2),
-          new THREE.Vector3(14, 0.55, 0.5),
+          new THREE.Vector3(-15, 0.5, -8),
+          new THREE.Vector3(-5, 0.5, -6.5),
+          new THREE.Vector3(3, 0.5, -4.5),
+          new THREE.Vector3(-4.5, 0.5, 4.2),
+          new THREE.Vector3(-22, 0.5, 4.2),
         ],
       },
       {
-        color: '#7c3aed', // Rota Violeta: Lazer & Cinema (MoroFit -> WoW -> Cinemark)
+        seg: 'mercado',
+        color: '#10b981',
         points: [
-          new THREE.Vector3(14.5, 0.55, -15),
-          new THREE.Vector3(14.5, 0.55, -7),
-          new THREE.Vector3(14.5, 0.55, 1),
-          new THREE.Vector3(14.5, 0.55, 7),
+          new THREE.Vector3(9, -4.4, -17.8),
+          new THREE.Vector3(14.5, -4.4, -17.8),
+          new THREE.Vector3(20.2, 0.5, -17.8),
+          new THREE.Vector3(19.5, 0.5, -26),
+          new THREE.Vector3(19.5, 0.5, -12),
+          new THREE.Vector3(19.5, 0.5, 5),
         ],
       },
       {
-        color: '#d97706', // Rota Dourada: Gastronomia & Subida Escada Rolante L2
+        seg: 'gastronomia',
+        color: '#d97706',
         points: [
-          new THREE.Vector3(-3, 0.55, 4.5),
-          new THREE.Vector3(9, 0.55, 4.2),
-          new THREE.Vector3(16.5, 0.55, 0),
-          new THREE.Vector3(10.5, l2DeckY + 0.55, 0),
-          new THREE.Vector3(-4, l2DeckY + 0.55, 0),
-          new THREE.Vector3(-11, l2DeckY + 0.55, -2.5),
+          new THREE.Vector3(-0.8, 0.5, 11.5),
+          new THREE.Vector3(-6, 0.5, 7.5),
+          new THREE.Vector3(-11, 0.5, 1.5),
+          new THREE.Vector3(-16.5, l2DeckY + 0.5, 0.5),
+          new THREE.Vector3(-25, l2DeckY + 0.5, -2.5),
+          new THREE.Vector3(-25, l2DeckY + 0.5, 2.5),
         ],
       },
     ];
 
     routesDefs.forEach((r) => {
       const curve = new THREE.CatmullRomCurve3(r.points);
-      const tubeGeo = new THREE.TubeGeometry(curve, 48, 0.14, 8, false);
-      const tubeMat = new THREE.MeshBasicMaterial({
-        color: r.color,
-        transparent: true,
-        opacity: 0.45,
-      });
-      scene.add(new THREE.Mesh(tubeGeo, tubeMat));
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 56, 0.15, 8, false),
+        new THREE.MeshBasicMaterial({ color: r.color, transparent: true, opacity: 0.48 })
+      );
+      scene.add(tube);
+      routeGroups[r.seg].push(tube);
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 5; i++) {
         const dot = new THREE.Mesh(
           new THREE.SphereGeometry(0.32, 12, 12),
           new THREE.MeshBasicMaterial({ color: r.color })
         );
         scene.add(dot);
-        walkers.push({ mesh: dot, path: curve, t: i * 0.25, speed: 0.0022 });
+        routeGroups[r.seg].push(dot);
+        walkers.push({ mesh: dot, path: curve, t: i * 0.2, speed: 0.002 });
       }
     });
+    sceneRefs.current.routeGroups = routeGroups;
 
-    // === ESTADO DE PASSEIO 1ª PESSOA (GOOGLE STREET VIEW STYLE) ===
+    // Carros animados circulando na Av. NS-05 + Rotatórias + Av. LO-2A
+    const trafficCurve = new THREE.CatmullRomCurve3(
+      [
+        new THREE.Vector3(-42.5, 0.35, 29.2),
+        new THREE.Vector3(-42.5, 0.35, 24.5),
+        new THREE.Vector3(-10, 0.35, 23.6),
+        new THREE.Vector3(37.5, 0.35, 24.5),
+        new THREE.Vector3(38.6, 0.35, -18),
+        new THREE.Vector3(36.2, 0.35, -30),
+        new THREE.Vector3(36.4, 0.35, 24.5),
+        new THREE.Vector3(0, 0.35, 25.4),
+        new THREE.Vector3(-42.5, 0.35, 24.5),
+      ],
+      true
+    );
+    ['#f8fafc', '#38bdf8', '#f59e0b', '#e2e8f0', '#ef4444', '#64748b'].forEach((cColor, ci) => {
+      const car = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 0.52, 2.0),
+        new THREE.MeshStandardMaterial({ color: cColor, roughness: 0.3, metalness: 0.35 })
+      );
+      scene.add(car);
+      walkers.push({
+        mesh: car,
+        path: trafficCurve,
+        t: ci / 6,
+        speed: 0.00075,
+        orientToPath: true,
+      });
+    });
+
+    // === MODO STREET VIEW ===
     const walkState = {
-      pos: new THREE.Vector3(-12, 1.8, 2.2),
-      yaw: -Math.PI / 2, // Olhando ao longo do corredor rumo às lojas centrais
+      pos: new THREE.Vector3(-0.8, 1.85, 8.5),
+      yaw: Math.PI,
       pitch: 0.02,
       dragging: false,
       lastX: 0,
@@ -679,6 +1477,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
     const onPointerDown = (e: PointerEvent) => {
       downPos = { x: e.clientX, y: e.clientY };
+      sceneRefs.current.flyTarget = null; // Interrompe voo automático se usuário assume o controle
       if (viewModeRef.current === 'walk') {
         walkState.dragging = true;
         walkState.lastX = e.clientX;
@@ -707,13 +1506,42 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         raycaster.setFromCamera(pointerNdc, camera);
         const hits = raycaster.intersectObjects(interactiveMeshes);
         if (hits.length > 0) {
-          const data = hits[0].object.userData as { zoneId?: ZoneId; floor?: FloorId };
+          const data = hits[0].object.userData as {
+            zoneId: ZoneId;
+            floor: FloorId;
+            rawFloor: FloorId | 'SS1';
+            storeName: string;
+            subtitle: string;
+            segment: Exclude<SegmentFilter, 'all'>;
+            nearestPortal: string;
+            x: number;
+            z: number;
+            h: number;
+            isKiosk?: boolean;
+          };
           if (data.zoneId) {
             onSelectZoneRef.current(data.zoneId);
-            if (data.floor) onFloorChangeRef.current(data.floor);
+            onFloorChangeRef.current(data.floor);
+            setSelectedStore({
+              label: data.storeName,
+              subtitle: data.subtitle,
+              zoneId: data.zoneId,
+              floor: data.rawFloor,
+              segment: data.segment,
+              nearestPortal: data.nearestPortal,
+              x: data.x,
+              z: data.z,
+              h: data.h,
+              isKiosk: data.isKiosk,
+            });
           }
         }
       }
+    };
+
+    const clampWalkPos = () => {
+      walkState.pos.x = Math.max(-35, Math.min(31, walkState.pos.x));
+      walkState.pos.z = Math.max(-29, Math.min(18, walkState.pos.z));
     };
 
     const onWalkWheel = (e: WheelEvent) => {
@@ -722,17 +1550,15 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         const step = -Math.sign(e.deltaY) * 1.4;
         walkState.pos.x += Math.sin(walkState.yaw) * step;
         walkState.pos.z += Math.cos(walkState.yaw) * step;
-        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
-        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
+        clampWalkPos();
       }
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'INPUT') return;
       pressedKeys.add(e.key.toLowerCase());
     };
-    const onKeyUp = (e: KeyboardEvent) => {
-      pressedKeys.delete(e.key.toLowerCase());
-    };
+    const onKeyUp = (e: KeyboardEvent) => pressedKeys.delete(e.key.toLowerCase());
 
     const domEl = renderer.domElement;
     domEl.addEventListener('pointerdown', onPointerDown);
@@ -744,9 +1570,11 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
     actionsRef.current = {
       zoom: (factor: number) => {
+        sceneRefs.current.flyTarget = null;
         if (viewModeRef.current === 'walk') {
           walkState.pos.x += Math.sin(walkState.yaw) * (factor < 1 ? 2.5 : -2.5);
           walkState.pos.z += Math.cos(walkState.yaw) * (factor < 1 ? 2.5 : -2.5);
+          clampWalkPos();
           return;
         }
         const offset = camera.position.clone().sub(controls.target).multiplyScalar(factor);
@@ -755,24 +1583,40 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           camera.position.copy(controls.target).add(offset);
         }
       },
-      resetOrbit: (targetFloor: FloorId) => {
+      flyTo: (pos: [number, number, number], target: [number, number, number]) => {
         controls.enabled = true;
-        if (targetFloor === 'L2') {
-          controls.target.set(-2, l2DeckY + 1, 0);
-          camera.position.set(0, l2DeckY + 20, 26);
+        sceneRefs.current.flyTarget = {
+          camPos: new THREE.Vector3(pos[0], pos[1], pos[2]),
+          lookAt: new THREE.Vector3(target[0], target[1], target[2]),
+        };
+      },
+      resetOrbit: (targetFloor: FloorId, focusSubsolo?: boolean) => {
+        controls.enabled = true;
+        if (focusSubsolo || targetFloor === 'SS1') {
+          sceneRefs.current.flyTarget = {
+            camPos: new THREE.Vector3(-14, 15, -42),
+            lookAt: new THREE.Vector3(12, -3.5, -17),
+          };
+        } else if (targetFloor === 'L2') {
+          sceneRefs.current.flyTarget = {
+            camPos: new THREE.Vector3(-44, l2DeckY + 18, 22),
+            lookAt: new THREE.Vector3(-21, l2DeckY + 0.8, 0),
+          };
         } else {
-          controls.target.set(0, 2, 3);
-          camera.position.set(0, 36, 48);
+          sceneRefs.current.flyTarget = {
+            camPos: new THREE.Vector3(-4, 46, 56),
+            lookAt: new THREE.Vector3(-1, 1, -2),
+          };
         }
       },
       enterWalk: (targetFloor: FloorId) => {
         controls.enabled = false;
+        sceneRefs.current.flyTarget = null;
         if (targetFloor === 'L2') {
-          walkState.pos.set(6, l2DeckY + 1.85, 0);
+          walkState.pos.set(-15, l2DeckY + 1.85, 0.5);
           walkState.yaw = -Math.PI / 2;
         } else {
-          // Começa entrando pela Portaria Principal (Av. NS-05) olhando os corredores
-          walkState.pos.set(-8.5, 1.85, 11.5);
+          walkState.pos.set(-0.8, 1.85, 9.5);
           walkState.yaw = Math.PI;
         }
         walkState.pitch = 0.03;
@@ -782,15 +1626,14 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         walkState.yaw += turnYaw;
         walkState.pos.x += Math.sin(walkState.yaw) * forward + Math.cos(walkState.yaw) * strafe;
         walkState.pos.z += Math.cos(walkState.yaw) * forward - Math.sin(walkState.yaw) * strafe;
-        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
-        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
+        clampWalkPos();
       },
     };
 
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth || 800;
-      const h = container.clientHeight || 480;
+      const h = container.clientHeight || 520;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -799,16 +1642,104 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     ro.observe(container);
 
     let animId = 0;
+    const startMs = performance.now();
+
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      const elapsed = (performance.now() - startMs) * 0.001;
 
-      // Movimento de visitantes pelos corredores
       for (const w of walkers) {
         w.t = (w.t + w.speed) % 1;
         const pt = w.path.getPointAt(w.t);
         w.mesh.position.copy(pt);
+        if (w.orientToPath) {
+          const nextPt = w.path.getPointAt((w.t + 0.01) % 1);
+          w.mesh.lookAt(nextPt);
+        }
       }
 
+      // Animação suave dos degraus nas esteiras e escadas rolantes + cabines dos elevadores
+      for (const tr of animatedTreads) {
+        if (tr.axis === 'esteira') {
+          const u = ((elapsed * 0.45 + tr.phase) % 1) - 0.5;
+          tr.mesh.position.x = 17.2 + u * 5.6;
+          tr.mesh.position.y = -2.25 + u * 4.7;
+        } else {
+          // Fórmula paramétrica colinear estrita F24:
+          // X(t) = -9.5 - 8.0 * t
+          // Y(t) = 0.18 + t * l2DeckY
+          const t = ((elapsed * 0.35 + tr.phase) % 1 + 1) % 1;
+          tr.mesh.position.x = -9.5 - 8.0 * t;
+          tr.mesh.position.y = 0.18 + t * l2DeckY;
+        }
+      }
+
+      // Animação da pulsação do Beacon e Halo (F22)
+      if (sceneRefs.current.beaconGroup?.visible) {
+        const pulse = 1.0 + 0.18 * Math.sin(elapsed * 5.0);
+        if (sceneRefs.current.beaconHalo) {
+          sceneRefs.current.beaconHalo.scale.set(pulse, pulse, pulse);
+          (sceneRefs.current.beaconHalo.material as THREE.MeshBasicMaterial).opacity =
+            0.70 + 0.25 * Math.cos(elapsed * 5.0);
+        }
+        if (sceneRefs.current.beaconCone) {
+          (sceneRefs.current.beaconCone.material as THREE.MeshBasicMaterial).opacity =
+            0.55 + 0.25 * Math.sin(elapsed * 4.0);
+        }
+      }
+
+      elevatorCabins.forEach((el, idx) => {
+        const wave = (Math.sin(elapsed * 0.65 + idx * 1.8) + 1) / 2;
+        el.cabin.position.y = el.yStart + 1.0 + wave * Math.max(1, el.h - 2.2);
+      });
+
+      // LOD por distância + Anti-Sobreposição de letreiros com Foco por Piso (F23)
+      const camPos = camera.position;
+      const curFloor = floorRef.current;
+      const seg = activeSegmentRef.current;
+      const pickedName = selectedStoreNameRef.current;
+
+      for (const entry of storeEntries) {
+        const spr = entry.sprite;
+        const dist = camPos.distanceTo(spr.position);
+        const isPicked = pickedName === entry.def.name;
+        const segOk = seg === 'all' || entry.def.segment === seg;
+        const isZone = entry.def.zoneId === selectedZoneRef.current;
+
+        let visible = segOk;
+
+        // F23: Isolamento estrito de letreiros por piso ativo (exceto se for a loja buscada)
+        if (!isPicked) {
+          if (curFloor === 'L1' && entry.def.floor !== 'L1') {
+            visible = false;
+          } else if (curFloor === 'L2' && entry.def.floor !== 'L2') {
+            visible = false;
+          } else if (curFloor === 'SS1' && entry.def.floor !== 'SS1') {
+            visible = false;
+          }
+        }
+
+        if (!isPicked && entry.def.tier === 'satellite' && dist > 44 && !isZone) {
+          visible = false;
+        }
+        spr.visible = visible;
+        if (visible) {
+          const opacity = !segOk ? 0.2 : entry.def.tier === 'satellite' && dist > 38 && !isZone ? 0.55 : 1.0;
+          (spr.material as THREE.SpriteMaterial).opacity = opacity;
+        }
+      }
+
+      for (const k of kioskEntries) {
+        const dist = camPos.distanceTo(k.pos);
+        const segOk = seg === 'all' || k.segment === seg;
+        const isPicked = pickedName === k.def.name;
+        // Quiosques pertencem ao L1 — visíveis apenas se L1 ativo ou se for o item buscado
+        const floorOk = curFloor === 'L1' || isPicked;
+        const showKiosk = segOk && floorOk && (dist < 36 || isPicked || viewModeRef.current === 'walk');
+        k.sprite.visible = showKiosk;
+      }
+
+      // Controle Street View vs Orbit + Fly-To suave
       if (viewModeRef.current === 'walk') {
         const moveSpeed = 0.22;
         if (pressedKeys.has('w') || pressedKeys.has('arrowup')) {
@@ -819,16 +1750,18 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           walkState.pos.x -= Math.sin(walkState.yaw) * moveSpeed;
           walkState.pos.z -= Math.cos(walkState.yaw) * moveSpeed;
         }
-        if (pressedKeys.has('a') || pressedKeys.has('arrowleft')) {
-          walkState.yaw += 0.035;
-        }
-        if (pressedKeys.has('d') || pressedKeys.has('arrowright')) {
-          walkState.yaw -= 0.035;
-        }
-        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
-        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
+        if (pressedKeys.has('a') || pressedKeys.has('arrowleft')) walkState.yaw += 0.035;
+        if (pressedKeys.has('d') || pressedKeys.has('arrowright')) walkState.yaw -= 0.035;
+        clampWalkPos();
         syncWalkCamera();
       } else {
+        if (sceneRefs.current.flyTarget) {
+          camera.position.lerp(sceneRefs.current.flyTarget.camPos, 0.08);
+          controls.target.lerp(sceneRefs.current.flyTarget.lookAt, 0.08);
+          if (camera.position.distanceTo(sceneRefs.current.flyTarget.camPos) < 0.35) {
+            sceneRefs.current.flyTarget = null;
+          }
+        }
         controls.enabled = true;
         controls.update();
       }
@@ -850,87 +1783,208 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       controls.dispose();
       renderer.dispose();
     };
-  }, [zonesTelemetry]);
+  }, []);
 
-  // Ajusta câmera ao trocar de modo ou pavimento
   const handleToggleViewMode = (mode: 'orbit' | 'walk') => {
+    setTourActive(false);
     setViewMode(mode);
     if (mode === 'walk') {
       actionsRef.current?.enterWalk(floor);
     } else {
-      actionsRef.current?.resetOrbit(floor);
+      actionsRef.current?.resetOrbit(floor, showSubsoloXray);
     }
   };
 
   const handleSwitchFloor = (nextFloor: FloorId) => {
+    setTourActive(false);
     onFloorChange(nextFloor);
+    setShowSubsoloXray(false);
     if (viewMode === 'walk') {
       actionsRef.current?.enterWalk(nextFloor);
     } else {
-      actionsRef.current?.resetOrbit(nextFloor);
+      actionsRef.current?.resetOrbit(nextFloor, false);
     }
   };
 
+  const handleSelectPreset = (preset: (typeof CAMERA_PRESETS)[number]) => {
+    setTourActive(false);
+    setViewMode('orbit');
+    setShowSubsoloXray(Boolean(preset.xray));
+    onFloorChange(preset.floor);
+    actionsRef.current?.flyTo(preset.pos, preset.target);
+  };
+
+  const handlePickSearchItem = (item: SearchHit) => {
+    setTourActive(false);
+    setViewMode('orbit');
+    setSelectedStore(item);
+    onSelectStoreName?.(item.label);
+    setSearchQuery('');
+    onSelectZone(item.zoneId);
+    const targetFloor: FloorId = item.floor === 'L2' ? 'L2' : item.floor === 'SS1' ? 'SS1' : 'L1';
+    const isSS1 = item.floor === 'SS1';
+    setShowSubsoloXray(isSS1);
+    onFloorChange(targetFloor);
+    const yBase = item.floor === 'L2' ? L2_DECK_Y : isSS1 ? -5.0 : 0;
+    const itemH = item.isKiosk ? 1.8 : item.h;
+    actionsRef.current?.flyTo(
+      [item.x - 10, yBase + itemH + 10, item.z + 15],
+      [item.x, yBase + 1.5, item.z]
+    );
+  };
+
+  useEffect(() => {
+    if (!selectedStoreName) {
+      if (selectedStore) setSelectedStore(null);
+      return;
+    }
+    const hit = searchableItems.find(
+      (h) =>
+        h.label.toLowerCase() === selectedStoreName.toLowerCase() ||
+        h.label.toLowerCase().includes(selectedStoreName.toLowerCase()) ||
+        selectedStoreName.toLowerCase().includes(h.label.toLowerCase())
+    );
+    if (hit && (!selectedStore || selectedStore.label !== hit.label)) {
+      handlePickSearchItem(hit);
+    }
+  }, [selectedStoreName, searchableItems]);
+
   if (webglUnsupported) {
     return (
-      <div className="h-[460px] rounded-2xl bg-slate-100 border border-slate-300 flex items-center justify-center p-6 text-center text-sm text-slate-700">
-        Navegador sem WebGL ativo no momento — use os botões das alas abaixo para inspecionar os dados.
+      <div className="h-[480px] rounded-2xl bg-slate-100 border border-slate-300 flex items-center justify-center p-6 text-center text-sm text-slate-700">
+        Navegador sem WebGL ativo no momento — use a Planta 2D Técnica ou os botões das alas abaixo.
       </div>
     );
   }
 
+  const currentTourStop = GUIDED_TOUR_STOPS[tourStepIndex];
+
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-[#eef1f6] shadow-inner">
-      {/* Canvas 3D Real Interativo */}
+    <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-[#eaeef5] shadow-inner">
       <div
         ref={mountRef}
-        className="w-full h-[460px] sm:h-[520px] cursor-grab active:cursor-grabbing"
-        aria-label="Maquete 3D interativa e passeio virtual em primeira pessoa pelo Capim Dourado Shopping"
+        className="w-full h-[500px] sm:h-[580px] cursor-grab active:cursor-grabbing"
+        aria-label="Maquete 3D fiel à Planta Mix oficial do Capim Dourado Shopping"
       />
 
-      {/* Controles Superiores Flutuantes Limpos */}
-      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-stone-200 shadow-md">
-          {activeZone && (
-            <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-[#111318] text-[#E2A83B] text-[11px] font-extrabold">
-              {activeZone.zone.shortName}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => handleToggleViewMode('orbit')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-              viewMode === 'orbit'
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Maquete 3D (Zoom)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleToggleViewMode('walk')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-              viewMode === 'walk'
-                ? 'bg-amber-500 text-slate-950 shadow-sm'
-                : 'text-slate-700 hover:bg-slate-100'
-            }`}
-          >
-            <Footprints className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Entrar no Shopping (Street View)</span>
-          </button>
+      {/* Barra Superior (Modo + Busca Rápida + Zoom) */}
+      <div className="absolute top-3 left-3 right-3 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
+        <div className="flex flex-col gap-2 pointer-events-auto max-w-full">
+          <div className="flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-stone-200 shadow-md">
+            {activeZone && (
+              <span className="hidden md:inline-flex px-2.5 py-1 rounded-lg bg-[#111318] text-[#E2A83B] text-[11px] font-extrabold">
+                {activeZone.zone.shortName}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => handleToggleViewMode('orbit')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'orbit' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Maquete 3D</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleViewMode('walk')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                viewMode === 'walk' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Footprints className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Street View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (tourActive) {
+                  setTourActive(false);
+                } else {
+                  setTourStepIndex(0);
+                  setTourActive(true);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+                tourActive
+                  ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
+              }`}
+            >
+              {tourActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              <span>{tourActive ? 'Pausar Tour' : 'Tour Guiado'}</span>
+            </button>
+          </div>
+
+          {/* Busca Rápida de Loja / Quiosque / Vaga */}
+          <div className="relative w-full sm:w-80">
+            <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md">
+              <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" aria-hidden="true" />
+              <input
+                id="map-3d-store-search"
+                name="map3dStoreSearch"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar loja, PF, Super Big ou vaga..."
+                aria-label="Buscar loja no Mapa 3D"
+                className="w-full text-xs text-slate-900 bg-transparent focus:outline-none placeholder:text-slate-400"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Limpar busca"
+                  onClick={() => setSearchQuery('')}
+                  className="text-slate-400 hover:text-slate-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {searchResults.length > 0 && (
+              <div className="absolute left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden z-20 divide-y divide-slate-100">
+                {searchResults.map((hit) => (
+                  <button
+                    key={hit.label}
+                    type="button"
+                    onClick={() => handlePickSearchItem(hit)}
+                    className="w-full text-left px-3 py-2 hover:bg-amber-50 flex items-center justify-between gap-2 transition"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-xs font-extrabold text-slate-900 block truncate">{hit.label}</span>
+                      <span className="text-[10px] text-slate-500 block truncate">{hit.subtitle}</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold shrink-0">
+                      {hit.floor}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Botão Direto de Escada Rolante (Subir / Descer Andar) + Zoom */}
-        <div className="flex items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-md">
+        {/* Zoom / Reset / Subsolo */}
+        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-md">
           <button
             type="button"
-            onClick={() => handleSwitchFloor(floor === 'L1' ? 'L2' : 'L1')}
-            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition"
+            onClick={() => {
+              const next = !showSubsoloXray;
+              setTourActive(false);
+              setShowSubsoloXray(next);
+              setViewMode('orbit');
+              onFloorChange(next ? 'SS1' : 'L1');
+              actionsRef.current?.resetOrbit(next ? 'SS1' : 'L1', next);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              showSubsoloXray
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200'
+            }`}
           >
-            <Layers className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{floor === 'L1' ? 'Subir ao 2º Andar' : 'Descer ao Térreo'}</span>
+            <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Raio-X Subsolo</span>
           </button>
           <button
             type="button"
@@ -959,18 +2013,72 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         </div>
       </div>
 
-      {/* Joypad de Caminhada no Modo Street View */}
+      {/* Card Flutuante da Loja Clicada/Buscada */}
+      {selectedStore && !tourActive && (
+        <div className="hidden sm:block absolute top-24 right-3 w-72 bg-[#111318]/95 text-white backdrop-blur-md rounded-2xl border border-[#E2A83B]/40 p-3.5 shadow-xl pointer-events-auto z-10">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2A83B] flex items-center gap-1">
+                <MapPin className="w-3 h-3" /> {selectedStore.floor} • Portaria {selectedStore.nearestPortal}
+              </span>
+              <h4 className="text-sm font-extrabold mt-0.5">{selectedStore.label}</h4>
+              <p className="text-[11px] text-stone-300 mt-0.5">{selectedStore.subtitle}</p>
+            </div>
+            <button
+              type="button"
+              aria-label="Fechar card da loja"
+              onClick={() => {
+                setSelectedStore(null);
+                onSelectStoreName?.(null);
+              }}
+              className="text-stone-400 hover:text-white p-0.5"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {activeZone && (
+            <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
+              <span className="text-stone-300">Score IQ ({activeZone.zone.shortName}):</span>
+              <strong className="text-[#E2A83B] font-extrabold">{activeZone.opportunityScore} pts</strong>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Overlay do Tour Guiado Automático */}
+      {tourActive && (
+        <div className="absolute top-24 right-3 left-3 sm:left-auto sm:w-88 bg-[#111318]/95 text-white backdrop-blur-md rounded-2xl border border-[#E2A83B] p-4 shadow-2xl pointer-events-auto z-10">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#E2A83B] flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Tour Guiado Capim Dourado
+            </span>
+            <button
+              type="button"
+              onClick={() => setTourStepIndex((prev) => (prev + 1) % GUIDED_TOUR_STOPS.length)}
+              className="px-2 py-0.5 rounded bg-[#E2A83B] text-[#111318] text-[10px] font-extrabold"
+            >
+              Próxima →
+            </button>
+          </div>
+          <h4 className="text-xs font-extrabold">{currentTourStop.title}</h4>
+          <p className="text-[11px] text-stone-300 mt-1 leading-relaxed">{currentTourStop.description}</p>
+        </div>
+      )}
+
+      {/* Joypad Street View */}
       {viewMode === 'walk' && (
         <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-end justify-between gap-3 pointer-events-none">
           <div className="pointer-events-auto bg-slate-900/90 text-white px-3.5 py-2.5 rounded-xl text-[11px] backdrop-blur-md shadow-lg max-w-sm">
-            <strong className="text-amber-400 block mb-0.5">Modo Street View Ativo ({floor === 'L1' ? 'Térreo' : '2º Piso'})</strong>
-            Arraste para olhar as vitrines • Use <strong>Scroll / W A S D</strong> ou os botões ao lado para andar pelos corredores.
+            <strong className="text-amber-400 block mb-0.5">
+              Modo Street View Ativo ({floor === 'L1' ? 'Térreo L1' : '2º Piso Curva JK'})
+            </strong>
+            Arraste para olhar as vitrines • Use <strong>Scroll / W A S D</strong> ou os botões ao lado.
           </div>
 
           <div className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200 shadow-lg">
             <button
               type="button"
-              aria-label="Virar à Esquerda"
+              aria-label="Virar à esquerda"
               onClick={() => actionsRef.current?.nudgeWalk(0, 0, 0.35)}
               className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
             >
@@ -978,7 +2086,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             </button>
             <button
               type="button"
-              aria-label="Andar para Frente"
+              aria-label="Andar para frente"
               onClick={() => actionsRef.current?.nudgeWalk(3.0, 0, 0)}
               className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center gap-1"
             >
@@ -987,7 +2095,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             </button>
             <button
               type="button"
-              aria-label="Andar para Trás"
+              aria-label="Recuar"
               onClick={() => actionsRef.current?.nudgeWalk(-3.0, 0, 0)}
               className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1"
             >
@@ -995,7 +2103,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             </button>
             <button
               type="button"
-              aria-label="Virar à Direita"
+              aria-label="Virar à direita"
               onClick={() => actionsRef.current?.nudgeWalk(0, 0, -0.35)}
               className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
             >
@@ -1006,23 +2114,57 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               onClick={() => handleSwitchFloor(floor === 'L1' ? 'L2' : 'L1')}
               className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1"
             >
-              <MoveUp className="w-3.5 h-3.5" aria-hidden="true" />
+              {floor === 'L1' ? (
+                <MoveUp className="w-3.5 h-3.5" aria-hidden="true" />
+              ) : (
+                <MoveDown className="w-3.5 h-3.5" aria-hidden="true" />
+              )}
               <span>{floor === 'L1' ? '2º Piso' : '1º Piso'}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Legenda compacta no modo Maquete Orbital */}
+      {/* Barra Inferior: Presets de Câmera por Setor + Filtro de Fluxo por Segmento */}
       {viewMode === 'orbit' && (
-        <div className="absolute bottom-3 left-3 pointer-events-none bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-stone-200 text-[11px] text-slate-700 shadow-sm flex flex-wrap items-center gap-3">
-          <span>🖱️ <strong>Scroll:</strong> Zoom</span>
-          <span>✋ <strong>Arrastar:</strong> Girar 360°</span>
-          <span>🚪 <strong>Portarias Verdes:</strong> 4 Entradas</span>
-          <span>🅿️ <strong>Bolsões:</strong> Estacionamento</span>
-          <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600" /> Moda</span>
-          <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-600" /> Lazer/Cinema</span>
-          <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-600" /> Gastronomia/L2</span>
+        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Atalhos de Setor 3D">
+            {CAMERA_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handleSelectPreset(preset)}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[11px] font-bold transition"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar fluxos por segmento">
+            {(
+              [
+                { id: 'all', label: 'Todos Fluxos', dot: 'bg-slate-700' },
+                { id: 'moda', label: 'Moda', dot: 'bg-blue-600' },
+                { id: 'mercado', label: 'Subsolo / Mercado', dot: 'bg-emerald-600' },
+                { id: 'gastronomia', label: 'Gastronomia / L2', dot: 'bg-amber-600' },
+              ] as const
+            ).map((seg) => (
+              <button
+                key={seg.id}
+                type="button"
+                onClick={() => setActiveSegment(seg.id)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 transition border ${
+                  activeSegment === seg.id
+                    ? 'bg-[#111318] text-white border-[#111318]'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${seg.dot}`} />
+                <span>{seg.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

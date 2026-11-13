@@ -11,9 +11,12 @@ import {
   Flame,
   Footprints,
   Megaphone,
+  Pause,
+  Play,
   Search,
   Sparkles,
   Sun,
+  Trash2,
   TrendingUp,
   Users,
   X,
@@ -31,6 +34,7 @@ import {
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
+import { stripMarkdown } from '../services/ai';
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -40,6 +44,8 @@ interface RetailerCockpitProps {
   onChangeFactors: (next: ShopContextFactors) => void;
   campaigns: FlashCampaign[];
   onLaunchCampaign: (campaign: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) => void;
+  onToggleCampaign?: (id: string) => void;
+  onDeleteCampaign?: (id: string) => void;
   onRunCopilot: (telemetry: ZoneLiveTelemetry) => Promise<void>;
   isAnalyzing: boolean;
   lastAnalysis: AIAnalysisResponse | null;
@@ -91,6 +97,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   onChangeFactors,
   campaigns,
   onLaunchCampaign,
+  onToggleCampaign,
+  onDeleteCampaign,
   onRunCopilot,
   isAnalyzing,
   lastAnalysis,
@@ -110,17 +118,52 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   );
   const [expiresInMinutes, setExpiresInMinutes] = useState(120);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Fator de escala horária baseado na barra clicada (User Story #01)
+  const selectedHourBar = HOURLY_PROFILE.find((b) => b.slot === factors.timeSlot);
+  const [selectedBarWeight, setSelectedBarWeight] = useState<number>(
+    selectedHourBar?.weight ?? 1.0
+  );
+
+  useEffect(() => {
+    const match = HOURLY_PROFILE.find((b) => b.slot === factors.timeSlot);
+    if (match) setSelectedBarWeight(match.weight);
+  }, [factors.timeSlot]);
+
+  // Recálculo dinâmico do fluxo horário e do Score IQ
+  const effectiveFootTraffic = Math.round(current.footTraffic * selectedBarWeight);
+  const effectiveScore = Math.max(
+    0,
+    Math.min(100, Math.round(current.opportunityScore * (0.35 + 0.65 * selectedBarWeight)))
+  );
 
   useEffect(() => {
     setStoreName(current.zone.anchors[0] || 'Loja Âncora');
   }, [current.zone.id, current.zone.anchors]);
 
-  const openModal = () => dialogRef.current?.showModal();
-  const closeModal = () => dialogRef.current?.close();
+  const openModal = () => {
+    setValidationError(null);
+    dialogRef.current?.showModal();
+  };
+  const closeModal = () => {
+    setValidationError(null);
+    dialogRef.current?.close();
+  };
 
   const handleSubmitCampaign = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!storeName.trim() || !title.trim() || !couponCode.trim()) return;
+    if (
+      storeName.trim().length === 0 ||
+      title.trim().length === 0 ||
+      couponCode.trim().length === 0 ||
+      discountBadge.trim().length === 0 ||
+      whatsappCopy.trim().length === 0
+    ) {
+      setValidationError('Todos os campos são obrigatórios e não podem conter apenas espaços em branco.');
+      return;
+    }
+    setValidationError(null);
     onLaunchCampaign({
       zoneId: current.zone.id,
       storeName: storeName.trim(),
@@ -146,19 +189,19 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   // Medidor Circular SVG (Score IQ 0-100)
   const radius = 50;
   const circumference = 2 * Math.PI * radius;
-  const clampedScore = Math.max(0, Math.min(100, current.opportunityScore));
+  const clampedScore = Math.max(0, Math.min(100, effectiveScore));
   const strokeOffset = circumference - (clampedScore / 100) * circumference;
 
-  // Dados do Funil Físico (Câmera ao vivo ou projeção estatística da ala)
+  // Dados do Funil Físico (Câmera ao vivo ou projeção estatística da ala com peso horário)
   const isCamActiveHere = Boolean(visionSnapshot && visionSnapshot.zoneId === current.zone.id);
   const corridorTotal =
     isCamActiveHere && visionSnapshot && visionSnapshot.passersBy > 0
       ? visionSnapshot.passersBy
-      : current.footTraffic;
+      : effectiveFootTraffic;
   const stopsTotal =
     isCamActiveHere && visionSnapshot && visionSnapshot.vitrineStops > 0
       ? visionSnapshot.vitrineStops
-      : current.vitrineStops;
+      : Math.round(current.vitrineStops * selectedBarWeight);
   const entriesTotal =
     isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
       ? visionSnapshot.entries
@@ -277,15 +320,15 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                     IQ Score
                   </span>
                   <strong className="text-3xl font-black text-white leading-none">
-                    {current.opportunityScore}
+                    {effectiveScore}
                   </strong>
                 </div>
               </div>
               <div className="text-left md:text-center">
                 <span className="text-xs font-bold text-[#E2A83B] block">
-                  {current.opportunityScore >= 75
+                  {effectiveScore >= 75
                     ? 'Janela de Ouro Ativa'
-                    : current.opportunityScore >= 45
+                    : effectiveScore >= 45
                     ? 'Demanda Moderada'
                     : 'Momento de Atração'}
                 </span>
@@ -302,7 +345,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 Fluxo Corredor
               </span>
               <strong className="text-xl font-extrabold text-white mt-1 block">
-                {current.footTraffic}
+                {effectiveFootTraffic}
                 <span className="text-xs font-normal text-stone-400">/h</span>
               </strong>
             </div>
@@ -312,7 +355,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 Paradas Vitrine
               </span>
               <strong className="text-xl font-extrabold text-white mt-1 block">
-                {current.vitrineStops}
+                {stopsTotal}
               </strong>
             </div>
             <div className="bg-white/5 rounded-2xl p-3">
@@ -332,7 +375,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <strong className="text-xl font-extrabold text-rose-300 mt-1 block">
                 {current.lostSalesCount}
                 <span className="text-[10px] font-medium text-stone-400 ml-1">
-                  ({LOST_SALE_LABELS[current.dominantReason].split(' ')[0]})
+                  {current.lostSalesCount === 0
+                    ? '(Sem perdas)'
+                    : `(${LOST_SALE_LABELS[current.dominantReason].split(' ')[0]})`}
                 </span>
               </strong>
             </div>
@@ -458,7 +503,10 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                   <button
                     key={bar.hour}
                     type="button"
-                    onClick={() => onChangeFactors({ ...factors, timeSlot: bar.slot })}
+                    onClick={() => {
+                      setSelectedBarWeight(bar.weight);
+                      onChangeFactors({ ...factors, timeSlot: bar.slot });
+                    }}
                     className="flex-1 flex flex-col items-center justify-end h-full group"
                     title={`${bar.hour}: ~${val} pessoas/h`}
                   >
@@ -651,7 +699,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 <span>Latência: {lastAnalysis.latencyMs}ms</span>
               </div>
               <div className="text-xs sm:text-sm text-[#111318] leading-relaxed whitespace-pre-line font-medium">
-                {lastAnalysis.content}
+                {stripMarkdown(lastAnalysis.content)}
               </div>
             </div>
           ) : (
@@ -666,7 +714,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           <div className="pt-2 border-t border-stone-100 space-y-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
-              O que os Clientes Mais Buscam no Totem/QR desta Ala ({current.qrSearchCount} sinais)
+              O que os Clientes Mais Buscam no Totem/QR desta Ala ({current.zone.hotSearches.length} buscas ativas • {current.qrSearchCount} sinais)
             </span>
             <div className="flex flex-wrap gap-1.5">
               {current.zone.hotSearches.map((term) => (
@@ -711,21 +759,63 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             {campaigns.map((camp) => (
               <div
                 key={camp.id}
-                className="rounded-2xl bg-[#FAF8F5] border border-stone-200 p-4 flex flex-col gap-2"
+                className={`rounded-2xl border p-4 flex flex-col gap-2 transition ${
+                  camp.active
+                    ? 'bg-[#FAF8F5] border-stone-200'
+                    : 'bg-stone-50/70 border-stone-200/60 opacity-75'
+                }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-[#111318] text-[#E2A83B] text-[10px] font-extrabold">
-                        {camp.discountBadge}
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                          camp.active
+                            ? 'bg-[#111318] text-[#E2A83B]'
+                            : 'bg-stone-200 text-stone-600'
+                        }`}
+                      >
+                        {camp.active ? camp.discountBadge : 'PAUSADA'}
                       </span>
                       <span className="text-xs font-extrabold text-[#111318]">{camp.storeName}</span>
                     </div>
                     <h4 className="text-sm font-bold text-[#111318] mt-1">{camp.title}</h4>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-mono text-xs font-extrabold text-[#111318]">
-                    {camp.couponCode}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-mono text-xs font-extrabold text-[#111318]">
+                      {camp.couponCode}
+                    </span>
+                    {onToggleCampaign && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleCampaign(camp.id)}
+                        className={`p-1.5 rounded-lg border text-xs font-bold transition flex items-center gap-1 ${
+                          camp.active
+                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200'
+                        }`}
+                        title={camp.active ? 'Pausar oferta no totem' : 'Retomar oferta'}
+                        aria-label={camp.active ? 'Pausar oferta' : 'Retomar oferta'}
+                      >
+                        {camp.active ? (
+                          <Pause className="w-3.5 h-3.5" aria-hidden="true" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5" aria-hidden="true" />
+                        )}
+                      </button>
+                    )}
+                    {onDeleteCampaign && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteCampaign(camp.id)}
+                        className="p-1.5 rounded-lg text-stone-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition"
+                        title="Excluir campanha"
+                        aria-label="Excluir campanha"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <p className="text-xs text-stone-600 leading-relaxed">{camp.whatsappCopy}</p>
@@ -782,6 +872,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             </button>
           </div>
 
+          {validationError && (
+            <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              ⚠️ {validationError}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="text-xs font-bold text-[#111318] space-y-1 block">
               <span>Loja</span>
@@ -799,7 +895,13 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 type="text"
                 required
                 value={discountBadge}
-                onChange={(e) => setDiscountBadge(e.target.value)}
+                onChange={(e) => {
+                  const nextBadge = e.target.value;
+                  setDiscountBadge(nextBadge);
+                  setWhatsappCopy(
+                    `Só nas próximas 2 horas no Capim Dourado: apresente ${couponCode || 'CAPIM15'} e garanta ${nextBadge || '15% OFF'} em peças selecionadas!`
+                  );
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium"
               />
             </label>
@@ -823,7 +925,13 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 type="text"
                 required
                 value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
+                onChange={(e) => {
+                  const nextCode = e.target.value.toUpperCase();
+                  setCouponCode(nextCode);
+                  setWhatsappCopy(
+                    `Só nas próximas 2 horas no Capim Dourado: apresente ${nextCode || 'CAPIM15'} e garanta ${discountBadge || '15% OFF'} em peças selecionadas!`
+                  );
+                }}
                 className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-mono uppercase"
               />
             </label>

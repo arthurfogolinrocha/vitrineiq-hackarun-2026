@@ -1,6 +1,6 @@
 # 🎬 Roteiro Oficial do Vídeo de Pitch — VitrineIQ (1º HackaRun 2026)
 **Duração Rigorosa Exigida pelo Regulamento: Entre 1min15s (75s) e 2min00s (120s)**  
-**Duração Alvo deste Roteiro: `1min45s` (`105 segundos`)** — exatamente dentro da regra, com margem de segurança nos dois lados!
+**Duração Renderizada Final: `1min29.5s` (`89.5 segundos` / `5.370 frames a 60fps`)** — ritmo ágil sem pausas mortas, perfeitamente dentro da regra (75s a 120s)!
 
 > [!TIP]
 > **Para gravação do áudio (Arthur):** Leia cada bloco em voz firme e natural no celular ou microfone, dando ~1 segundo de respiro entre um bloco e outro. O vídeo com motion graphics, telas reais do sistema, Tour 3D WebGL e legendas será sincronizado exatamente nesses tempos.

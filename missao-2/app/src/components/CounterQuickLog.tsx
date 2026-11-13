@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle2, Clock, PackageX, Search, Tag, Users } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  PackageX,
+  Search,
+  Tag,
+  Undo2,
+  Users,
+} from 'lucide-react';
 import { LostSaleEvent, LostSaleReason, ShoppingZone, ZoneId } from '../types';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
 
@@ -9,6 +18,7 @@ interface CounterQuickLogProps {
   onSelectZone: (zoneId: ZoneId) => void;
   lostSales: LostSaleEvent[];
   onLogLostSale: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) => void;
+  onUndoLostSale?: () => void;
 }
 
 const REASON_BUTTONS: {
@@ -59,6 +69,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   onSelectZone,
   lostSales,
   onLogLostSale,
+  onUndoLostSale,
 }) => {
   const [storeName, setStoreName] = useState('Loja Piloto Capim Dourado');
   const [note, setNote] = useState('');
@@ -171,10 +182,26 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
 
       {/* Últimos registros de balcão */}
       <aside className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-        <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-blue-600" aria-hidden="true" />
-          Feed de Vendas Perdidas ({lostSales.length})
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-blue-600" aria-hidden="true" />
+            Feed de Vendas Perdidas ({lostSales.length})
+          </h3>
+          {onUndoLostSale && lostSales.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                onUndoLostSale();
+                setFeedbackBanner('Último registro desfeito com sucesso!');
+              }}
+              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1 transition"
+              title="Desfazer último registro de venda perdida"
+            >
+              <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Desfazer</span>
+            </button>
+          )}
+        </div>
         <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
           {lostSales.map((item) => (
             <li

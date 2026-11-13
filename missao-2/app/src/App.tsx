@@ -29,7 +29,11 @@ import {
   INITIAL_LOST_SALES,
   LOST_SALE_LABELS,
 } from './data/shoppingData';
-import { computeZoneTelemetry, ZoneLiveTelemetry } from './services/opportunityEngine';
+import {
+  computeZoneTelemetry,
+  matchConsumerOffer,
+  ZoneLiveTelemetry,
+} from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
 import { generateAuditHash } from './utils/security';
 import { RetailerCockpit } from './components/RetailerCockpit';
@@ -94,6 +98,7 @@ export function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('cockpit');
   const [floor, setFloor] = useState<FloorId>('L1');
   const [selectedZoneId, setSelectedZoneId] = useState<ZoneId>('ala-central-ancoras');
+  const [selectedStoreName, setSelectedStoreName] = useState<string | null>(null);
   const [factors, setFactors] = useState<ShopContextFactors>({
     weather: 'calor_38c',
     timeSlot: 'pos_cinema_20h',
@@ -137,7 +142,8 @@ export function App() {
       details:
         'Gêmeo Digital Capim Dourado Shopping inicializado com motor Rust/TS e conformidade LGPD.',
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      securityHash: generateAuditHash('VITRINEIQ_BOOT_SECURE:CAPIM_DOURADO'),
+      securityHash: generateAuditHash('VITRINEIQ_BOOT_SECURE:CAPIM_DOURADO', 'GENESIS_BLOCK_0000', 'audit-boot', '00:00'),
+      prevHash: 'GENESIS_BLOCK_0000',
     },
   ]);
 
@@ -146,17 +152,24 @@ export function App() {
     details: string,
     status: SystemAuditLog['status'] = 'SUCCESS'
   ) => {
-    setAuditLogs((prev) => [
-      {
-        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        action,
-        status,
-        details,
-        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        securityHash: generateAuditHash(`${action}:${details}`),
-      },
-      ...prev.slice(0, 29),
-    ]);
+    setAuditLogs((prev) => {
+      const id = `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const timestamp = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const prevHash = prev[0]?.securityHash || 'GENESIS_BLOCK_0000';
+      const securityHash = generateAuditHash(`${action}:${details}`, prevHash, id, timestamp);
+      return [
+        {
+          id,
+          action,
+          status,
+          details,
+          timestamp,
+          securityHash,
+          prevHash,
+        },
+        ...prev.slice(0, 29),
+      ];
+    });
   };
 
   const zonesTelemetry = useMemo(
@@ -171,10 +184,13 @@ export function App() {
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
 
   const handleSelectZone = (zoneId: ZoneId) => {
-    setSelectedZoneId(zoneId);
-    const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId);
-    if (zone && zone.floor !== floor) {
-      setFloor(zone.floor);
+    if (zoneId !== selectedZoneId) {
+      setSelectedZoneId(zoneId);
+      setLastAnalysis(null);
+      const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId);
+      if (zone && zone.floor !== floor) {
+        setFloor(zone.floor);
+      }
     }
   };
 
@@ -196,9 +212,11 @@ export function App() {
         prompt: `Gere ações imediatas de vitrine, estoque e abordagem para aumentar a conversão em ${telemetry.zone.shortName} no Capim Dourado Shopping considerando o gargalo "${LOST_SALE_LABELS[telemetry.dominantReason]}" e buscas quentes (${telemetry.zone.hotSearches.join(', ')}).`,
       });
       setLastAnalysis(response);
+      const auditStatus = response.source === 'FALLBACK_LOCAL' ? 'FALLBACK_LOCAL' : 'SUCCESS';
       appendAudit(
         'COPILOT_STRATEGY_GENERATED',
-        `Plano IA gerado para ${telemetry.zone.shortName} (IQ ${telemetry.opportunityScore})`
+        `Plano IA gerado para ${telemetry.zone.shortName} (IQ ${telemetry.opportunityScore}) [${response.source || 'GEMINI_API'}]`,
+        auditStatus
       );
     } finally {
       setIsAnalyzing(false);
@@ -230,6 +248,35 @@ export function App() {
     );
   };
 
+  const handleToggleCampaign = (id: string) => {
+    setCampaigns((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          const nextActive = !c.active;
+          appendAudit(
+            nextActive ? 'FLASH_CAMPAIGN_RESUMED' : 'FLASH_CAMPAIGN_PAUSED',
+            `Campanha "${c.title}" ${nextActive ? 'retomada' : 'pausada'} (${c.couponCode})`,
+            'SUCCESS'
+          );
+          return { ...c, active: nextActive };
+        }
+        return c;
+      })
+    );
+  };
+
+  const handleDeleteCampaign = (id: string) => {
+    const target = campaigns.find((c) => c.id === id);
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    if (target) {
+      appendAudit(
+        'FLASH_CAMPAIGN_DELETED',
+        `Campanha "${target.title}" removida (${target.couponCode})`,
+        'WARNING'
+      );
+    }
+  };
+
   const handleLogLostSale = (
     zoneId: ZoneId,
     storeName: string,
@@ -248,29 +295,49 @@ export function App() {
     appendAudit('COUNTER_LOST_SALE_LOGGED', `${storeName}: ${LOST_SALE_LABELS[reason]}`);
   };
 
+  const handleUndoLostSale = () => {
+    setLostSales((prev) => {
+      if (prev.length === 0) return prev;
+      const [removed, ...rest] = prev;
+      appendAudit(
+        'COUNTER_LOST_SALE_UNDONE',
+        `Registro desfeito: ${removed.storeName} (${LOST_SALE_LABELS[removed.reason]})`,
+        'WARNING'
+      );
+      return rest;
+    });
+  };
+
   const handleSubmitConsumerSignal = (
     zoneId: ZoneId,
     query: string,
     budget: ConsumerSignal['budget']
   ): ConsumerSignal => {
     const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId) ?? CAPIM_DOURADO_ZONES[0];
-    const code = `VITRINE-${Math.floor(100 + Math.random() * 899)}`;
+    const match = matchConsumerOffer(query, zone, campaigns);
     const signal: ConsumerSignal = {
       id: `sig-${Date.now()}`,
       zoneId,
       query,
       budget,
       preference: zone.segment,
-      couponCode: code,
-      matchedOffer: `${zone.shortName} • Cupom instantâneo`,
+      couponCode: match.couponCode,
+      matchedOffer: match.matchedOffer,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
     setSignals((prev) => [signal, ...prev]);
     appendAudit(
       'CONCIERGE_QR_SIGNAL',
-      `Busca anônima em ${zone.shortName}: "${query}" -> cupom ${code}`
+      `Busca anônima em ${zone.shortName}: "${query}" -> cupom ${match.couponCode}`
     );
     return signal;
+  };
+
+  const handleNavigateToStore = (storeName: string, targetFloor: FloorId = 'L1') => {
+    setSelectedStoreName(storeName);
+    setFloor(targetFloor);
+    setActiveTab('map');
+    appendAudit('CONCIERGE_ROUTE_REQUESTED', `Navegação até ${storeName} (${targetFloor}) iniciada`);
   };
 
   const navItems: { id: ActiveTab; icon: React.ReactNode }[] = [
@@ -488,6 +555,8 @@ export function App() {
                 onChangeFactors={setFactors}
                 campaigns={campaigns}
                 onLaunchCampaign={handleLaunchCampaign}
+                onToggleCampaign={handleToggleCampaign}
+                onDeleteCampaign={handleDeleteCampaign}
                 onRunCopilot={handleRunCopilot}
                 isAnalyzing={isAnalyzing}
                 lastAnalysis={lastAnalysis}
@@ -504,6 +573,8 @@ export function App() {
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
                 routes={CROSS_SEGMENT_ROUTES}
+                selectedStoreName={selectedStoreName}
+                onSelectStoreName={setSelectedStoreName}
               />
             )}
 
@@ -525,6 +596,7 @@ export function App() {
                 onSelectZone={handleSelectZone}
                 lostSales={lostSales}
                 onLogLostSale={handleLogLostSale}
+                onUndoLostSale={handleUndoLostSale}
               />
             )}
 
@@ -536,6 +608,7 @@ export function App() {
                 campaigns={campaigns}
                 signals={signals}
                 onSubmitConsumerSignal={handleSubmitConsumerSignal}
+                onNavigateToStore={handleNavigateToStore}
               />
             )}
 

@@ -23,6 +23,8 @@ interface ShoppingMapProps {
   selectedZoneId: ZoneId;
   onSelectZone: (zoneId: ZoneId) => void;
   routes: CrossSegmentRoute[];
+  selectedStoreName?: string | null;
+  onSelectStoreName?: (name: string | null) => void;
 }
 
 export const ShoppingMap: React.FC<ShoppingMapProps> = ({
@@ -32,6 +34,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
   selectedZoneId,
   onSelectZone,
   routes,
+  selectedStoreName,
+  onSelectStoreName,
 }) => {
   const [renderMode, setRenderMode] = useState<'3d' | '2d'>('3d');
 
@@ -51,11 +55,11 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             <span>Gêmeo Digital 3D • Capim Dourado Shopping</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-            Explore Corredores em 3D, Dê Zoom nas Lojas e Suba ao 2º Piso
+            Explore Corredores em 3D, Busque Lojas e Suba ao 2º Piso
           </h2>
           <p className="text-xs sm:text-sm text-stone-300 leading-relaxed">
-            Use o modo <strong className="text-white">Maquete 360°</strong> com scroll para zoom ou ative{' '}
-            <strong className="text-[#E2A83B]">Entrar no Shopping (Street View)</strong> para caminhar em primeira pessoa pelas vitrines e trocar de andar.
+            Use a <strong className="text-white">Maquete 3D</strong> (com atalhos de setor, Raio-X Subsolo e Tour Guiado) ou ative{' '}
+            <strong className="text-[#E2A83B]">Street View</strong> para caminhar pelas vitrines e trocar de andar.
           </p>
         </div>
 
@@ -111,6 +115,17 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             >
               2º Piso (L2)
             </button>
+            <button
+              type="button"
+              onClick={() => onFloorChange('SS1')}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${
+                floor === 'SS1'
+                  ? 'bg-emerald-400 text-[#111318]'
+                  : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              Subsolo (356 Vagas)
+            </button>
           </div>
         </div>
       </div>
@@ -126,6 +141,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               zonesTelemetry={zonesTelemetry}
               selectedZoneId={selectedZoneId}
               onSelectZone={onSelectZone}
+              selectedStoreName={selectedStoreName}
+              onSelectStoreName={onSelectStoreName}
             />
           ) : (
             <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
@@ -133,7 +150,7 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-[#B45309]" aria-hidden="true" />
                   <h3 className="text-sm font-bold text-[#111318]">
-                    Planta Esquemática — {floor === 'L1' ? 'Pavimento Térreo (L1)' : '2º Pavimento / Praça (L2)'}
+                    Planta Esquemática — {floor === 'L1' ? 'Pavimento Térreo (L1)' : floor === 'L2' ? '2º Pavimento / Praça (L2)' : 'Subsolo 1 & 2 (356 Vagas)'}
                   </h3>
                 </div>
                 <span className="text-[11px] font-semibold text-stone-500">
@@ -141,92 +158,345 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                 </span>
               </div>
 
+              {selectedStoreName && (
+                <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#B45309] shrink-0" aria-hidden="true" />
+                    <span>
+                      Loja em Foco: <strong>{selectedStoreName}</strong> ({floor === 'L1' ? 'Térreo L1' : floor === 'L2' ? '2º Piso L2' : 'Subsolo SS1'}) — Ala {selected.zone.shortName}
+                    </span>
+                  </div>
+                  {onSelectStoreName && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectStoreName(null)}
+                      className="text-[11px] font-bold text-stone-600 hover:text-stone-900 underline"
+                    >
+                      Limpar Foco
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="rounded-xl bg-[#FAF8F5] border border-stone-200 p-3">
                 <svg
-                  viewBox="0 0 1000 520"
+                  viewBox="0 0 1000 540"
                   className="w-full h-auto"
                   role="img"
-                  aria-label="Planta técnica 2D do Capim Dourado Shopping"
+                  aria-label="Planta técnica 2D fiel à Planta Mix do Capim Dourado Shopping"
                 >
-                  <rect x="20" y="20" width="960" height="480" rx="22" fill="#F1EDE6" stroke="#D6CFC2" strokeWidth="2" />
-                  <rect x="44" y="218" width="912" height="84" rx="18" fill="#FFFFFF" stroke="#E5DEC9" strokeWidth="2" />
-                  <text x="500" y="264" textAnchor="middle" className="text-[13px] font-bold fill-stone-400 tracking-widest">
-                    EIXO PRINCIPAL DE CIRCULAÇÃO • CAPIM DOURADO ({floor})
+                  {/* Vias Reais do Entorno */}
+                  <rect x="20" y="480" width="960" height="32" rx="6" fill="#334155" />
+                  <line x1="60" y1="496" x2="940" y2="496" stroke="#FACC15" strokeWidth="2.5" strokeDasharray="14 10" />
+                  <circle cx="48" cy="496" r="22" fill="#334155" />
+                  <circle cx="48" cy="496" r="10" fill="#10B981" />
+                  <circle cx="952" cy="496" r="22" fill="#334155" />
+                  <circle cx="952" cy="496" r="10" fill="#10B981" />
+                  <text x="500" y="501" textAnchor="middle" className="text-[11px] font-bold fill-white tracking-widest">
+                    AV. NS-05 (FACHADA LESTE) • PORTARIA P1 • 2 ROTATÓRIAS
                   </text>
 
-                  {/* Zonas do Piso Selecionado */}
-                  {floorZones.map((item) => {
-                    const isSelected = item.zone.id === selectedZoneId;
-                    const { x, y, w, h } = item.zone.mapRect;
-                    const heatStroke =
-                      item.opportunityScore >= 75
-                        ? '#D97706'
-                        : item.opportunityScore >= 45
-                        ? '#2563EB'
-                        : '#059669';
+                  <rect x="18" y="28" width="28" height="450" rx="6" fill="#334155" />
+                  <text x="32" y="255" textAnchor="middle" transform="rotate(-90 32 255)" className="text-[10px] font-bold fill-amber-300 tracking-wider">
+                    AV. JK (SUL) • CURVA RENNER / L2
+                  </text>
 
-                    return (
-                      <g
-                        key={item.zone.id}
-                        onClick={() => onSelectZone(item.zone.id)}
-                        className="cursor-pointer"
-                      >
-                        <rect
-                          x={x}
-                          y={y}
-                          width={w}
-                          height={h}
-                          rx="16"
-                          fill={isSelected ? '#111318' : '#FFFFFF'}
-                          stroke={isSelected ? '#E2A83B' : heatStroke}
-                          strokeWidth={isSelected ? 4 : 2.5}
-                        />
-                        <text
-                          x={x + 16}
-                          y={y + 30}
-                          className={`text-[14px] font-extrabold ${
-                            isSelected ? 'fill-[#E2A83B]' : 'fill-[#111318]'
-                          }`}
+                  <rect x="954" y="28" width="28" height="450" rx="6" fill="#334155" />
+                  <text x="968" y="255" textAnchor="middle" transform="rotate(90 968 255)" className="text-[10px] font-bold fill-sky-300 tracking-wider">
+                    AV. LO-2A (NORTE) • CINEMARK ↔ MOROFIT
+                  </text>
+
+                  {/* Contorno Real da Planta Mix (Curva JK à esquerda + Corpo Central + Braço Norte PC) */}
+                  <path
+                    d="M 150 458 Q 62 452 62 310 Q 62 180 185 162 L 620 162 L 642 36 L 936 36 L 936 458 L 560 458 Q 490 426 420 458 Z"
+                    fill="#EFEBE3"
+                    stroke="#C7BEB0"
+                    strokeWidth="2.5"
+                  />
+
+                  {/* Subsolo 1 & 2 Indicador no Fundo Oeste */}
+                  <rect x="330" y="38" width="275" height="92" rx="14" fill="#E0F2FE" stroke="#0284C7" strokeWidth="1.8" strokeDasharray="6 4" />
+                  <text x="468" y="68" textAnchor="middle" className="text-[12px] font-extrabold fill-sky-900">
+                    ESTAC. OESTE + SUBSOLOS 1 &amp; 2 (356 VAGAS)
+                  </text>
+                  <text x="468" y="90" textAnchor="middle" className="text-[10px] font-semibold fill-sky-700">
+                    3 Esteiras Rolantes → Super Big • Zig Zag • Morofit
+                  </text>
+                  <text x="468" y="110" textAnchor="middle" className="text-[10px] font-bold fill-emerald-700">
+                    Portarias P2 &amp; P3 + Motos/Bicicletário NE
+                  </text>
+
+                  {/* Corredor Principal L1 */}
+                  <path
+                    d="M 120 310 L 665 310 L 795 310 L 795 85"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="22"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {floor === 'L1' && (
+                    <text x="440" y="314" textAnchor="middle" className="text-[11px] font-bold fill-stone-400 tracking-widest">
+                      EIXO PRINCIPAL • PRAÇA OVAL • CORREDOR PC (L1)
+                    </text>
+                  )}
+
+                  {floor === 'L1' ? (
+                    /* Cartões proporcionais das 4 Alas do Térreo (sem vazamento de texto!) */
+                    [
+                      {
+                        id: 'ala-sul-esporte' as ZoneId,
+                        title: 'Ala Sul (Curva JK)',
+                        sub: 'Renner • Centauro • PF • Stilo A',
+                        x: 84,
+                        y: 342,
+                        w: 225,
+                        h: 102,
+                      },
+                      {
+                        id: 'alameda-gourmet' as ZoneId,
+                        title: 'Alameda Gourmet (P1)',
+                        sub: 'Outback • Madero • Marisa • Camicado',
+                        x: 325,
+                        y: 342,
+                        w: 265,
+                        h: 102,
+                      },
+                      {
+                        id: 'ala-central-ancoras' as ZoneId,
+                        title: 'Ala Central (P2 / P3)',
+                        sub: 'C&A • Riachuelo • Leitura • Polo Wear',
+                        x: 185,
+                        y: 178,
+                        w: 410,
+                        h: 112,
+                      },
+                      {
+                        id: 'ala-lazer-cinema' as ZoneId,
+                        title: 'Ala Norte PC (LO-2A)',
+                        sub: 'Cinemark • Big • Super Big • WoW • Morofit',
+                        x: 654,
+                        y: 52,
+                        w: 268,
+                        h: 392,
+                      },
+                    ].map((box) => {
+                      const item = zonesTelemetry.find((z) => z.zone.id === box.id);
+                      if (!item) return null;
+                      const isSelected = item.zone.id === selectedZoneId;
+                      const heatStroke =
+                        item.opportunityScore >= 75
+                          ? '#D97706'
+                          : item.opportunityScore >= 45
+                          ? '#2563EB'
+                          : '#059669';
+
+                      return (
+                        <g
+                          key={item.zone.id}
+                          onClick={() => onSelectZone(item.zone.id)}
+                          className="cursor-pointer"
                         >
-                          {item.zone.shortName}
+                          <rect
+                            x={box.x}
+                            y={box.y}
+                            width={box.w}
+                            height={box.h}
+                            rx="14"
+                            fill={isSelected ? '#111318' : '#FFFFFF'}
+                            stroke={isSelected ? '#E2A83B' : heatStroke}
+                            strokeWidth={isSelected ? 4 : 2.2}
+                          />
+                          <text
+                            x={box.x + 14}
+                            y={box.y + 28}
+                            className={`text-[13px] font-extrabold ${
+                              isSelected ? 'fill-[#E2A83B]' : 'fill-[#111318]'
+                            }`}
+                          >
+                            {box.title}
+                          </text>
+                          <text
+                            x={box.x + 14}
+                            y={box.y + 50}
+                            className={`text-[10.5px] font-semibold ${
+                              isSelected ? 'fill-stone-300' : 'fill-stone-500'
+                            }`}
+                          >
+                            {box.sub}
+                          </text>
+                          <rect
+                            x={box.x + box.w - 72}
+                            y={box.y + 12}
+                            width="60"
+                            height="24"
+                            rx="12"
+                            fill={heatStroke}
+                          />
+                          <text
+                            x={box.x + box.w - 42}
+                            y={box.y + 28}
+                            textAnchor="middle"
+                            className="text-[11px] font-extrabold fill-white"
+                          >
+                            IQ {item.opportunityScore}
+                          </text>
+                          <text
+                            x={box.x + 14}
+                            y={box.y + box.h - 14}
+                            className={`text-[11px] font-bold ${
+                              isSelected ? 'fill-emerald-300' : 'fill-emerald-700'
+                            }`}
+                          >
+                            {item.footTraffic}/h fluxo • {item.vitrineStops} vitrines
+                          </text>
+                        </g>
+                      );
+                    })
+                  ) : floor === 'L2' ? (
+                    /* 2º Piso Real: Praça de Alimentação Curva JK + Colégio Interação A8 + Unicesumar IOA */
+                    <g>
+                      {(() => {
+                        const l2Item = zonesTelemetry.find((z) => z.zone.id === 'praca-alimentacao-l2');
+                        const isSelected = l2Item?.zone.id === selectedZoneId;
+                        const heatStroke = (l2Item?.opportunityScore ?? 70) >= 75 ? '#D97706' : '#059669';
+                        return (
+                          <g
+                            onClick={() => l2Item && onSelectZone(l2Item.zone.id)}
+                            className="cursor-pointer"
+                          >
+                            <path
+                              d="M 88 210 Q 52 310 88 415 L 365 415 Q 410 310 365 210 Z"
+                              fill={isSelected ? '#111318' : '#FEFCE8'}
+                              stroke={isSelected ? '#E2A83B' : heatStroke}
+                              strokeWidth={isSelected ? 4 : 2.5}
+                            />
+                            <text
+                              x="220"
+                              y="246"
+                              textAnchor="middle"
+                              className={`text-[14px] font-extrabold ${
+                                isSelected ? 'fill-[#E2A83B]' : 'fill-[#111318]'
+                              }`}
+                            >
+                              Praça de Alimentação L2 (Curva JK)
+                            </text>
+                            <text
+                              x="220"
+                              y="272"
+                              textAnchor="middle"
+                              className={`text-[11px] font-semibold ${
+                                isSelected ? 'fill-stone-300' : 'fill-stone-600'
+                              }`}
+                            >
+                              McDonald's • Spoletto • Pizza Hut • Divino Fogão
+                            </text>
+                            <text
+                              x="220"
+                              y="294"
+                              textAnchor="middle"
+                              className={`text-[11px] font-semibold ${
+                                isSelected ? 'fill-stone-300' : 'fill-stone-600'
+                              }`}
+                            >
+                              Mundo Imersivo • Kin Sui • Giraffas • Subway
+                            </text>
+                            <text
+                              x="220"
+                              y="322"
+                              textAnchor="middle"
+                              className="text-[11px] font-extrabold fill-rose-600"
+                            >
+                              Vagas Reais: Loja 203 (58 m²) &amp; Loja 205 (35 m²)
+                            </text>
+                            {l2Item && (
+                              <text
+                                x="220"
+                                y="388"
+                                textAnchor="middle"
+                                className={`text-[12px] font-extrabold ${
+                                  isSelected ? 'fill-emerald-300' : 'fill-emerald-700'
+                                }`}
+                              >
+                                IQ {l2Item.opportunityScore} • {l2Item.footTraffic}/h fluxo • {l2Item.vitrineStops} vitrines
+                              </text>
+                            )}
+                          </g>
+                        );
+                      })()}
+
+                      <rect x="445" y="195" width="165" height="92" rx="12" fill="#E0F2FE" stroke="#0284C7" strokeWidth="2" />
+                      <text x="527" y="236" textAnchor="middle" className="text-[12px] font-extrabold fill-sky-900">
+                        UNICESUMAR • IOA
+                      </text>
+                      <text x="527" y="256" textAnchor="middle" className="text-[10px] font-semibold fill-sky-700">
+                        L202 • 1.133 m² (2º Piso)
+                      </text>
+
+                      <rect x="430" y="340" width="185" height="86" rx="12" fill="#FEF9C3" stroke="#CA8A04" strokeWidth="2" />
+                      <text x="522" y="380" textAnchor="middle" className="text-[12px] font-extrabold fill-amber-900">
+                        COLÉGIO INTERAÇÃO
+                      </text>
+                      <text x="522" y="400" textAnchor="middle" className="text-[10px] font-semibold fill-amber-700">
+                        Bloco A8 • 950 m² (2º Piso)
+                      </text>
+                    </g>
+                  ) : (
+                    /* Subsolo Técnico: 356 Vagas (SS1 140 v. + SS2 216 v.) + 3 Esteiras + Maria Express */
+                    <g>
+                      <rect x="120" y="150" width="760" height="275" rx="16" fill="#0F172A" stroke="#0284C7" strokeWidth="3" />
+                      
+                      {/* Vagas SS1 e SS2 */}
+                      <rect x="150" y="175" width="340" height="225" rx="12" fill="#1E293B" stroke="#38BDF8" strokeWidth="2" strokeDasharray="6 4" />
+                      <text x="320" y="210" textAnchor="middle" className="text-[14px] font-black fill-[#38BDF8]">
+                        SUBSOLO 1 — 140 VAGAS COBERTAS
+                      </text>
+                      <text x="320" y="235" textAnchor="middle" className="text-[11px] font-semibold fill-slate-300">
+                        Motos, Bicicletário NE &amp; Acesso Portaria P2 / P3
+                      </text>
+                      <text x="320" y="260" textAnchor="middle" className="text-[11px] font-bold fill-emerald-400">
+                        3 Esteiras Rolantes Diretas para L1 (Super Big / Zig Zag)
+                      </text>
+
+                      {/* Operação Comercial SS1: Maria Express */}
+                      <g className="cursor-pointer" onClick={() => onSelectZone('ala-lazer-cinema')}>
+                        <rect x="180" y="285" width="280" height="95" rx="10" fill="#FEF3C7" stroke="#D97706" strokeWidth="2" />
+                        <text x="320" y="318" textAnchor="middle" className="text-[12px] font-extrabold fill-amber-900">
+                          MARIA EXPRESS (SS1) • QSUB1 (51 m²)
                         </text>
-                        <text
-                          x={x + 16}
-                          y={y + 52}
-                          className={`text-[12px] font-semibold ${
-                            isSelected ? 'fill-stone-300' : 'fill-stone-500'
-                          }`}
-                        >
-                          {item.zone.segment}
+                        <text x="320" y="340" textAnchor="middle" className="text-[10px] font-semibold fill-amber-700">
+                          Operação Ativa de Alimentação &amp; Conveniência
                         </text>
-                        <rect
-                          x={x + w - 76}
-                          y={y + 14}
-                          width="62"
-                          height="28"
-                          rx="14"
-                          fill={heatStroke}
-                        />
-                        <text
-                          x={x + w - 45}
-                          y={y + 32}
-                          textAnchor="middle"
-                          className="text-[12px] font-extrabold fill-white"
-                        >
-                          IQ {item.opportunityScore}
-                        </text>
-                        <text
-                          x={x + 16}
-                          y={y + h - 18}
-                          className={`text-[11px] font-bold ${
-                            isSelected ? 'fill-emerald-300' : 'fill-emerald-700'
-                          }`}
-                        >
-                          {item.footTraffic}/h fluxo • {item.vitrineStops} vitrines
+                        <text x="320" y="362" textAnchor="middle" className="text-[10px] font-bold fill-emerald-800">
+                          Subsolo 1 • Conexão Direta Super Big
                         </text>
                       </g>
-                    );
-                  })}
+
+                      {/* Subsolo 2 */}
+                      <rect x="520" y="175" width="330" height="225" rx="12" fill="#1E293B" stroke="#818CF8" strokeWidth="2" strokeDasharray="6 4" />
+                      <text x="685" y="210" textAnchor="middle" className="text-[14px] font-black fill-[#818CF8]">
+                        SUBSOLO 2 — 216 VAGAS COBERTAS
+                      </text>
+                      <text x="685" y="235" textAnchor="middle" className="text-[11px] font-semibold fill-slate-300">
+                        G2 Coberto • Elevadores Panorâmicos L1 / L2
+                      </text>
+                      <text x="685" y="260" textAnchor="middle" className="text-[11px] font-bold fill-amber-400">
+                        Vagas PNE, Gestantes, Idosos e Neurodiverso
+                      </text>
+                      <text x="685" y="315" textAnchor="middle" className="text-[12px] font-black fill-emerald-300">
+                        Total Geral Subsolo: 356 Vagas Monitoradas
+                      </text>
+                      <text x="685" y="340" textAnchor="middle" className="text-[10px] font-semibold fill-slate-400">
+                        Sensores de Ocupação &amp; Iluminação LED Inteligente
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Selo P1 na Base */}
+                  <rect x="435" y="446" width="110" height="24" rx="8" fill="#065F46" />
+                  <text x="490" y="462" textAnchor="middle" className="text-[10px] font-extrabold fill-white">
+                    🚪 PORTARIA P1
+                  </text>
                 </svg>
               </div>
             </div>
@@ -286,14 +556,23 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                 <Store className="w-3 h-3 text-[#E2A83B]" aria-hidden="true" /> Lojas & Âncoras Monitoradas
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {selected.zone.anchors.map((anchor) => (
-                  <span
-                    key={anchor}
-                    className="px-2.5 py-1 rounded-lg bg-white/10 text-stone-100 text-[11px] font-semibold"
-                  >
-                    {anchor}
-                  </span>
-                ))}
+                {selected.zone.anchors.map((anchor) => {
+                  const isMatch =
+                    selectedStoreName &&
+                    anchor.toLowerCase().includes(selectedStoreName.toLowerCase());
+                  return (
+                    <span
+                      key={anchor}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition ${
+                        isMatch
+                          ? 'bg-[#E2A83B] text-[#111318] font-black shadow-md ring-2 ring-amber-300'
+                          : 'bg-white/10 text-stone-100'
+                      }`}
+                    >
+                      {isMatch ? `🎯 ${anchor}` : anchor}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 

@@ -49,6 +49,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const snapshotRef = useRef<VisionFunnelSnapshot>(snapshot);
   snapshotRef.current = snapshot;
+  const visitorsRef = useRef<SimulatedVisitor[]>([]);
+  const nextIdRef = useRef<number>(1);
 
   const [isPaused, setIsPaused] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
@@ -119,9 +121,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     let lastDoorTrigger = 0;
     let doorParity = 0;
 
-    let nextId = 1;
     const spawnVisitor = (fromRight = false): SimulatedVisitor => ({
-      id: nextId++,
+      id: nextIdRef.current++,
       x: fromRight ? W + 20 : -20,
       y: 215 + Math.random() * 85,
       vx: (fromRight ? -1 : 1) * (1.5 + Math.random() * 1.1),
@@ -133,10 +134,12 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
       countedOutcome: false,
     });
 
-    const visitors: SimulatedVisitor[] = Array.from({ length: 8 }, (_, i) => ({
-      ...spawnVisitor(i % 2 === 0),
-      x: 70 + i * 75,
-    }));
+    if (visitorsRef.current.length === 0) {
+      visitorsRef.current = Array.from({ length: 8 }, (_, i) => ({
+        ...spawnVisitor(i % 2 === 0),
+        x: 70 + i * 75,
+      }));
+    }
 
     let animId = 0;
     let frameTick = 0;
@@ -259,18 +262,27 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
           if (deltaPass || deltaStop || deltaEnter || deltaExit || deltaWalkAway) {
             const cur = snapshotRef.current;
-            const passersBy = cur.passersBy + deltaPass;
-            const entries = cur.entries + deltaEnter;
+            let passersBy = cur.passersBy + deltaPass;
+            let vitrineStops = cur.vitrineStops + deltaStop;
+            let entries = cur.entries + deltaEnter;
+
+            // Invariante estrita matemática de funil de varejo: passersBy >= vitrineStops >= entries
+            passersBy = Math.max(0, passersBy);
+            vitrineStops = Math.min(passersBy, Math.max(0, vitrineStops));
+            entries = Math.min(vitrineStops, Math.max(0, entries));
+
+            const exits = cur.exits + deltaExit;
+            const passedWithoutEntering = Math.max(0, passersBy - entries);
             const attractionRate =
               passersBy > 0 ? Number(((entries / passersBy) * 100).toFixed(1)) : 0;
             onUpdateSnapshot({
               ...cur,
               zoneId: selectedZoneId,
               passersBy,
-              vitrineStops: cur.vitrineStops + deltaStop,
+              vitrineStops,
               entries,
-              exits: cur.exits + deltaExit,
-              passedWithoutEntering: cur.passedWithoutEntering + deltaWalkAway,
+              exits,
+              passedWithoutEntering,
               attractionRate,
               sourceMode: 'webcam_live',
               lastMotionRegion: region,
@@ -323,6 +335,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         ctx.fillText('CORREDOR DO SHOPPING (PASSANTES)', 56, 322);
 
         if (!isPaused) {
+          const visitors = visitorsRef.current;
           if (frameTick % 56 === 0 && visitors.length < 16) {
             visitors.push(spawnVisitor(Math.random() > 0.5));
           }
@@ -399,25 +412,34 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
           if (deltaPass || deltaStop || deltaEnter || deltaExit || deltaWalkAway) {
             const cur = snapshotRef.current;
-            const passersBy = cur.passersBy + deltaPass;
-            const entries = cur.entries + deltaEnter;
+            let passersBy = cur.passersBy + deltaPass;
+            let vitrineStops = cur.vitrineStops + deltaStop;
+            let entries = cur.entries + deltaEnter;
+
+            // Invariante estrita matemática de funil de varejo: passersBy >= vitrineStops >= entries
+            passersBy = Math.max(0, passersBy);
+            vitrineStops = Math.min(passersBy, Math.max(0, vitrineStops));
+            entries = Math.min(vitrineStops, Math.max(0, entries));
+
+            const exits = cur.exits + deltaExit;
+            const passedWithoutEntering = Math.max(0, passersBy - entries);
             const attractionRate =
               passersBy > 0 ? Number(((entries / passersBy) * 100).toFixed(1)) : 0;
             onUpdateSnapshot({
               ...cur,
               zoneId: selectedZoneId,
               passersBy,
-              vitrineStops: cur.vitrineStops + deltaStop,
+              vitrineStops,
               entries,
-              exits: cur.exits + deltaExit,
-              passedWithoutEntering: cur.passedWithoutEntering + deltaWalkAway,
+              exits,
+              passedWithoutEntering,
               attractionRate,
               sourceMode: 'simulation',
             });
           }
         }
 
-        for (const v of visitors) {
+        for (const v of visitorsRef.current) {
           const color =
             v.state === 'entering' || v.state === 'exiting'
               ? '#059669'
@@ -434,8 +456,34 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
           ctx.arc(v.x, v.y, 4.5, 0, Math.PI * 2);
           ctx.fill();
 
+          // Mini-badge escuro translúcido com padding para evitar sobreposição de textos
+          const idText = `#${v.id}`;
           ctx.font = '700 9px monospace';
-          ctx.fillText(`#${v.id}`, v.x - 9, v.y - 14);
+          const textWidth = ctx.measureText(idText).width;
+          const badgeW = textWidth + 8;
+          const badgeH = 13;
+          const badgeX = v.x - badgeW / 2;
+          const badgeY = v.y - 25;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 3);
+          } else {
+            ctx.rect(badgeX, badgeY, badgeW, badgeH);
+          }
+          ctx.fill();
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(idText, v.x, badgeY + badgeH / 2);
+          ctx.textAlign = 'start';
+          ctx.textBaseline = 'alphabetic';
         }
       }
 
@@ -465,6 +513,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
       : 0;
 
   const handleResetCounters = () => {
+    visitorsRef.current = [];
+    nextIdRef.current = 1;
     onUpdateSnapshot({
       zoneId: selectedZoneId,
       passersBy: 0,
@@ -609,7 +659,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               </span>
               <div className="text-2xl font-black text-blue-600 mt-1">{snapshot.passersBy}</div>
               <span className="text-[11px] text-slate-500">
-                {snapshot.passedWithoutEntering} passaram sem entrar
+                {Math.max(0, snapshot.passersBy - snapshot.entries)} passaram sem entrar
               </span>
             </SpotlightCard>
 
