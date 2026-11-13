@@ -51,6 +51,7 @@ interface RetailerCockpitProps {
   lastAnalysis: AIAnalysisResponse | null;
   visionSnapshot?: VisionFunnelSnapshot;
   onOpenVision?: () => void;
+  completedSalesByZone: Partial<Record<ZoneId, number>>;
 }
 
 const WEATHER_OPTIONS: { value: WeatherCondition; label: string; icon: 'sun' | 'rain' | 'mild' }[] = [
@@ -104,6 +105,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   lastAnalysis,
   visionSnapshot,
   onOpenVision,
+  completedSalesByZone,
 }) => {
   const current =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
@@ -206,10 +208,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
       ? visionSnapshot.entries
       : Math.max(12, Math.round(stopsTotal * 0.42));
-  const conversionsTotal = Math.max(
-    4,
-    Math.round((entriesTotal * current.conversionRate) / 100)
-  );
+  // RN12: "compraram" vem só do botão "Venda concluída" do Modo Balcão
+  const conversionsTotal = completedSalesByZone[current.zone.id] ?? 0;
   const stopRatePct = corridorTotal > 0 ? Math.min(100, Math.round((stopsTotal / corridorTotal) * 100)) : 0;
   const entryRatePct = corridorTotal > 0 ? Math.min(100, Math.round((entriesTotal / corridorTotal) * 100)) : 0;
   const convBarPct = corridorTotal > 0 ? Math.min(100, Math.round((conversionsTotal / corridorTotal) * 100)) : 0;
@@ -452,7 +452,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <div className="flex justify-between text-xs font-bold text-[#111318] mb-1">
                 <span>4. Compra Concluída</span>
                 <span className="text-emerald-700">
-                  ~{conversionsTotal} ({convBarPct}%)
+                  {conversionsTotal} ({convBarPct}%)
                 </span>
               </div>
               <div className="h-3 rounded-full bg-stone-100 overflow-hidden">

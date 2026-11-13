@@ -21,7 +21,7 @@ interface ConsumerConciergeProps {
     zoneId: ZoneId,
     query: string,
     budget: ConsumerSignal['budget']
-  ) => ConsumerSignal;
+  ) => Promise<ConsumerSignal>;
   onNavigateToStore?: (storeName: string, floor?: FloorId) => void;
 }
 
@@ -50,17 +50,21 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
   const isQueryInvalid = queryTouched && query.trim().length < 3;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const ofertasDaAla = campaigns.filter((c) => c.active && c.zoneId === selectedZoneId);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setQueryTouched(true);
     if (query.trim().length < 3) {
       setLiveStatus('Erro: informe o que você procura com pelo menos 3 caracteres.');
       return;
     }
-    const created = onSubmitConsumerSignal(selectedZoneId, query.trim(), budget);
+    const created = await onSubmitConsumerSignal(selectedZoneId, query.trim(), budget);
     setLatestReward(created);
     setLiveStatus(
-      `Oferta encontrada: ${created.matchedOffer}. Cupom ${created.couponCode} liberado.`
+      created.couponCode
+        ? `Oferta encontrada: ${created.matchedOffer}. Cupom ${created.couponCode} liberado.`
+        : 'Busca registrada. Nenhuma oferta ativa agora; avisaremos aqui quando uma loja publicar.'
     );
     setQuery('');
     setQueryTouched(false);
@@ -181,11 +185,37 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
-            <span>Buscar Oferta &amp; Ganhar Cupom Agora</span>
+            <span>Buscar oferta</span>
           </button>
         </form>
 
-        {latestReward && (
+        {/* Cupons publicados pelo lojista chegam aqui pelo polling, sem o visitante recarregar (passo 5 do ciclo) */}
+        {ofertasDaAla.length > 0 && (
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 text-xs" aria-live="polite">
+            <span className="font-bold text-amber-900 flex items-center gap-1.5">
+              <Ticket className="w-4 h-4 text-amber-600" aria-hidden="true" />
+              Ofertas relâmpago na sua ala agora
+            </span>
+            {ofertasDaAla.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-2">
+                <span className="text-slate-900 font-semibold">
+                  {c.storeName} — {c.title} ({c.discountBadge})
+                </span>
+                <span className="font-mono font-black px-2 py-0.5 rounded bg-amber-500 text-slate-950 shrink-0">
+                  {c.couponCode}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {latestReward && !latestReward.couponCode && (
+          <p role="status" className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+            Busca registrada. Nenhuma oferta ativa nesta ala agora: se uma loja publicar, o cupom aparece aqui.
+          </p>
+        )}
+
+        {latestReward && latestReward.couponCode && (
           <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-emerald-800 flex items-center gap-1.5">

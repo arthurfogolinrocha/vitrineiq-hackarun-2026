@@ -19,6 +19,8 @@ interface CounterQuickLogProps {
   lostSales: LostSaleEvent[];
   onLogLostSale: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) => void;
   onUndoLostSale?: () => void;
+  onLogCompletedSale: (zoneId: ZoneId, storeName: string) => void;
+  completedSalesCount: number;
 }
 
 const REASON_BUTTONS: {
@@ -70,6 +72,8 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   lostSales,
   onLogLostSale,
   onUndoLostSale,
+  onLogCompletedSale,
+  completedSalesCount,
 }) => {
   const [storeName, setStoreName] = useState('Loja Piloto Capim Dourado');
   const [note, setNote] = useState('');
@@ -82,6 +86,11 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
     setFeedbackBanner(
       `Registrado em 1 toque (${LOST_SALE_LABELS[reason]}) — Painel e Mapa atualizados!`
     );
+  };
+
+  const handleCompletedSale = () => {
+    onLogCompletedSale(selectedZoneId, storeName.trim() || 'Loja Piloto Capim Dourado');
+    setFeedbackBanner('Venda concluída registrada — funil do Painel atualizado!');
   };
 
   return (
@@ -148,6 +157,24 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400"
           />
         </div>
+
+        {/* RN12: a etapa "compraram" do funil vem só deste botão */}
+        <button
+          type="button"
+          onClick={handleCompletedSale}
+          className="w-full min-h-[72px] p-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left transition flex items-center gap-3.5 shadow-sm"
+        >
+          <CheckCircle2 className="w-7 h-7 shrink-0" aria-hidden="true" />
+          <span className="flex-1">
+            <span className="block text-base font-extrabold">Venda concluída</span>
+            <span className="block text-xs text-emerald-50">O cliente comprou nesta ala</span>
+          </span>
+          <span className="text-xs font-bold bg-white/20 rounded-lg px-2 py-1">
+            {completedSalesCount} hoje
+          </span>
+        </button>
+
+        <p className="text-xs font-bold text-slate-700">Não comprou? Toque no motivo:</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {REASON_BUTTONS.map((btn) => (

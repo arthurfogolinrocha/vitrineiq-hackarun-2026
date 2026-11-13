@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
   Box,
@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   QrCode,
   ShieldCheck,
-  Sparkles,
   Store,
 } from 'lucide-react';
 import {
@@ -35,7 +34,9 @@ import {
   ZoneLiveTelemetry,
 } from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
+import { api, VitrineAlerta, VitrineResumo } from './services/api';
 import { generateAuditHash } from './utils/security';
+import { readUrlView } from './utils/urlView';
 import { RetailerCockpit } from './components/RetailerCockpit';
 import { ShoppingMap } from './components/ShoppingMap';
 import { EdgeVisionSensor } from './components/EdgeVisionSensor';
@@ -95,9 +96,15 @@ const TAB_META: Record<
 };
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('cockpit');
-  const [floor, setFloor] = useState<FloorId>('L1');
-  const [selectedZoneId, setSelectedZoneId] = useState<ZoneId>('ala-central-ancoras');
+  // ?tela=concierge|balcao abre a tela sozinha (QR do visitante / aparelho do vendedor)
+  const [urlView] = useState(() => readUrlView(window.location.search));
+  const kioskTab = urlView.kioskTab;
+  const initialZoneId = urlView.zoneId ?? 'ala-central-ancoras';
+  const [activeTab, setActiveTab] = useState<ActiveTab>(kioskTab ?? 'cockpit');
+  const [floor, setFloor] = useState<FloorId>(
+    CAPIM_DOURADO_ZONES.find((z) => z.id === initialZoneId)?.floor ?? 'L1'
+  );
+  const [selectedZoneId, setSelectedZoneId] = useState<ZoneId>(initialZoneId);
   const [selectedStoreName, setSelectedStoreName] = useState<string | null>(null);
   const [factors, setFactors] = useState<ShopContextFactors>({
     weather: 'calor_38c',
@@ -106,6 +113,7 @@ export function App() {
   });
 
   const [lostSales, setLostSales] = useState<LostSaleEvent[]>(INITIAL_LOST_SALES);
+  const [completedSalesByZone, setCompletedSalesByZone] = useState<Partial<Record<ZoneId, number>>>({});
   const [campaigns, setCampaigns] = useState<FlashCampaign[]>(INITIAL_FLASH_CAMPAIGNS);
   const [signals, setSignals] = useState<ConsumerSignal[]>([
     {
@@ -131,6 +139,45 @@ export function App() {
     sourceMode: 'simulation',
     lastMotionRegion: 'vitrine',
   });
+
+  // Ciclo entre aparelhos: com a API no ar, o estado vem de GET /api/estado a cada 3 s.
+  // Sem API (offline), tudo continua funcionando só neste navegador, como demo.
+  const [online, setOnline] = useState(false);
+  const [vitrine, setVitrine] = useState<Partial<Record<ZoneId, VitrineResumo>>>({});
+  const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
+  const [alertasVistos, setAlertasVistos] = useState<string[]>([]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const e = await api.estado();
+      setLostSales(e.lostSales);
+      setCompletedSalesByZone(e.completedSalesByZone);
+      setSignals(e.signals);
+      setCampaigns(e.campaigns);
+      setVitrine(e.vitrine);
+      setAlertas(e.alertas);
+      setOnline(true);
+    } catch {
+      setOnline(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  /** Com a API no ar, grava nela e relê o estado; se a chamada falhar, cai no modo local. */
+  const viaApi = (chamada: () => Promise<unknown>, local: () => void) => {
+    if (!online) return local();
+    chamada()
+      .then(refresh)
+      .catch(() => {
+        setOnline(false);
+        local();
+      });
+  };
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<AIAnalysisResponse | null>(null);
@@ -172,12 +219,30 @@ export function App() {
     });
   };
 
+  // Câmera real da ala selecionada (computer-vision → API) tem prioridade sobre o simulador.
+  const cameraResumo = vitrine[selectedZoneId];
+  const effectiveVision = useMemo<VisionFunnelSnapshot>(() => cameraResumo
+    ? {
+        zoneId: selectedZoneId,
+        passersBy: cameraResumo.passantes,
+        vitrineStops: cameraResumo.olharam,
+        entries: 0, // shortcut: a câmera ainda não conta entradas; o funil usa a estimativa até a T5
+        exits: 0,
+        passedWithoutEntering: cameraResumo.passantes,
+        attractionRate: cameraResumo.taxaAtencao,
+        sourceMode: 'webcam_live',
+        lastMotionRegion: 'vitrine',
+      }
+    : visionSnapshot, [cameraResumo, selectedZoneId, visionSnapshot]);
+
+  const alertaAtivo = alertas.find((a) => a.evento === 'atencao_alta' && !alertasVistos.includes(a.id));
+
   const zonesTelemetry = useMemo(
     () =>
       CAPIM_DOURADO_ZONES.map((zone) =>
-        computeZoneTelemetry(zone, factors, signals, lostSales, visionSnapshot)
+        computeZoneTelemetry(zone, factors, signals, lostSales, effectiveVision)
       ),
-    [factors, signals, lostSales, visionSnapshot]
+    [factors, signals, lostSales, effectiveVision]
   );
 
   const selectedTelemetry =
@@ -201,9 +266,9 @@ export function App() {
   const handleRunCopilot = async (telemetry: ZoneLiveTelemetry) => {
     setIsAnalyzing(true);
     try {
-      const hasCam = visionSnapshot.zoneId === telemetry.zone.id;
+      const hasCam = effectiveVision.zoneId === telemetry.zone.id;
       const camSummary = hasCam
-        ? `Webcam ao vivo na porta: ${visionSnapshot.passersBy} passaram, ${visionSnapshot.vitrineStops} pararam na vitrine, ${visionSnapshot.entries} entraram (${visionSnapshot.attractionRate}% atração).`
+        ? `Webcam ao vivo na porta: ${effectiveVision.passersBy} passaram, ${effectiveVision.vitrineStops} olharam a vitrine (${effectiveVision.attractionRate}% atração).`
         : '';
 
       const response = await analyzeWithAI({
@@ -244,7 +309,7 @@ export function App() {
       active: true,
       createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
-    setCampaigns((prev) => [created, ...prev]);
+    viaApi(() => api.publicarCampanha(draft), () => setCampaigns((prev) => [created, ...prev]));
     appendAudit(
       'FLASH_CAMPAIGN_PUBLISHED',
       `Oferta "${created.title}" publicada para ${created.storeName} (${created.couponCode})`
@@ -252,6 +317,11 @@ export function App() {
   };
 
   const handleToggleCampaign = (id: string) => {
+    const alvo = campaigns.find((c) => c.id === id);
+    if (online && alvo) {
+      viaApi(() => api.alterarCampanha(id, !alvo.active), () => undefined);
+      return;
+    }
     setCampaigns((prev) =>
       prev.map((c) => {
         if (c.id === id) {
@@ -270,7 +340,7 @@ export function App() {
 
   const handleDeleteCampaign = (id: string) => {
     const target = campaigns.find((c) => c.id === id);
-    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    viaApi(() => api.removerCampanha(id), () => setCampaigns((prev) => prev.filter((c) => c.id !== id)));
     if (target) {
       appendAudit(
         'FLASH_CAMPAIGN_DELETED',
@@ -294,11 +364,28 @@ export function App() {
       note,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
-    setLostSales((prev) => [entry, ...prev]);
+    viaApi(
+      () => api.registrarPerda(zoneId, storeName, reason, note),
+      () => setLostSales((prev) => [entry, ...prev])
+    );
     appendAudit('COUNTER_LOST_SALE_LOGGED', `${storeName}: ${LOST_SALE_LABELS[reason]}`);
   };
 
+  const handleLogCompletedSale = (zoneId: ZoneId, storeName: string) => {
+    viaApi(
+      () => api.registrarVenda(zoneId, storeName),
+      () => setCompletedSalesByZone((prev) => ({ ...prev, [zoneId]: (prev[zoneId] ?? 0) + 1 }))
+    );
+    appendAudit('COUNTER_SALE_COMPLETED', `${storeName}: venda concluída`);
+  };
+
   const handleUndoLostSale = () => {
+    if (online && lostSales[0]) {
+      const ultimo = lostSales[0];
+      viaApi(() => api.desfazerBalcao(ultimo.id), () => undefined);
+      appendAudit('COUNTER_LOST_SALE_UNDONE', `Registro desfeito: ${ultimo.storeName}`, 'WARNING');
+      return;
+    }
     setLostSales((prev) => {
       if (prev.length === 0) return prev;
       const [removed, ...rest] = prev;
@@ -311,11 +398,20 @@ export function App() {
     });
   };
 
-  const handleSubmitConsumerSignal = (
+  const handleSubmitConsumerSignal = async (
     zoneId: ZoneId,
     query: string,
     budget: ConsumerSignal['budget']
-  ): ConsumerSignal => {
+  ): Promise<ConsumerSignal> => {
+    if (online) {
+      try {
+        const salvo = await api.buscar(zoneId, query, budget);
+        refresh();
+        return salvo;
+      } catch {
+        setOnline(false);
+      }
+    }
     const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId) ?? CAPIM_DOURADO_ZONES[0];
     const match = matchConsumerOffer(query, zone, campaigns);
     const signal: ConsumerSignal = {
@@ -358,7 +454,7 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#F4F2EE] text-[#111318] flex flex-col lg:flex-row">
       {/* SIDEBAR EXECUTIVA OBSIDIAN (DESKTOP) */}
-      <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col lg:justify-between bg-[#111318] text-white border-r border-white/10 p-5 sticky top-0 h-screen">
+      <aside className={`${kioskTab ? 'hidden' : 'hidden lg:flex'} lg:w-64 lg:shrink-0 lg:flex-col lg:justify-between bg-[#111318] text-white border-r border-white/10 p-5 sticky top-0 h-screen`}>
         <div className="space-y-6">
           {/* Identidade da Marca */}
           <div className="flex items-center gap-3 pb-4 border-b border-white/10">
@@ -480,7 +576,7 @@ export function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-mono font-bold text-[#B45309]">
-                    {meta.number} / 07
+                    {kioskTab ? 'VitrineIQ' : `${meta.number} / 07`}
                   </span>
                   <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-[#111318]">
                     {meta.label}
@@ -492,7 +588,16 @@ export function App() {
 
             {/* Atalhos Rápidos */}
             <div className="flex items-center gap-2">
-              {activeTab !== 'map' && (
+              {kioskTab && activeTab !== kioskTab && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(kioskTab)}
+                  className="px-3 py-1.5 rounded-xl bg-[#111318] text-white text-xs font-bold shadow-sm"
+                >
+                  ← Voltar
+                </button>
+              )}
+              {!kioskTab && activeTab !== 'map' && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('map')}
@@ -502,7 +607,7 @@ export function App() {
                   <span>Abrir Tour 3D</span>
                 </button>
               )}
-              {activeTab !== 'vision' && (
+              {!kioskTab && activeTab !== 'vision' && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('vision')}
@@ -512,9 +617,15 @@ export function App() {
                   <span>Webcam</span>
                 </button>
               )}
-              <span className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                <Sparkles className="w-3 h-3" aria-hidden="true" />
-                Zero PII • LGPD
+              <span
+                role="status"
+                title={online ? 'Dados compartilhados entre aparelhos pela API' : 'API fora do ar: os dados ficam só neste navegador'}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold ${
+                  online ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                {online ? 'Ao vivo' : 'Modo demo (offline)'}
               </span>
             </div>
           </div>
@@ -522,7 +633,7 @@ export function App() {
           {/* Barra de Navegação Horizontal para Mobile/Tablet */}
           <nav
             aria-label="Navegação Mobile"
-            className="lg:hidden flex items-center gap-1.5 overflow-x-auto pt-3 pb-1"
+            className={`${kioskTab ? 'hidden' : 'lg:hidden flex'} items-center gap-1.5 overflow-x-auto pt-3 pb-1`}
           >
             {navItems.map((item) => {
               const info = TAB_META[item.id];
@@ -549,6 +660,41 @@ export function App() {
         {/* WORKSPACE PRINCIPAL */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
+            {!kioskTab && alertaAtivo && (
+              <div
+                role="alert"
+                className="mb-5 p-4 rounded-2xl bg-[#111318] text-white flex flex-wrap items-center justify-between gap-3 shadow-md"
+              >
+                <span className="text-sm font-bold">
+                  👀 Cliente olhando a vitrine agora
+                  {' — '}
+                  {CAPIM_DOURADO_ZONES.find((z) => z.id === alertaAtivo.zona)?.shortName ?? alertaAtivo.zona}
+                  {alertaAtivo.zonaVitrine ? `, parte da ${alertaAtivo.zonaVitrine}` : ''}
+                  {alertaAtivo.olhando_s ? ` (${alertaAtivo.olhando_s} s)` : ''}. Hora de uma campanha relâmpago.
+                </span>
+                <span className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSelectZone(alertaAtivo.zona);
+                      setActiveTab('cockpit');
+                      setAlertasVistos((v) => [...v, alertaAtivo.id]);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#E2A83B] text-[#111318] text-xs font-extrabold"
+                  >
+                    Criar campanha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAlertasVistos((v) => [...v, alertaAtivo.id])}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 text-white text-xs font-bold"
+                  >
+                    Dispensar
+                  </button>
+                </span>
+              </div>
+            )}
+
             {activeTab === 'cockpit' && (
               <RetailerCockpit
                 zonesTelemetry={zonesTelemetry}
@@ -563,8 +709,9 @@ export function App() {
                 onRunCopilot={handleRunCopilot}
                 isAnalyzing={isAnalyzing}
                 lastAnalysis={lastAnalysis}
-                visionSnapshot={visionSnapshot}
+                visionSnapshot={effectiveVision}
                 onOpenVision={() => setActiveTab('vision')}
+                completedSalesByZone={completedSalesByZone}
               />
             )}
 
@@ -600,6 +747,8 @@ export function App() {
                 lostSales={lostSales}
                 onLogLostSale={handleLogLostSale}
                 onUndoLostSale={handleUndoLostSale}
+                onLogCompletedSale={handleLogCompletedSale}
+                completedSalesCount={completedSalesByZone[selectedZoneId] ?? 0}
               />
             )}
 
