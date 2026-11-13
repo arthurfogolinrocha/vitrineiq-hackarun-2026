@@ -4,6 +4,8 @@
 **Evento:** 1º HackaRun UniCatólica 2026  
 **Entrega prevista:** Sexta-feira, 13/11, até 12h00  
 **Repositório Público Oficial:** `https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026`  
+**Link Público do Sistema (Preview ao Vivo):** `https://vitrineiq-capim-dourado.vercel.app`  
+**Quadro Kanban & Acordo do Time (OKRs + Daily):** [`ACORDO_DE_TRABALHO_E_KANBAN.md`](./ACORDO_DE_TRABALHO_E_KANBAN.md)  
 **Equipe:** Arthur Fogolin Rocha (`arthurfogolinrocha`), Jessé (`jesseLR-stack`), `MCPS9` e `LCapistrano25`.
 
 ---
@@ -85,3 +87,4 @@ A prática obrigatória sorteada para a equipe na Roleta foi **STORIES (User Sto
 2. **Dentro do Próprio Produto (Rastreabilidade Viva):**
    - Criamos a tela interativa **`UserStoriesBoard.tsx` (Aba `06 • Stories (Roleta)`)** dentro do aplicativo, permitindo à banca examinadora ler cada história obrigatória (*Lojista buscando horário de pico*, *Visualização 3D por alas/andares*, *Webcam conta quem passa vs. entra*, *Vendedor registra perda em 1 toque*, *Visitante busca no QR sem dar CPF*) e **clicar direto no botão da história para abrir a tela viva funcionando**.
    - **Exemplo aplicado direto no Painel (`US-01`):** *“Como lojista, quero saber o horário de pico e os motivos reais de não-compra do meu segmento para ajustar minha vitrine e escalar a equipe na hora certa.”* → Implementado visualmente com o gráfico interativo `10h–22h` e o Painel de Gargalos em tempo real.
+
