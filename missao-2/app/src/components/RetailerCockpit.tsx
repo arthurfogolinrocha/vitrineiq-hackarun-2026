@@ -675,7 +675,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               </div>
               <div>
                 <h3 className="text-sm font-extrabold text-[#111318]">
-                  Copiloto VitrineIQ (Gemini Flash)
+                  Agente de IA VitrineIQ (API Python)
                 </h3>
                 <p className="text-[11px] text-stone-500">
                   Plano tático baseado em câmera, clima, perdas e buscas QR

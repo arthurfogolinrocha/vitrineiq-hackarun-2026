@@ -28,7 +28,7 @@ Tudo conectado: registro de perda no balcão em 1 toque, buscas anônimas por QR
 
 8
 00:01:02,200 --> 00:01:13,100
-Em produção na Vercel com motor Rust e TypeScript, 14 testes automatizados e uso ético conforme o Artigo 6.
+Em produção na Vercel com backend Python FastAPI, 46 testes automatizados e uso ético conforme o Artigo 6.
 
 9
 00:01:13,560 --> 00:01:28,460

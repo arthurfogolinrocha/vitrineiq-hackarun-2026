@@ -4,7 +4,8 @@
 
 > **1º HackaRun UniCatólica 2026 • Capim Dourado Shopping (Palmas – TO)**  
 > **Desafio 06:** *Inteligência comercial para lojistas* | **Roleta:** *STORIES (User Stories)*  
-> **🌐 Sistema Ao Vivo (Preview):** https://vitrineiq-capim-dourado.vercel.app  
+> **🌐 App Web Ao Vivo:** https://vitrineiq-capim-dourado.vercel.app  
+> **⚡ API Python (FastAPI / Swagger):** https://vitrineiq-hackarun-2026-api.vercel.app/docs  
 > **📊 Quadro Kanban (GitHub Projects):** https://github.com/users/arthurfogolinrocha/projects/1  
 > **📋 Primeira Entrega (`Missão 1`):** [`PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md`](./missao-1/PRIMEIRA_ENTREGA_PLANEJAMENTO_TECNICO.md) • [`Acordo & Kanban`](./missao-1/ACORDO_DE_TRABALHO_E_KANBAN.md)
 
@@ -14,9 +15,9 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 
 ## 🎯 Pilares da Solução
 
-1. **Painel do Lojista + Copiloto IA (`RetailerCockpit`):**
+1. **Painel do Lojista + Agente de IA (`RetailerCockpit` + `POST /api/ia/plano`):**
    * Recalcula em tempo real o **Score de Oportunidade (0–100)** por ala cruzando clima em Palmas, faixa horária, eventos do shopping (ex: estreias no Cinemark), objeções de venda e os dados ao vivo do **Sensor Câmera**.
-   * Integração com **Google Gemini (`gemini-3.8-flash`)** + fallback heurístico resiliente para gerar planos de ação imediatos, textos prontos de WhatsApp e **Campanhas Relâmpago** em 1 clique.
+   * **Agente de IA no backend Python** (Gemini no MVP, provedor intercambiável, chave só no servidor) + fallback heurístico resiliente para gerar planos de ação imediatos, textos prontos de WhatsApp e **Campanhas Relâmpago** em 1 clique.
 2. **Sensor Webcam na Vitrine — Borda LGPD (`EdgeVisionSensor`):**
    * Conecta uma **webcam real** (ou simulador 60fps) para detectar movimento por região (**Corredor**, **Vitrine** e **Porta**) em RAM sem gravar imagens, contando quem passa, quem para na vitrine, quem entra e quem sai e alimentando o Painel em tempo real.
 3. **Tour 3D WebGL Oficial do Capim Dourado Shopping (`ShoppingMap3D` + `ShoppingMap`):**
@@ -33,8 +34,8 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 ## 📁 Estrutura do Repositório
 
 * [`missao-1/`](./missao-1) — Planejamento técnico inicial, telas propostas, arquitetura e integração da Roleta Tecnológica *(Entrega: Sexta 13/11 até 12h)*.
-* [`missao-2/app/`](./missao-2/app) — Aplicação React 19 + TypeScript + Vite + Tailwind CSS + Suíte Vitest.
-* [`missao-2/engine-rust/`](./missao-2/engine-rust) — Motor de score e sanitização de alta performance em Rust (`cargo test`).
+* [`missao-2/app/`](./missao-2/app) — Aplicação React 19 + TypeScript + Vite + Tailwind CSS + Suíte Vitest (`19` testes).
+* [`missao-2/backend/`](./missao-2/backend) — Backend Python + FastAPI + Uvicorn (`/api/score`, `/api/ia/plano`, `/api/audit/hash`) + Suíte `pytest` (`27` testes).
 * [`missao-3/`](./missao-3) — Documentação final, declaração ética de uso de IA (Artigo 6) e roteiro do pitch.
 
 ---
@@ -43,24 +44,26 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 
 ### Pré-requisitos
 * Node.js 20+ e npm
-* Rust / Cargo *(opcional, para rodar os testes do motor Rust)*
+* Python 3.10+ (para rodar a API FastAPI e os testes `pytest`)
 
 ### Instalação e Execução
 ```bash
-# 1. Instalar dependências da aplicação web
+# 1. Frontend (React + Vite)
 npm --prefix missao-2/app install
-
-# 2. (Opcional) Configurar chave da API Gemini localmente
-cp missao-2/app/.env.example missao-2/app/.env
-# Edite missao-2/app/.env com sua chave (o app também funciona via fallback heurístico sem chave)
-
-# 3. Rodar servidor de desenvolvimento
+cp missao-2/app/.env.example missao-2/app/.env   # opcional: aponte VITE_API_URL
 npm --prefix missao-2/app run dev
+
+# 2. Backend (Python + FastAPI)
+cd missao-2/backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env                             # opcional: GEMINI_API_KEY no servidor
+uvicorn app.main:app --reload --port 8000
 ```
 
 ### Testes Automatizados & Build
 ```bash
-# Roda testes unitários TypeScript (Vitest) + Rust (Cargo test)
+# Roda testes unitários TypeScript (Vitest) + Python (pytest)
 npm run test
 
 # Gera build de produção

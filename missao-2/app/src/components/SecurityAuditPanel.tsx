@@ -23,7 +23,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
 
   return (
     <div className="space-y-6 panel-enter">
-      {/* Pilares Artigo 6 + LGPD + Rust Engine */}
+      {/* Pilares Artigo 6 + LGPD + Backend Python */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2 text-xs">
           <div className="flex items-center gap-2 font-extrabold text-emerald-700 text-sm">
@@ -38,10 +38,10 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
         <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-2 text-xs">
           <div className="flex items-center gap-2 font-extrabold text-blue-700 text-sm">
             <Cpu className="w-4 h-4" aria-hidden="true" />
-            Core Nativo Rust &amp; Espelho Determinístico TypeScript
+            Backend Python (FastAPI) &amp; Espelho TypeScript
           </div>
           <p className="text-slate-600 leading-relaxed">
-            O core nativo em Rust (<code>missao-2/engine-rust/src/lib.rs</code>) atua como especificação formal e motor nativo compilável de alta performance. O runtime web utiliza o espelho determinístico TypeScript com <strong>100% de paridade matemática</strong> validada por suíte de testes. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
+            O backend em Python (<code>missao-2/backend/app/engine.py</code>, rotas <code>/api/score</code> e <code>/api/ia/plano</code>) é a fonte de verdade do cálculo. A interface web usa o espelho TypeScript com <strong>paridade validada em testes</strong>. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
           </p>
         </div>
 
@@ -51,7 +51,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
             Transparência IA (Artigo 6)
           </div>
           <p className="text-slate-600 leading-relaxed">
-            Uso de Gemini 3.8 Flash com sanitização anti-XSS/Prompt Injection, fallback heurístico resiliente e trilha criptográfica de auditoria.
+            Agente de IA no backend Python (provedor intercambiável, chave só no servidor), bloqueio de prompt injection, fallback heurístico e hash SHA-256.
           </p>
         </div>
       </div>

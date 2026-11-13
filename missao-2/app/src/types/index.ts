@@ -23,7 +23,7 @@ export interface AIAnalysisResponse {
   latencyMs: number;
   cached?: boolean;
   timestamp: string;
-  source?: 'GEMINI_API' | 'FALLBACK_LOCAL';
+  source?: 'GEMINI_API' | 'BACKEND_FALLBACK' | 'FALLBACK_LOCAL';
 }
 
 export interface SystemAuditLog {

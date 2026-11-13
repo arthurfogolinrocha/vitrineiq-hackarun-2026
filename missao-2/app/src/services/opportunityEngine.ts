@@ -10,8 +10,8 @@ import {
 } from '../types';
 
 /**
- * Espelho determinístico da função em Rust (`engine-rust/src/lib.rs`)
- * Garante paridade matemática entre o motor de alta performance e a interface web.
+ * Espelho determinístico do backend Python (`missao-2/backend/app/engine.py`).
+ * Garante paridade matemática entre a API FastAPI e a interface web.
  */
 export function calculateRetailOpportunityScore(
   vitrineStops: number,

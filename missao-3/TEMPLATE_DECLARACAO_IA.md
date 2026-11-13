@@ -13,6 +13,7 @@
   * Leonardo Capistrano (`@LCapistrano25`) *(confirmar curso antes do envio final de sábado)*
 * **Repositório Oficial:** `https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026`
 * **Aplicação em Produção:** `https://vitrineiq-capim-dourado.vercel.app`
+* **Backend API (FastAPI / Docs):** `https://vitrineiq-hackarun-2026-api.vercel.app/docs`
 * **Data da Submissão Final (Missão 3):** 14 de Novembro de 2026
 
 ---
@@ -21,11 +22,11 @@
 
 | Ferramenta / Modelo | Provedor / Stack | Finalidade de Uso no Projeto |
 |---|---|---|
-| **Google Gemini API (`gemini-3.8-flash`)** | Google DeepMind | Geração sob demanda de planos táticos de vitrine, reposição de grade e copywriting de ofertas relâmpago a partir de métricas agregadas anônimas. |
-| **Motor Determinístico VitrineIQ (Rust + TypeScript)** | Autoria Própria (`engine-rust` + `opportunityEngine.ts`) | Cálculo matemático auditável do `IQ Score (0–100)` e multiplicadores de clima/horário/evento, com paridade garantida por testes (`Vitest` + `Cargo`). |
+| **Agente de IA via Backend Python (`POST /api/ia/plano`)** | FastAPI + Gemini Flash (provedor intercambiável) | Geração sob demanda de planos táticos de vitrine, reposição de grade e copywriting de ofertas relâmpago a partir de métricas agregadas anônimas, com chave protegida no servidor. |
+| **Motor de Score VitrineIQ (Python + Espelho TS)** | Autoria Própria (`missao-2/backend/app/engine.py` + `opportunityEngine.ts`) | Cálculo matemático auditável do `IQ Score (0–100)` e multiplicadores de clima/horário/evento, com paridade garantida por testes (`Vitest` + `pytest`). |
 | **Visão Computacional em Borda (`EdgeVisionSensor`)** | WebRTC + HTML5 Canvas (Local RAM) | Análise anônima por diferença de pixels em zonas geométricas (Corredor, Vitrine, Porta) com borramento LGPD em tempo real — zero gravação de vídeo e zero biometria facial. |
-| **Three.js / WebGL** | Open Source | Construção e renderização do Gêmeo Digital 3D do Capim Dourado Shopping (Pavimentos L1/L2, escada rolante, 4 portarias, 3 estacionamentos e modo Street View). |
-| **Google Antigravity IDE** | Google | Apoio estrutural na arquitetura de software, geração de suíte de testes automatizados (`11` Vitest + `3` Cargo Rust), revisão de acessibilidade WCAG e documentação técnica. |
+| **Three.js / WebGL** | Open Source | Construção e renderização do Gêmeo Digital 3D do Capim Dourado Shopping (Pavimentos L1/L2, Subsolo SS1, escada rolante, 4 portarias, 3 estacionamentos e modo Street View). |
+| **Google Antigravity IDE** | Google | Apoio estrutural na arquitetura de software, geração de suíte de testes automatizados (`19` Vitest + `27` pytest = `46` testes), revisão de acessibilidade WCAG e documentação técnica. |
 
 ---
 
@@ -39,7 +40,7 @@ A Inteligência Artificial foi incorporada como **camada de decisão estratégic
 
 ## 4. Declaração de Autoria e Domínio Técnico
 Declaramos formalmente perante a Banca Examinadora do **1º HackaRun UniCatólica 2026** que:
-* Todos os integrantes da equipe compreendem a arquitetura, as regras matemáticas (`Rust` e `TypeScript`) e o funcionamento completo do sistema apresentado;
-* Todo código-fonte foi inspecionado, testado (`11/11` Vitest e `3/3` Cargo) e validado em produção na Vercel;
+* Todos os integrantes da equipe compreendem a arquitetura, as regras matemáticas (`Python` e `TypeScript`) e o funcionamento completo do sistema apresentado;
+* Todo código-fonte foi inspecionado, testado (`19/19` Vitest e `27/27` pytest) e validado em produção na Vercel;
 * Nenhum dado pessoal sensível ou protegido pela LGPD é enviado a modelos públicos de IA;
 * A solução está apta para demonstração ao vivo e arguição técnica presencial no Capim Dourado Shopping.

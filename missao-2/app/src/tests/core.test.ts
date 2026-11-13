@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import {
   sanitizeInput,
@@ -49,13 +50,20 @@ describe('Módulo de Segurança & Integridade Governamental', () => {
     expect(containsRestrictedPatterns(legitimateText)).toBe(false);
   });
 
-  it('deve gerar hash de auditoria determinístico', () => {
+  it('deve gerar hash SHA-256 real e idêntico ao backend Python', () => {
     const payload = 'transacao-hackarun-123';
     const hash1 = generateAuditHash(payload);
     const hash2 = generateAuditHash(payload);
+    const expected =
+      'SEC-SHA-' +
+      createHash('sha256')
+        .update(`GENESIS_BLOCK_0000:::${payload}`)
+        .digest('hex')
+        .slice(0, 16)
+        .toUpperCase();
 
     expect(hash1).toBe(hash2);
-    expect(hash1.startsWith('SEC-SHA-')).toBe(true);
+    expect(hash1).toBe(expected);
   });
 });
 
@@ -237,7 +245,7 @@ describe('Garantias de QA Multi-Persona — Milestone 1 (F1 a F21)', () => {
         context: 'Ala: Ala Sul Esportes | Clima: calor_38c',
         category: 'Moda Esportiva',
       },
-      'CHAVE_INVALIDA_SIMULANDO_ERRO_503'
+      'http://127.0.0.1:9'
     );
 
     expect(response.success).toBe(true);

@@ -16,7 +16,7 @@
 | Missão | Descrição & Foco | Início / Lançamento | Prazo Limite Fatal | Formato de Entrega |
 |---|---|---|---|---|
 | **Missão 1** | **Problema, Canvas & Backlog Estruturado** | **12/11 às 20h15** (HOJE) | **13/11 às 10h00** | Canvas em PDF + Backlog detalhado de funcionalidades |
-| **Missão 2** | **Desenvolvimento do MVP + Validação com Testes** | **13/11 às 10h00** | **14/11 às 10h00** (24h ininterruptas) | Repositório Git com commits, suíte de testes (Vitest/Rust) e código limpo |
+| **Missão 2** | **Desenvolvimento do MVP + Validação com Testes** | **13/11 às 10h00** | **14/11 às 10h00** (24h ininterruptas) | Repositório Git com commits, suíte de testes (Vitest/pytest) e código limpo |
 | **Missão 3** | **Produto Final, Deploy, README & Vídeo de Pitch** | **14/11 às 10h00** | **14/11 às 13h00** (3 horas) | Link de Produção no ar (Vercel) + Vídeo demonstrativo (1m15s a 2m) |
 | **Grande Final** | **Apresentação Presencial para a Banca** | **14/11 a partir das 15h00** | Capim Dourado Shopping | Missão Surpresa (+1.0 ponto na nota) + Pitch presencial das 7 finalistas |
 

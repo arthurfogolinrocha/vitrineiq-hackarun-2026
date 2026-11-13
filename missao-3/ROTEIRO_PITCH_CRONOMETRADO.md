@@ -1,6 +1,6 @@
 # 🎬 Roteiro Oficial do Vídeo de Pitch — VitrineIQ (1º HackaRun 2026)
 **Duração Rigorosa Exigida pelo Regulamento: Entre 1min15s (75s) e 2min00s (120s)**  
-**Duração Renderizada Final: `1min29.5s` (`89.5 segundos` / `5.370 frames a 60fps`)** — ritmo ágil sem pausas mortas, perfeitamente dentro da regra (75s a 120s)!
+**Duração Renderizada Final: `1min29.3s` (`89.3 segundos` / `5.360 frames a 60fps`)** — ritmo ágil sem pausas mortas, perfeitamente dentro da regra (75s a 120s)!
 
 > [!TIP]
 > **Para gravação do áudio (Arthur):** Leia cada bloco em voz firme e natural no celular ou microfone, dando ~1 segundo de respiro entre um bloco e outro. O vídeo com motion graphics, telas reais do sistema, Tour 3D WebGL e legendas será sincronizado exatamente nesses tempos.
@@ -36,11 +36,11 @@
 
 ---
 
-### Bloco 4 — Engenharia, Rust, Testes & Artigo 6 (`01:18 – 01:33` | `15s`)
-* **Visual / Animação no Vídeo:** Split-screen limpo mostrando terminal real rodando `vitest` (`11/11` verdes) + `cargo test` em Rust (`3/3` verdes) + selo **Vercel Production HTTPS** e **Zero PII / SHA-256**.
-* **Legenda / Texto na Tela:** `RUST + TYPESCRIPT • 14/14 TESTES VERDES • CONFORME ARTIGO 6 & LGPD`
+### Bloco 4 — Engenharia, Backend Python, Testes & Artigo 6 (`01:18 – 01:33` | `15s`)
+* **Visual / Animação no Vídeo:** Split-screen limpo mostrando terminal real rodando `vitest` (`19/19` verdes) + `pytest` em Python (`27/27` verdes) + selo **Vercel Production HTTPS** e **Zero PII / SHA-256**.
+* **Legenda / Texto na Tela:** `PYTHON + FASTAPI + TS • 46/46 TESTES VERDES • CONFORME ARTIGO 6 & LGPD`
 * **Fala para Gravar (Arthur):**
-  > *"Por trás da interface, o VitrineIQ roda em produção na Vercel com motor de cálculo em Rust e TypeScript, catorze testes automatizados passando, zero coleta de dados pessoais e uso ético de IA declarado conforme o Artigo 6."*
+  > *"Por trás da interface, o VitrineIQ roda em produção na Vercel com backend em Python e FastAPI, quarenta e seis testes automatizados passando, zero coleta de dados pessoais e uso ético de IA conforme o Artigo 6."*
 
 ---
 

@@ -2,17 +2,30 @@ import { AIAnalysisRequest, AIAnalysisResponse } from '../types';
 import { sanitizeInput, containsRestrictedPatterns } from '../utils/security';
 
 /**
- * Serviço de Inteligência Artificial — VitrineIQ Copilot
- * Integração com Gemini 3.8 Flash + Fallback Heurístico de Varejo (Zero Quebra em Palco)
+ * Serviço do Agente de IA — VitrineIQ
+ * O frontend NÃO guarda chave de IA: chama o backend Python
+ * (`vitrineiq-hackarun-2026-api`, rota `POST /api/ia/plano`), que fala com o
+ * provedor de IA. Se o backend estiver indisponível, usa o fallback heurístico
+ * local (zero quebra na demo).
  */
+export const DEFAULT_API_URL = 'https://vitrineiq-hackarun-2026-api.vercel.app';
+
+export function resolveApiUrl(): string {
+  const metaEnv =
+    typeof import.meta !== 'undefined'
+      ? (import.meta as unknown as { env?: Record<string, string> }).env
+      : undefined;
+  return (metaEnv?.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
+}
+
 export async function analyzeWithAI(
   request: AIAnalysisRequest,
-  apiKey?: string
+  apiBaseUrl?: string
 ): Promise<AIAnalysisResponse> {
   const startTime = performance.now();
   const cleanPrompt = sanitizeInput(request.prompt);
 
-  // Verificação de Segurança Ética / Guardrails
+  // Verificação de Segurança Ética / Guardrails (também repetida no backend)
   if (containsRestrictedPatterns(cleanPrompt)) {
     const elapsed = Math.round(performance.now() - startTime);
     return {
@@ -24,60 +37,45 @@ export async function analyzeWithAI(
     };
   }
 
-  const metaEnv =
-    typeof import.meta !== 'undefined'
-      ? (import.meta as unknown as { env?: Record<string, string> }).env
-      : undefined;
-  const resolvedApiKey =
-    apiKey !== undefined
-      ? apiKey
-      : metaEnv?.VITE_GEMINI_API_KEY ||
-        (typeof process !== 'undefined' ? process.env?.VITE_GEMINI_API_KEY : undefined);
+  const baseUrl = apiBaseUrl !== undefined ? apiBaseUrl : resolveApiUrl();
 
-  if (resolvedApiKey) {
+  if (baseUrl) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4500);
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${resolvedApiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: `Você é o Copiloto Comercial do VitrineIQ no Capim Dourado Shopping (Palmas - TO). Analise os sinais anônimos de corredor, vendas perdidas no balcão e fatores externos abaixo e responda em português direto com:\n1) Diagnóstico da oportunidade agora;\n2) Ação imediata na vitrine/balcão;\n3) Texto pronto curto para WhatsApp/cupom relâmpago;\n4) Ideia de parceria cross-segmento no shopping.\n\nContexto: ${request.context || 'Inteligência Comercial Shopping'}\nDados: ${cleanPrompt}`,
-                  },
-                ],
-              },
-            ],
-          }),
-        }
-      );
+      const response = await fetch(`${baseUrl}/api/ia/plano`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          prompt: cleanPrompt,
+          context: request.context,
+          category: request.category,
+        }),
+      });
 
       if (response.ok) {
-        const data = await response.json();
-        const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const data = (await response.json()) as {
+          success: boolean;
+          content: string;
+          source: 'GEMINI_API' | 'FALLBACK_LOCAL' | 'BLOCKED';
+          audit_hash?: string;
+        };
         const elapsed = Math.round(performance.now() - startTime);
-
-        if (generatedText.trim()) {
+        if (data?.content?.trim()) {
           return {
-            success: true,
-            content: stripMarkdown(generatedText),
-            confidence: 0.98,
-            tokensUsed: data?.usageMetadata?.totalTokenCount || 180,
+            success: data.success,
+            content: stripMarkdown(data.content),
+            confidence: data.source === 'GEMINI_API' ? 0.98 : data.success ? 0.94 : 0,
             latencyMs: elapsed,
-            cached: false,
-            source: 'GEMINI_API',
+            cached: data.source !== 'GEMINI_API',
+            source: data.source === 'GEMINI_API' ? 'GEMINI_API' : data.success ? 'BACKEND_FALLBACK' : undefined,
             timestamp: new Date().toISOString(),
           };
         }
       }
     } catch (err) {
-      console.warn('Erro ou timeout ao conectar à API Gemini (HTTP/Rede), acionando motor resiliente VitrineIQ:', err);
+      console.warn('Backend Python indisponível (rede/timeout), acionando fallback local VitrineIQ:', err);
     } finally {
       clearTimeout(timeoutId);
     }
