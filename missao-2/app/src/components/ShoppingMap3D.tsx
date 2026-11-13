@@ -100,6 +100,42 @@ function createSignTexture(title: string, badge: string, accent: string, isVacan
   return tex;
 }
 
+function createBadgeTexture(
+  title: string,
+  subtitle: string,
+  bgHex: string,
+  borderHex: string,
+  textHex: string,
+  subHex: string
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 560;
+  canvas.height = 150;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = bgHex;
+    ctx.beginPath();
+    ctx.roundRect(8, 8, 544, 134, 24);
+    ctx.fill();
+
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = borderHex;
+    ctx.stroke();
+
+    ctx.fillStyle = textHex;
+    ctx.font = '900 33px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, 280, 68);
+
+    ctx.fillStyle = subHex;
+    ctx.font = '700 23px Inter, system-ui, sans-serif';
+    ctx.fillText(subtitle, 280, 114);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   floor,
   onFloorChange,
@@ -157,7 +193,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     scene.fog = new THREE.Fog('#eef1f6', 45, 130);
 
     const camera = new THREE.PerspectiveCamera(52, width / height, 0.2, 220);
-    camera.position.set(0, 32, 42);
+      camera.position.set(0, 36, 48);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -165,9 +201,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     controls.enableZoom = true;
     controls.zoomSpeed = 1.1;
     controls.minDistance = 8;
-    controls.maxDistance = 82;
+    controls.maxDistance = 95;
     controls.maxPolarAngle = Math.PI / 2 - 0.06;
-    controls.target.set(0, 2, 0);
+    controls.target.set(0, 2, 3);
 
     // Iluminação arquitetônica de shopping claro
     const hemiLight = new THREE.HemisphereLight('#ffffff', '#cbd5e1', 1.15);
@@ -180,29 +216,164 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
-    // === CHÃO EXTERNO (RUAS & ESTACIONAMENTO) ===
+    // === CHÃO EXTERNO (RUAS, ESTACIONAMENTOS & ENTRADAS) ===
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(140, 110),
-      new THREE.MeshStandardMaterial({ color: '#e2e8f0', roughness: 0.95 })
+      new THREE.PlaneGeometry(165, 130),
+      new THREE.MeshStandardMaterial({ color: '#e7e5e4', roughness: 0.95 })
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.15;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    // Avenidas ao redor (JK, NS-05, LO 2A)
-    const roadMat = new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.9 });
-    const avNS05 = new THREE.Mesh(new THREE.BoxGeometry(74, 0.12, 3.6), roadMat);
-    avNS05.position.set(0, -0.05, 18.5);
+    // Avenidas principais ao redor (JK, NS-05, LO 2A)
+    const roadMat = new THREE.MeshStandardMaterial({ color: '#475569', roughness: 0.85 });
+    const laneLineMat = new THREE.MeshBasicMaterial({ color: '#facc15' });
+
+    const avNS05 = new THREE.Mesh(new THREE.BoxGeometry(102, 0.12, 4.4), roadMat);
+    avNS05.position.set(-1, -0.06, 28.5);
     scene.add(avNS05);
+    const avNS05Line = new THREE.Mesh(new THREE.BoxGeometry(96, 0.13, 0.2), laneLineMat);
+    avNS05Line.position.set(-1, -0.05, 28.5);
+    scene.add(avNS05Line);
 
-    const avJK = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 46), roadMat);
-    avJK.position.set(-34, -0.05, -2);
+    const avJK = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.12, 62), roadMat);
+    avJK.position.set(-45, -0.06, 0);
     scene.add(avJK);
+    const avJKLine = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 56), laneLineMat);
+    avJKLine.position.set(-45, -0.05, 0);
+    scene.add(avJKLine);
 
-    const avLO2A = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 46), roadMat);
-    avLO2A.position.set(31, -0.05, -2);
+    const avLO2A = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.12, 62), roadMat);
+    avLO2A.position.set(42, -0.06, 0);
     scene.add(avLO2A);
+    const avLO2ALine = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.13, 56), laneLineMat);
+    avLO2ALine.position.set(42, -0.05, 0);
+    scene.add(avLO2ALine);
+
+    // Placas visíveis das avenidas no contorno
+    const roadSigns: { text: string; sub: string; x: number; z: number }[] = [
+      { text: 'AV. NS-05 (FRONTAL)', sub: 'Acesso Principal & Estacionamento', x: -1, z: 32.2 },
+      { text: 'AV. JK (OESTE)', sub: 'Acesso Renner • Ala Sul', x: -45, z: 22 },
+      { text: 'AV. LO-2A (LESTE)', sub: 'Acesso Cinemark • MoroFit', x: 42, z: 22 },
+    ];
+    roadSigns.forEach((rs) => {
+      const spr = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: createBadgeTexture(rs.text, rs.sub, '#1e293b', '#94a3b8', '#f8fafc', '#cbd5e1'),
+          transparent: true,
+        })
+      );
+      spr.position.set(rs.x, 3.0, rs.z);
+      spr.scale.set(7.4, 2.0, 1);
+      scene.add(spr);
+    });
+
+    // Helper para desenhar bolsão de Estacionamento com vagas demarcadas, carros 3D e totem 🅿️
+    const buildParkingLot = (
+      cx: number,
+      cz: number,
+      width: number,
+      depth: number,
+      title: string,
+      subtitle: string,
+      rows: number,
+      cols: number
+    ) => {
+      const group = new THREE.Group();
+
+      // Base asfáltica
+      const asphalt = new THREE.Mesh(
+        new THREE.BoxGeometry(width, 0.14, depth),
+        new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.9 })
+      );
+      asphalt.position.set(cx, -0.06, cz);
+      asphalt.receiveShadow = true;
+      group.add(asphalt);
+
+      // Borda/calçada clara ao redor do bolsão
+      const border = new THREE.Mesh(
+        new THREE.BoxGeometry(width + 0.6, 0.1, depth + 0.6),
+        new THREE.MeshStandardMaterial({ color: '#cbd5e1', roughness: 0.8 })
+      );
+      border.position.set(cx, -0.09, cz);
+      group.add(border);
+
+      const stripeMat = new THREE.MeshBasicMaterial({ color: '#f8fafc' });
+      const carColors = ['#e2e8f0', '#94a3b8', '#38bdf8', '#f8fafc', '#f59e0b', '#64748b', '#ef4444'];
+      const stepX = (width - 2.4) / cols;
+      const stepZ = (depth - 2.0) / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c <= cols; c++) {
+          const sx = cx - (width - 2.4) / 2 + c * stepX;
+          const sz = cz - (depth - 2.0) / 2 + r * stepZ + stepZ / 2;
+
+          // Linha branca da vaga
+          const line = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, stepZ * 0.72), stripeMat);
+          line.position.set(sx, 0.02, sz);
+          group.add(line);
+
+          // Carro estilizado em ~70% das vagas
+          if (c < cols && (r * 7 + c * 3) % 10 < 7) {
+            const carX = sx + stepX / 2;
+            const carBodyColor = carColors[(r + c * 2) % carColors.length];
+            const car = new THREE.Mesh(
+              new THREE.BoxGeometry(Math.min(1.5, stepX * 0.68), 0.65, Math.min(2.6, stepZ * 0.56)),
+              new THREE.MeshStandardMaterial({ color: carBodyColor, roughness: 0.35, metalness: 0.2 })
+            );
+            car.position.set(carX, 0.36, sz);
+            car.castShadow = true;
+            group.add(car);
+
+            const cabin = new THREE.Mesh(
+              new THREE.BoxGeometry(Math.min(1.2, stepX * 0.54), 0.4, Math.min(1.4, stepZ * 0.32)),
+              new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.2 })
+            );
+            cabin.position.set(carX, 0.82, sz);
+            group.add(cabin);
+          }
+        }
+      }
+
+      // Poste + Totem Azul P de Estacionamento
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 4.2, 10),
+        new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5 })
+      );
+      pole.position.set(cx, 2.1, cz);
+      group.add(pole);
+
+      const sign = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: createBadgeTexture(`🅿️ ${title}`, subtitle, '#0f172a', '#38bdf8', '#38bdf8', '#f8fafc'),
+          transparent: true,
+        })
+      );
+      sign.position.set(cx, 4.9, cz);
+      sign.scale.set(7.6, 2.05, 1);
+      group.add(sign);
+
+      scene.add(group);
+    };
+
+    // 3 Estacionamentos claros no entorno do Capim Dourado
+    buildParkingLot(-2, 20.5, 44, 9.5, 'ESTACIONAMENTO FRONTAL', 'Portaria Principal • 1.200 Vagas', 2, 14);
+    buildParkingLot(-37.5, -1, 8.8, 30, 'ESTACIONAMENTO AV. JK', 'Acesso Rápido Renner / Ala Sul', 6, 3);
+    buildParkingLot(34.5, -1, 8.8, 30, 'ESTACIONAMENTO LAZER', 'Acesso Cinemark / MoroFit', 6, 3);
+
+    // Cancelas de Entrada de Veículos
+    [
+      [-23, 25.5],
+      [19, 25.5],
+    ].forEach(([gx, gz]) => {
+      const gateArm = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.14, 0.14),
+        new THREE.MeshStandardMaterial({ color: '#eab308', roughness: 0.3 })
+      );
+      gateArm.position.set(gx, 1.0, gz);
+      scene.add(gateArm);
+    });
 
     // === LAJE PRINCIPAL 1º PAVIMENTO (TÉRREO) ===
     const l1Floor = new THREE.Mesh(
@@ -217,6 +388,88 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     const l1Grid = new THREE.GridHelper(58, 29, '#cbd5e1', '#e2e8f0');
     l1Grid.position.set(-1, 0.12, -2);
     scene.add(l1Grid);
+
+    // === 4 PORTARIAS / ENTRADAS ILUMINADAS DO SHOPPING ===
+    const buildEntrancePortal = (
+      x: number,
+      z: number,
+      rotY: number,
+      title: string,
+      subtitle: string
+    ) => {
+      const portal = new THREE.Group();
+      portal.position.set(x, 0, z);
+      portal.rotation.y = rotY;
+
+      // Marquise escura Obsidian + filete Dourado Champagne
+      const canopy = new THREE.Mesh(
+        new THREE.BoxGeometry(6.8, 0.45, 3.0),
+        new THREE.MeshStandardMaterial({ color: '#111318', roughness: 0.35, metalness: 0.25 })
+      );
+      canopy.position.set(0, 3.4, 0);
+      canopy.castShadow = true;
+      portal.add(canopy);
+
+      const goldRim = new THREE.Mesh(
+        new THREE.BoxGeometry(7.0, 0.16, 3.15),
+        new THREE.MeshStandardMaterial({ color: '#E2A83B', roughness: 0.25, metalness: 0.6 })
+      );
+      goldRim.position.set(0, 3.68, 0);
+      portal.add(goldRim);
+
+      // Pilares laterais da portaria
+      const pillarMat = new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.3 });
+      [-3.0, 3.0].forEach((px) => {
+        const pil = new THREE.Mesh(new THREE.BoxGeometry(0.45, 3.4, 0.45), pillarMat);
+        pil.position.set(px, 1.7, 0.9);
+        portal.add(pil);
+      });
+
+      // Portas de vidro iluminadas
+      const doorGlass = new THREE.Mesh(
+        new THREE.PlaneGeometry(5.2, 2.9),
+        new THREE.MeshStandardMaterial({
+          color: '#10b981',
+          emissive: '#34d399',
+          emissiveIntensity: 0.35,
+          transparent: true,
+          opacity: 0.38,
+          side: THREE.DoubleSide,
+        })
+      );
+      doorGlass.position.set(0, 1.55, 0);
+      portal.add(doorGlass);
+
+      // Tapete esmeralda no chão indicando o fluxo de entrada
+      const welcomeMat = new THREE.Mesh(
+        new THREE.BoxGeometry(4.4, 0.14, 3.8),
+        new THREE.MeshStandardMaterial({
+          color: '#10b981',
+          emissive: '#059669',
+          emissiveIntensity: 0.35,
+        })
+      );
+      welcomeMat.position.set(0, 0.08, 0.6);
+      portal.add(welcomeMat);
+
+      // Placa flutuante alta "🚪 ENTRADA ..."
+      const badge = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: createBadgeTexture(`🚪 ${title}`, subtitle, '#065f46', '#34d399', '#ffffff', '#a7f3d0'),
+          transparent: true,
+        })
+      );
+      badge.position.set(0, 5.2, 0);
+      badge.scale.set(6.8, 1.85, 1);
+      portal.add(badge);
+
+      scene.add(portal);
+    };
+
+    buildEntrancePortal(-8.5, 14.8, 0, 'ENTRADA PRINCIPAL', 'Portaria A • Estac. Frontal');
+    buildEntrancePortal(11.0, 14.8, 0, 'ENTRADA ALAMEDA', 'Outback / Madero • Portaria B');
+    buildEntrancePortal(-30.5, -1.5, Math.PI / 2, 'ENTRADA AV. JK', 'Portaria Sul • Renner');
+    buildEntrancePortal(28.5, 5.0, -Math.PI / 2, 'ENTRADA CINEMARK', 'Portaria Leste • Lazer');
 
     // === 2º PAVIMENTO (PRAÇA DE ALIMENTAÇÃO ELEVADA EM Y = 6.2) ===
     const l2DeckY = 6.2;
@@ -469,8 +722,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         const step = -Math.sign(e.deltaY) * 1.4;
         walkState.pos.x += Math.sin(walkState.yaw) * step;
         walkState.pos.z += Math.cos(walkState.yaw) * step;
-        walkState.pos.x = Math.max(-28, Math.min(26, walkState.pos.x));
-        walkState.pos.z = Math.max(-15, Math.min(13, walkState.pos.z));
+        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
+        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
       }
     };
 
@@ -508,8 +761,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           controls.target.set(-2, l2DeckY + 1, 0);
           camera.position.set(0, l2DeckY + 20, 26);
         } else {
-          controls.target.set(0, 1.5, 0);
-          camera.position.set(0, 32, 42);
+          controls.target.set(0, 2, 3);
+          camera.position.set(0, 36, 48);
         }
       },
       enterWalk: (targetFloor: FloorId) => {
@@ -518,8 +771,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           walkState.pos.set(6, l2DeckY + 1.85, 0);
           walkState.yaw = -Math.PI / 2;
         } else {
-          walkState.pos.set(-14, 1.85, 2.2);
-          walkState.yaw = Math.PI / 2;
+          // Começa entrando pela Portaria Principal (Av. NS-05) olhando os corredores
+          walkState.pos.set(-8.5, 1.85, 11.5);
+          walkState.yaw = Math.PI;
         }
         walkState.pitch = 0.03;
         syncWalkCamera();
@@ -528,8 +782,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         walkState.yaw += turnYaw;
         walkState.pos.x += Math.sin(walkState.yaw) * forward + Math.cos(walkState.yaw) * strafe;
         walkState.pos.z += Math.cos(walkState.yaw) * forward - Math.sin(walkState.yaw) * strafe;
-        walkState.pos.x = Math.max(-28, Math.min(26, walkState.pos.x));
-        walkState.pos.z = Math.max(-15, Math.min(13, walkState.pos.z));
+        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
+        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
       },
     };
 
@@ -571,8 +825,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         if (pressedKeys.has('d') || pressedKeys.has('arrowright')) {
           walkState.yaw -= 0.035;
         }
-        walkState.pos.x = Math.max(-28, Math.min(26, walkState.pos.x));
-        walkState.pos.z = Math.max(-15, Math.min(13, walkState.pos.z));
+        walkState.pos.x = Math.max(-39, Math.min(37, walkState.pos.x));
+        walkState.pos.z = Math.max(-17, Math.min(25, walkState.pos.z));
         syncWalkCamera();
       } else {
         controls.enabled = true;
@@ -764,7 +1018,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         <div className="absolute bottom-3 left-3 pointer-events-none bg-white/95 backdrop-blur-md px-3.5 py-2 rounded-xl border border-stone-200 text-[11px] text-slate-700 shadow-sm flex flex-wrap items-center gap-3">
           <span>🖱️ <strong>Scroll:</strong> Zoom</span>
           <span>✋ <strong>Arrastar:</strong> Girar 360°</span>
-          <span>🏬 <strong>Clique numa loja:</strong> Ver métricas</span>
+          <span>🚪 <strong>Portarias Verdes:</strong> 4 Entradas</span>
+          <span>🅿️ <strong>Bolsões:</strong> Estacionamento</span>
           <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600" /> Moda</span>
           <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-violet-600" /> Lazer/Cinema</span>
           <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-600" /> Gastronomia/L2</span>
