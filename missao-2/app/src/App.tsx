@@ -2,8 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
+  Camera,
   Compass,
   Lock,
+  Pause,
+  Play,
   QrCode,
   ShieldCheck,
   Sparkles,
@@ -18,6 +21,7 @@ import {
   LostSaleReason,
   ShopContextFactors,
   SystemAuditLog,
+  VisionFunnelSnapshot,
   ZoneId,
 } from './types';
 import {
@@ -39,12 +43,15 @@ import { ShoppingMap } from './components/ShoppingMap';
 import { CounterQuickLog } from './components/CounterQuickLog';
 import { ConsumerConcierge } from './components/ConsumerConcierge';
 import { SecurityAuditPanel } from './components/SecurityAuditPanel';
+import { EdgeVisionSensor } from './components/EdgeVisionSensor';
+import { NeuralMallCanvas } from './components/NeuralMallCanvas';
 
-type ActiveTab = 'cockpit' | 'map' | 'counter' | 'concierge' | 'audit';
+type ActiveTab = 'cockpit' | 'map' | 'vision' | 'counter' | 'concierge' | 'audit';
 
 const TAB_TITLES: Record<ActiveTab, string> = {
   cockpit: 'Painel do Lojista & IA | VitrineIQ',
-  map: 'Mapa Capim Dourado | VitrineIQ',
+  map: 'Mapa Capim Dourado 3D | VitrineIQ',
+  vision: 'Sensor Câmera (Borda) | VitrineIQ',
   counter: 'Modo Balcão 1-Toque | VitrineIQ',
   concierge: 'Concierge QR Consumidor | VitrineIQ',
   audit: 'Segurança, LGPD & Auditoria | VitrineIQ',
@@ -57,6 +64,7 @@ function getInitialTab(): ActiveTab {
   if (mode === 'consumer' || mode === 'concierge') return 'concierge';
   if (mode === 'counter') return 'counter';
   if (mode === 'map') return 'map';
+  if (mode === 'vision') return 'vision';
   return 'cockpit';
 }
 
@@ -97,6 +105,16 @@ export default function App() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<AIAnalysisResponse | null>(null);
+  const [bgPaused, setBgPaused] = useState(false);
+  const [visionSnapshot, setVisionSnapshot] = useState<VisionFunnelSnapshot>({
+    zoneId: 'ala-lazer-cinema',
+    passersBy: 42,
+    vitrineStops: 14,
+    entries: 6,
+    exits: 4,
+    passedWithoutEntering: 36,
+    attractionRate: 33,
+  });
   const [auditLogs, setAuditLogs] = useState<SystemAuditLog[]>([
     {
       id: 'log-001',
@@ -156,6 +174,30 @@ export default function App() {
         response.success ? 'COPILOT_ACTION_GENERATED' : 'COPILOT_BLOCKED_SECURITY',
         response.success ? 'SUCCESS' : 'WARNING',
         `Diagnóstico IA para ${telemetry.zone.shortName} concluído em ${response.latencyMs}ms.`
+      );
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleAnalyzeWithVision = async (snapshot: VisionFunnelSnapshot) => {
+    const zone =
+      CAPIM_DOURADO_ZONES.find((z) => z.id === snapshot.zoneId) || CAPIM_DOURADO_ZONES[0];
+    setSelectedZoneId(zone.id);
+    setActiveTab('cockpit');
+    setIsAnalyzing(true);
+    try {
+      const prompt = `Sensor Câmera na Vitrine (Borda Anônima) — ${zone.name} (${zone.segment}). Passantes no corredor: ${snapshot.passersBy}, Pararam na vitrine (>3s): ${snapshot.vitrineStops} (Atração de Vitrine: ${snapshot.attractionRate}%), Entraram na loja: ${snapshot.entries}, Saíram: ${snapshot.exits}, Passaram direto sem entrar: ${snapshot.passedWithoutEntering}. Gere ação tática para converter quem parou na vitrine em entrada imediata.`;
+      const response = await analyzeWithAI({
+        prompt,
+        category: zone.segment,
+        context: `Funil Vitrine Camera Borda • Clima=${factors.weather}, Horário=${factors.timeSlot}`,
+      });
+      setLastAnalysis(response);
+      appendAudit(
+        response.success ? 'VISION_EDGE_DIAGNOSTIC' : 'COPILOT_BLOCKED_SECURITY',
+        response.success ? 'SUCCESS' : 'WARNING',
+        `Funil da vitrine (${snapshot.attractionRate}% atração, ${snapshot.entries} entradas) enviado ao Copiloto.`
       );
     } finally {
       setIsAnalyzing(false);
@@ -236,20 +278,23 @@ export default function App() {
 
   const navItems: { id: ActiveTab; label: string; icon: React.ReactNode }[] = [
     { id: 'cockpit', label: 'Painel Lojista & IA', icon: <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'map', label: 'Mapa Capim Dourado', icon: <Compass className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'counter', label: 'Modo Balcão (1-Toque)', icon: <Store className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'concierge', label: 'Concierge QR (Cliente)', icon: <QrCode className="w-3.5 h-3.5" aria-hidden="true" /> },
-    { id: 'audit', label: 'Segurança & LGPD', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'map', label: 'Mapa 3D', icon: <Compass className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'vision', label: 'Sensor Câmera', icon: <Camera className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'counter', label: 'Modo Balcão', icon: <Store className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'concierge', label: 'Concierge QR', icon: <QrCode className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'audit', label: 'LGPD & Segurança', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-x-clip">
+      <NeuralMallCanvas paused={bgPaused} />
+
       <a href="#conteudo-principal" className="skip-link visually-hidden">
         Pular para o conteúdo principal
       </a>
 
       {/* Top Bar VitrineIQ */}
-      <header className="border-b border-slate-800 bg-slate-900/75 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3.5">
+      <header className="border-b border-slate-800/80 bg-slate-900/75 backdrop-blur-md sticky top-0 z-40 px-4 lg:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-blue-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
@@ -270,16 +315,28 @@ export default function App() {
             </div>
           </div>
 
-          {/* Telemetria Rápida */}
-          <div className="hidden xl:flex items-center gap-3 text-xs font-mono text-slate-300">
-            <div className="flex items-center gap-1.5 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
+          {/* Telemetria Rápida + Controle de Movimento (WCAG 2.2.2) */}
+          <div className="hidden xl:flex items-center gap-2 text-xs font-mono text-slate-300">
+            <div className="flex items-center gap-1.5 bg-slate-800/70 px-2.5 py-1.5 rounded-lg border border-slate-700/60">
               <Activity className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
               <span>Tempo Real</span>
             </div>
-            <div className="flex items-center gap-1.5 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
+            <div className="flex items-center gap-1.5 bg-slate-800/70 px-2.5 py-1.5 rounded-lg border border-slate-700/60">
               <Lock className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
-              <span>LGPD • Zero Dados Pessoais</span>
+              <span>LGPD Zero PII</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setBgPaused((prev) => !prev)}
+              className="flex items-center gap-1.5 bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1.5 rounded-lg border border-slate-700/70 text-slate-200 transition"
+            >
+              {bgPaused ? (
+                <Play className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+              ) : (
+                <Pause className="w-3.5 h-3.5 text-amber-400" aria-hidden="true" />
+              )}
+              <span>{bgPaused ? 'Retomar Fundo 3D' : 'Pausar Fundo 3D'}</span>
+            </button>
           </div>
 
           {/* Navegação Principal */}
@@ -310,7 +367,7 @@ export default function App() {
         </div>
       </header>
 
-      <main id="conteudo-principal" tabIndex={-1} className="max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
+      <main id="conteudo-principal" tabIndex={-1} className="relative z-10 max-w-7xl mx-auto w-full p-4 lg:p-8 flex-grow">
         {activeTab === 'cockpit' && (
           <RetailerCockpit
             zonesTelemetry={zonesTelemetry}
@@ -334,6 +391,17 @@ export default function App() {
             selectedZoneId={selectedZoneId}
             onSelectZone={setSelectedZoneId}
             routes={CROSS_SEGMENT_ROUTES}
+          />
+        )}
+
+        {activeTab === 'vision' && (
+          <EdgeVisionSensor
+            zones={CAPIM_DOURADO_ZONES}
+            selectedZoneId={selectedZoneId}
+            onSelectZone={setSelectedZoneId}
+            snapshot={visionSnapshot}
+            onUpdateSnapshot={setVisionSnapshot}
+            onAnalyzeWithVision={handleAnalyzeWithVision}
           />
         )}
 
@@ -361,7 +429,7 @@ export default function App() {
         {activeTab === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
       </main>
 
-      <footer className="border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-400">
+      <footer className="relative z-10 border-t border-slate-800/80 py-4 px-6 text-center text-xs text-slate-400 bg-slate-950/80 backdrop-blur-sm">
         VitrineIQ • 1º HackaRun UniCatólica 2026 • Capim Dourado Shopping — Palmas, TO
       </footer>
     </div>

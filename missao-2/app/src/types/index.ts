@@ -120,3 +120,13 @@ export interface FlashCampaign {
   active: boolean;
   createdAt: string;
 }
+
+export interface VisionFunnelSnapshot {
+  zoneId: ZoneId;
+  passersBy: number;
+  vitrineStops: number;
+  entries: number;
+  exits: number;
+  passedWithoutEntering: number;
+  attractionRate: number;
+}

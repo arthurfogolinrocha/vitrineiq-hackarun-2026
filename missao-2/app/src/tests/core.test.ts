@@ -119,4 +119,19 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
     const matched = matchConsumerOffer('Tênis casual pós cinema', cinemaZone, INITIAL_FLASH_CAMPAIGNS);
     expect(matched.couponCode).toBe('VITRINE-CINE18');
   });
+
+  it('deve processar diagnóstico de funil de câmera de borda sem erro de segurança', async () => {
+    const response = await analyzeWithAI(
+      {
+        prompt:
+          'Sensor Câmera na Vitrine (Borda Anônima) — Passantes no corredor: 42, Pararam na vitrine (>3s): 14 (Atração de Vitrine: 33%), Entraram na loja: 6, Passaram direto sem entrar: 36.',
+        category: 'Entretenimento & Lazer',
+        context: 'Funil Vitrine Camera Borda',
+      },
+      ''
+    );
+
+    expect(response.success).toBe(true);
+    expect(response.content.length).toBeGreaterThan(20);
+  });
 });

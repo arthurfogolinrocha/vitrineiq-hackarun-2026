@@ -20,6 +20,7 @@ import {
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
+import { SpotlightCard } from './SpotlightCard';
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -109,18 +110,18 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 panel-enter">
       {/* KPIs Macro do Shopping */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+        <SpotlightCard className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
           <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
             Fluxo Estimado / Hora
           </span>
           <div className="text-2xl font-black text-white mt-1">{totalTraffic}</div>
           <span className="text-[11px] text-emerald-400">Todas as alas monitoradas</span>
-        </div>
+        </SpotlightCard>
 
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+        <SpotlightCard className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
           <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
             Score Oportunidade ({current.zone.floor})
           </span>
@@ -129,23 +130,23 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             <span className="text-xs font-normal text-slate-400"> / 100</span>
           </div>
           <span className="text-[11px] text-slate-400">Multiplicador contextual {current.multiplier}x</span>
-        </div>
+        </SpotlightCard>
 
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+        <SpotlightCard className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
           <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
             Vendas Perdidas Capturadas
           </span>
           <div className="text-2xl font-black text-rose-400 mt-1">{totalLost}</div>
           <span className="text-[11px] text-slate-400">Objeções reais via Modo Balcão</span>
-        </div>
+        </SpotlightCard>
 
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+        <SpotlightCard className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
           <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
             Campanhas Ativas no QR
           </span>
           <div className="text-2xl font-black text-sky-400 mt-1">{activeCampaignsCount}</div>
           <span className="text-[11px] text-slate-400">Visíveis ao consumidor agora</span>
-        </div>
+        </SpotlightCard>
       </div>
 
       {/* Simulador Contextual + Painel de Decisão IA */}

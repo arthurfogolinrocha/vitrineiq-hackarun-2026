@@ -1,5 +1,5 @@
-import React from 'react';
-import { Compass, Flame, MapPin, Store, TrendingUp } from 'lucide-react';
+import React, { useState } from 'react';
+import { Box, Compass, Flame, MapPin, Store, TrendingUp } from 'lucide-react';
 import {
   CrossSegmentRoute,
   FloorId,
@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
+import { SpotlightCard } from './SpotlightCard';
 
 interface ShoppingMapProps {
   floor: FloorId;
@@ -51,6 +52,7 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
   onSelectZone,
   routes,
 }) => {
+  const [is3D, setIs3D] = useState(true);
   const floorZones = zonesTelemetry.filter((t) => t.zone.floor === floor);
   const selectedTelemetry =
     zonesTelemetry.find((t) => t.zone.id === selectedZoneId) || zonesTelemetry[0];
@@ -63,7 +65,7 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 panel-enter">
       {/* Cabeçalho do Mapa + Troca de Pavimento */}
       <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -73,11 +75,26 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               Mapa de Calor &amp; Rotas — Capim Dourado Shopping
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Planta esquemática inspirada nos 2 pavimentos oficiais (38.800 m²) com telemetria anônima por ala (LGPD).
+              Planta esquemática interativa 2D/3D (38.800 m²) com telemetria anônima por ala (LGPD).
             </p>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800" role="group" aria-label="Selecionar pavimento do shopping">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIs3D((prev) => !prev)}
+              aria-pressed={is3D}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center gap-1.5 ${
+                is3D
+                  ? 'bg-sky-500/20 border-sky-400/50 text-sky-300 shadow'
+                  : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Box className="w-3.5 h-3.5" aria-hidden="true" />
+              {is3D ? 'Vista 3D Isométrica' : 'Vista 2D Plana'}
+            </button>
+
+            <div className="flex items-center gap-2 bg-slate-950 p-1 rounded-xl border border-slate-800" role="group" aria-label="Selecionar pavimento do shopping">
             <button
               type="button"
               onClick={() => {
@@ -110,6 +127,7 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             >
               2º Pavimento — Alimentação
             </button>
+            </div>
           </div>
         </div>
 
@@ -121,44 +139,57 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               <span className="font-mono text-emerald-400">Dados Anônimos em Tempo Real</span>
             </div>
 
-            <svg
-              viewBox="0 0 1000 500"
-              role="img"
-              aria-label={`Planta interativa do ${floor === 'L1' ? '1º Pavimento Térreo' : '2º Pavimento Praça de Alimentação'} do Capim Dourado Shopping`}
-              className="w-full h-auto rounded-xl bg-slate-900/60 border border-slate-800/80"
-            >
-              <title>Mapa Esquemático de Fluxo e Oportunidades — Capim Dourado Shopping</title>
-              {/* Contorno arquitetônico estilizado do Shopping */}
-              <path
-                d="M 40 215 L 300 120 L 630 85 L 955 70 L 955 455 L 630 460 L 310 465 L 40 430 Z"
-                fill="rgba(15, 23, 42, 0.85)"
-                stroke="#334155"
-                strokeWidth="2.5"
-              />
-
-              {/* Corredor Principal L1 */}
-              {floor === 'L1' && (
-                <>
+            <div className="map-stage-3d py-2">
+              <div className={`map-plane ${is3D ? 'is-3d' : ''}`}>
+                <svg
+                  viewBox="0 0 1000 500"
+                  role="img"
+                  aria-label={`Planta interativa do ${floor === 'L1' ? '1º Pavimento Térreo' : '2º Pavimento Praça de Alimentação'} do Capim Dourado Shopping`}
+                  className="w-full h-auto rounded-xl bg-slate-900/60 border border-slate-800/80 shadow-2xl"
+                >
+                  <title>Mapa Esquemático de Fluxo e Oportunidades — Capim Dourado Shopping</title>
+                  {/* Contorno arquitetônico estilizado do Shopping */}
                   <path
-                    d="M 110 330 Q 460 315 800 280"
-                    fill="none"
-                    stroke="rgba(56, 189, 248, 0.25)"
-                    strokeWidth="16"
-                    strokeLinecap="round"
-                    strokeDasharray="10 10"
+                    d="M 40 215 L 300 120 L 630 85 L 955 70 L 955 455 L 630 460 L 310 465 L 40 430 Z"
+                    fill="rgba(15, 23, 42, 0.85)"
+                    stroke="#334155"
+                    strokeWidth="2.5"
                   />
-                  {/* Rótulos de Avenidas */}
-                  <text x="22" y="330" fill="#64748b" fontSize="11" transform="rotate(-90 22 330)">
-                    AVENIDA JK
-                  </text>
-                  <text x="450" y="488" fill="#64748b" fontSize="11">
-                    AVENIDA NS-05
-                  </text>
-                  <text x="975" y="300" fill="#64748b" fontSize="11" transform="rotate(-90 975 300)">
-                    AVENIDA LO 2A
-                  </text>
-                </>
-              )}
+
+                  {/* Corredor Principal L1 / L2 com fluxo animado */}
+                  {floor === 'L1' ? (
+                    <>
+                      <path
+                        d="M 110 330 Q 460 315 800 280"
+                        fill="none"
+                        stroke="rgba(56, 189, 248, 0.35)"
+                        strokeWidth="16"
+                        strokeLinecap="round"
+                        strokeDasharray="12 12"
+                        className="animate-corridor-flow"
+                      />
+                      {/* Rótulos de Avenidas */}
+                      <text x="22" y="330" fill="#64748b" fontSize="11" transform="rotate(-90 22 330)">
+                        AVENIDA JK
+                      </text>
+                      <text x="450" y="488" fill="#64748b" fontSize="11">
+                        AVENIDA NS-05
+                      </text>
+                      <text x="975" y="300" fill="#64748b" fontSize="11" transform="rotate(-90 975 300)">
+                        AVENIDA LO 2A
+                      </text>
+                    </>
+                  ) : (
+                    <path
+                      d="M 220 265 Q 500 245 790 275"
+                      fill="none"
+                      stroke="rgba(245, 158, 11, 0.35)"
+                      strokeWidth="16"
+                      strokeLinecap="round"
+                      strokeDasharray="12 12"
+                      className="animate-corridor-flow"
+                    />
+                  )}
 
               {/* Desenho das Zonas do Pavimento Atual */}
               {floorZones.map((telemetry) => {
@@ -207,7 +238,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                   </g>
                 );
               })}
-            </svg>
+                </svg>
+              </div>
+            </div>
 
             {/* Controles acessíveis por teclado para selecionar cada ala */}
             <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Atalhos acessíveis das alas do shopping">
@@ -238,7 +271,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
           </div>
 
           {/* Detalhes da Zona Selecionada + Espaços Vagos */}
-          <aside className="bg-slate-950 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+          <SpotlightCard className="bg-slate-950 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between space-y-4">
+            <aside className="flex flex-col justify-between space-y-4 h-full">
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -296,7 +330,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400">
               Âncoras mapeadas: <span className="text-slate-200">{selectedTelemetry.zone.anchors.join(', ')}</span>
             </div>
-          </aside>
+            </aside>
+          </SpotlightCard>
         </div>
       </div>
 
@@ -308,23 +343,25 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {routes.map((route) => (
-            <article
+            <SpotlightCard
               key={route.id}
               className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-2 text-xs"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-sky-300">
-                  {route.fromLabel} → {route.toLabel}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30">
-                  {route.sharePercent}%
-                </span>
-              </div>
-              <p className="text-slate-300 leading-relaxed">{route.insight}</p>
-              <div className="pt-2 border-t border-slate-800/80 text-amber-300 font-medium">
-                Combo IA: {route.recommendedCombo}
-              </div>
-            </article>
+              <article className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-sky-300">
+                    {route.fromLabel} → {route.toLabel}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30">
+                    {route.sharePercent}%
+                  </span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">{route.insight}</p>
+                <div className="pt-2 border-t border-slate-800/80 text-amber-300 font-medium">
+                  Combo IA: {route.recommendedCombo}
+                </div>
+              </article>
+            </SpotlightCard>
           ))}
         </div>
       </div>

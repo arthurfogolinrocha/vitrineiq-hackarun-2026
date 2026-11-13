@@ -6,17 +6,45 @@
   color-scheme: dark;
 }
 
+@property --spot-inner {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --spot-outer {
+  syntax: "<length-percentage>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 body {
   margin: 0;
   background-color: #020617;
   color: #f8fafc;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
 }
 
 /* Acessibilidade: foco visível de alto contraste (WCAG 2.4.7 / 1.4.11) */
-:where(a:any-link, button, input, select, textarea):focus-visible {
+:where(a:any-link, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid #38bdf8;
-  outline-offset: 2px;
+  outline-offset: 3px;
+}
+
+/* Micro-interações naturais em botões (compositor-only) */
+:where(button) {
+  transition:
+    box-shadow 150ms ease-out,
+    background-color 150ms ease-out,
+    border-color 150ms ease-out,
+    scale 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button:active:not(:disabled) {
+    scale: 0.97;
+  }
 }
 
 /* Hides content visually but keeps it in the accessibility tree */
@@ -30,6 +58,116 @@ body {
   padding: 0 !important;
   border: 0 !important;
   white-space: nowrap !important;
+}
+
+/* Spotlight & 3D Tilt Card (conteúdo base sempre visível; spotlight como aprimoramento) */
+.spotlight-card {
+  position: relative;
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  --spot-inner: 0px;
+  --spot-outer: 0px;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  transform-style: preserve-3d;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spotlight-card {
+    transition: transform 180ms ease-out, border-color 180ms ease-out;
+  }
+
+  .spotlight-card:hover {
+    transform: perspective(1000px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  }
+}
+
+.spotlight-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    420px circle at var(--mouse-x) var(--mouse-y),
+    rgba(245, 158, 11, 0.16),
+    rgba(56, 189, 248, 0.06) 45%,
+    transparent 75%
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at var(--mouse-x) var(--mouse-y),
+    black var(--spot-inner, 0px),
+    transparent var(--spot-outer, 0px)
+  );
+  mask-image: radial-gradient(
+    circle at var(--mouse-x) var(--mouse-y),
+    black var(--spot-inner, 0px),
+    transparent var(--spot-outer, 0px)
+  );
+  mask-repeat: no-repeat;
+  transition: --spot-inner 0.22s ease-out, --spot-outer 0.22s ease-out;
+}
+
+.spotlight-card:hover .spotlight-overlay {
+  --spot-inner: 110px;
+  --spot-outer: 260px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-overlay {
+    transition: none !important;
+  }
+}
+
+/* Perspectiva 3D Isométrica para o Mapa do Shopping */
+.map-stage-3d {
+  perspective: 1400px;
+}
+
+.map-plane {
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.map-plane.is-3d {
+  transform: rotateX(34deg) rotateZ(-6deg) scale(0.95);
+  box-shadow: 0 36px 80px -20px rgba(0, 0, 0, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-plane {
+    transition: none;
+  }
+}
+
+/* Fluxo animado nos corredores SVG */
+@keyframes corridorFlow {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-corridor-flow {
+    animation: corridorFlow 1.8s linear infinite;
+  }
+}
+
+/* Transição de entrada suave de painéis */
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .panel-enter {
+    animation: panelEnter 240ms ease-out both;
+  }
 }
 
 /* Validação após interação (:user-invalid / :user-valid) */
