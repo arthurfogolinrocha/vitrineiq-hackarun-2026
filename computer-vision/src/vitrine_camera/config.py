@@ -7,6 +7,8 @@ ARQUIVO = Path("vitrine_eventos.json")    # um resumo a cada JANELA_S
 ALERTAS = Path("vitrine_alertas.json")    # gatilho para a campanha relâmpago
 MODELO = Path("yolo11n-pose.pt")
 URL_MODELO = "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo11n-pose.pt"
+# SHA-256 do yolo11n-pose.pt v8.4.0 (6.255.593 bytes). Trocar de versão do modelo exige trocar este hash.
+SHA256_MODELO = "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0"
 LOJA_ID = 1
 # Índice da câmera no OpenCV: 0 = webcam do notebook. Na demo, a Logitech C925e (USB) costuma ser 1.
 CAMERA = int(os.environ.get("VITRINE_CAMERA", "0"))

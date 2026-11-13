@@ -55,7 +55,7 @@ $env:VITRINE_CAMERA = '1'; $env:VITRINE_API_URL = 'http://localhost:8000'; $env:
 
 Para descobrir o índice de cada câmera, o Windows lista os nomes com `Get-PnpDevice -Class Camera`; o índice da USB costuma ser o seguinte ao da integrada. No Windows o projeto usa o DirectShow, porque o backend padrão (MSMF) trava ao abrir webcams USB.
 
-Na primeira execução, o modelo é baixado do GitHub da Ultralytics. Atrás de um proxy corporativo que troca o certificado SSL, rode com `VITRINE_SSL_VERIFY=0`, que vale só para esse download.
+Na primeira execução, o modelo é baixado do GitHub da Ultralytics. Atrás de um proxy corporativo que troca o certificado SSL, rode com `VITRINE_SSL_VERIFY=0`, que vale só para esse download. Em qualquer caso, o arquivo baixado só é usado se o SHA-256 bater com `SHA256_MODELO` (`config.py`); se não bater, ele é apagado e a câmera não inicia.
 
 ## Integração com a API (T3, issue #29)
 

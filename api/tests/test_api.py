@@ -4,7 +4,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import ai_agent
+from app import ai_agent, main
 from app.main import app
 
 client = TestClient(app)
@@ -13,6 +13,7 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def sem_chave_de_ia(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    main._chamadas_ia.clear()  # o limite de chamadas é global no processo
 
 
 def test_health():
@@ -104,3 +105,13 @@ def test_audit_hash_endpoint():
     res = client.post("/api/audit/hash", json={"payload": "transacao-hackarun-123"})
     assert res.json()["hash"].startswith("SEC-SHA-")
 
+
+
+def test_ia_plano_limita_10_chamadas_por_minuto_por_ip():
+    corpo = {"prompt": "Gerar oferta para tênis", "category": "Moda"}
+    ip = {"X-Forwarded-For": "203.0.113.7, 10.0.0.1"}
+    assert [client.post("/api/ia/plano", json=corpo, headers=ip).status_code for _ in range(10)] == [200] * 10
+    res = client.post("/api/ia/plano", json=corpo, headers=ip)
+    assert res.status_code == 429 and "Aguarde" in res.json()["detail"]
+    # outro IP tem a sua própria cota
+    assert client.post("/api/ia/plano", json=corpo, headers={"X-Forwarded-For": "198.51.100.2"}).status_code == 200

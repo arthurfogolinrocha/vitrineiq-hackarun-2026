@@ -29,6 +29,21 @@ def sanitize_input(text: str) -> str:
     return cleaned.strip()
 
 
+# Ordem importa: CPF sem pontuação (11 dígitos) também casaria com telefone.
+_DADOS_PESSOAIS = [
+    re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+"),                                      # e-mail
+    re.compile(r"(?<!\d)\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?!\d)"),                          # CPF
+    re.compile(r"(?<!\d)(?:\+?55[\s-]?)?(?:\(?\d{2}\)?[\s-]?)?9?\d{4}[\s-]?\d{4}(?!\d)"),  # telefone BR
+]
+
+
+def mascarar_dados_pessoais(text: str) -> str:
+    """Troca e-mail, CPF e telefone por "[removido]" antes de gravar texto livre (LGPD)."""
+    for padrao in _DADOS_PESSOAIS:
+        text = padrao.sub("[removido]", text)
+    return text
+
+
 def contains_restricted_patterns(text: str) -> bool:
     """Guardrail contra prompt injection e comandos destrutivos."""
     return any(pattern.search(text or "") for pattern in _RESTRICTED_PATTERNS)

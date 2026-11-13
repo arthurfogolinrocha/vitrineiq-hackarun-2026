@@ -1,5 +1,6 @@
 """Loop da câmera: rastreia pessoas, atualiza o estado de cada uma e grava resumos e alertas."""
 
+import hashlib
 import os
 import time
 
@@ -7,7 +8,7 @@ from .analise import atualizar_parado, olhar_frame, resumir, segurou, zona_de
 from .armazenamento import hora, salvar
 from .envio import enviar
 from .config import (ALERTAS, ARQUIVO, CAMERA, CELULAR_S, CONF_DESFOQUE, CONF_PESSOA, GATILHO_S, JANELA_S, LOJA_ID, LOTACAO_INTERVALO_S, LOTACAO_N,
-                     MODELO, MOSTRAR, OLHAR_S, PERTO_FRAC, SUMIR_S, URL_MODELO)
+                     MODELO, MOSTRAR, OLHAR_S, PERTO_FRAC, SHA256_MODELO, SUMIR_S, URL_MODELO)
 from .pose import apontando, de_frente, no_celular, regiao_cabeca
 
 
@@ -138,6 +139,15 @@ def mostrar(r, sessao):
     return cv2.waitKey(1) & 0xFF != ord("q")
 
 
+def conferir_sha256(arquivo, esperado=SHA256_MODELO):
+    """Apaga o arquivo e encerra se o SHA-256 não bater: o .pt é carregado com pickle e executaria código trocado."""
+    obtido = hashlib.sha256(arquivo.read_bytes()).hexdigest()
+    if obtido != esperado:
+        arquivo.unlink()
+        raise SystemExit(f"O modelo baixado não confere (SHA-256 {obtido}, esperado {esperado}). "
+                         "Arquivo apagado e nada foi carregado. Verifique a rede/proxy e tente de novo.")
+
+
 def baixar_modelo():
     """Baixa o modelo uma vez; depois o YOLO carrega do arquivo local, sem rede."""
     if MODELO.exists():
@@ -155,6 +165,7 @@ def baixar_modelo():
     r.raise_for_status()
     tmp = MODELO.with_suffix(".tmp")
     tmp.write_bytes(r.content)
+    conferir_sha256(tmp)
     os.replace(tmp, MODELO)
 
 

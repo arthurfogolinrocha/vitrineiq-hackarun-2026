@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field, StringConstraints
 
 from . import db
 from .engine import ZoneId
-from .security import sanitize_input
+from .security import mascarar_dados_pessoais, sanitize_input
 
 router = APIRouter(prefix="/api")
 
@@ -47,7 +47,7 @@ def registrar_balcao(body: BalcaoIn) -> dict[str, Any]:
     if body.tipo == "perdida":
         dados["reason"] = body.reason
         if body.note:
-            dados["note"] = sanitize_input(body.note)
+            dados["note"] = mascarar_dados_pessoais(sanitize_input(body.note))
     return db.inserir("balcao", body.zoneId, dados)
 
 
@@ -121,7 +121,7 @@ def buscar_oferta(body: BuscaIn) -> dict[str, Any]:
     oferta = next((c for c in ativas if c["zoneId"] == body.zoneId), None) or (ativas[0] if ativas else None)
     dados = {
         "zoneId": body.zoneId,
-        "query": sanitize_input(body.query),
+        "query": mascarar_dados_pessoais(sanitize_input(body.query)),
         "budget": body.budget,
         "preference": "",
         "couponCode": oferta["couponCode"] if oferta else "",

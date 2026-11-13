@@ -110,6 +110,15 @@ def test_token_da_camera(monkeypatch):
         assert client.post(f"/api/vitrine/{rota}", json=corpo, headers={"X-Vitrine-Token": "segredo-de-teste"}).status_code == 201
 
 
+def test_dado_pessoal_no_texto_livre_nao_e_gravado():
+    client.post("/api/concierge/busca", json={"zoneId": ALA, "query": "tênis, me liga (63) 99999-1234"})
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Loja", "tipo": "perdida", "reason": "preco",
+                                     "note": "cliente ana@exemplo.com volta amanhã"})
+    estado = client.get("/api/estado").json()
+    assert estado["signals"][0]["query"] == "tênis, me liga [removido]"
+    assert estado["lostSales"][0]["note"] == "cliente [removido] volta amanhã"
+
+
 def test_na_vercel_sem_token_a_camera_e_recusada(monkeypatch):
     monkeypatch.delenv("VITRINE_TOKEN", raising=False)
     monkeypatch.setenv("VERCEL", "1")

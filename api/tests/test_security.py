@@ -2,7 +2,14 @@
 
 import hashlib
 
-from app.security import contains_restricted_patterns, generate_audit_hash, sanitize_input
+import pytest
+
+from app.security import (
+    contains_restricted_patterns,
+    generate_audit_hash,
+    mascarar_dados_pessoais,
+    sanitize_input,
+)
 
 
 def test_remove_script_e_escapa_tags():
@@ -36,3 +43,18 @@ def test_hashes_encadeados_sao_distintos():
     h3 = generate_audit_hash(payload, h2, "audit-3", "14:02:03")
     assert len({h1, h2, h3}) == 3
 
+
+
+@pytest.mark.parametrize("texto", [
+    "maria.silva+loja@exemplo.com.br",
+    "123.456.789-09", "12345678909",
+    "(63) 99999-1234", "63 99999 1234", "63999991234", "+55 63 99999-1234",
+    "99999-1234", "3215-4444", "32154444",
+])
+def test_mascara_dado_pessoal(texto):
+    assert mascarar_dados_pessoais(f"contato {texto} ok") == "contato [removido] ok"
+
+
+@pytest.mark.parametrize("texto", ["tênis 41 até R$ 150", "calça 38/40 por R$ 1.299,90", "promo 2x1 às 19h30"])
+def test_texto_normal_nao_e_mascarado(texto):
+    assert mascarar_dados_pessoais(texto) == texto

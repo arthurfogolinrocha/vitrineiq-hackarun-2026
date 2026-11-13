@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import os
 import time
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -43,12 +44,36 @@ allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_orig
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://vitrineiq-capim-dourado.*\.vercel\.app",
+    # Previews da Vercel: <projeto>-<hash>-<escopo>.vercel.app. Risco residual: qualquer conta da Vercel pode
+    # criar um projeto cujo nome comece com "vitrineiq-capim-dourado-" e casar com a regex. Quando o escopo do
+    # time for conhecido, fixe-o em ALLOWED_ORIGIN_REGEX; vazia desliga a regex.
+    allow_origin_regex=os.getenv(
+        "ALLOWED_ORIGIN_REGEX", r"^https://vitrineiq-capim-dourado-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$"
+    ) or None,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
 app.include_router(ciclo_router)
+
+
+LIMITE_IA_POR_MINUTO = 10
+_chamadas_ia: defaultdict[str, deque[float]] = defaultdict(deque)
+
+
+def limitar_ia(request: Request) -> None:
+    """No máximo LIMITE_IA_POR_MINUTO chamadas ao Agente de IA por IP (protege a cota do Gemini)."""
+    # shortcut: limite por instância da Vercel, não global; usar Redis/Upstash se precisar de limite global
+    # Na Vercel o proxy reescreve X-Forwarded-For com o IP real; fora dela o cliente pode forjá-lo.
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = ip or (request.client.host if request.client else "desconhecido")
+    agora = time.monotonic()
+    fila = _chamadas_ia[ip]
+    while fila and agora - fila[0] >= 60:
+        fila.popleft()
+    if len(fila) >= LIMITE_IA_POR_MINUTO:
+        raise HTTPException(429, "Muitas chamadas ao Agente de IA. Aguarde um minuto e tente de novo.")
+    fila.append(agora)
 
 
 def _now() -> str:
@@ -89,7 +114,7 @@ def score(body: ScoreRequest) -> ScoreResponse:
     )
 
 
-@app.post("/api/ia/plano", response_model=PlanResponse)
+@app.post("/api/ia/plano", response_model=PlanResponse, dependencies=[Depends(limitar_ia)])
 def ia_plano(body: PlanRequest) -> PlanResponse:
     start = time.perf_counter()
     prompt = sanitize_input(body.prompt)

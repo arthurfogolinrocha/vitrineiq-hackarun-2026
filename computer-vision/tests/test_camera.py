@@ -63,6 +63,21 @@ def test_deteccoes_conta_so_quem_passa_de_conf_pessoa():
     assert [d[:3] for d in dets] == [[1, 10.0, 50.0]]
 
 
+def test_conferir_sha256_aceita_o_certo_e_apaga_o_errado(tmp_path):
+    import hashlib
+
+    import pytest
+
+    arquivo = tmp_path / "modelo.tmp"
+    arquivo.write_bytes(b"modelo de teste")
+    camera.conferir_sha256(arquivo, hashlib.sha256(b"modelo de teste").hexdigest())
+    assert arquivo.exists()
+
+    with pytest.raises(SystemExit, match="não confere"):
+        camera.conferir_sha256(arquivo, "0" * 64)
+    assert not arquivo.exists()
+
+
 def test_envio_manda_token_so_quando_definido(monkeypatch):
     import requests
 
