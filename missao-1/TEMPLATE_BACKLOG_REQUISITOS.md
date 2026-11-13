@@ -25,57 +25,57 @@
 
 ---
 
-## 3. User Stories (Histórias de Usuário) com Critérios de Aceite (BDD)
+## 3. User Stories (Histórias de Usuário — Item Obrigatório da Roleta: STORIES)
 
 ### 🔴 MUST HAVE (Essenciais para o MVP — Missão 2)
 
-#### US-01: [Título da Funcionalidade Central]
-* **Como** [tipo de usuário/persona],
-* **Eu quero** [realizar uma ação específica],
-* **Para que** [obtenha o benefício primário e resolva a dor central].
+#### US-01: Horário de Pico, Clima e Ação Comercial em 1 Clique (Painel Lojista & Copiloto IA)
+* **Como** lojista de shopping no Capim Dourado Shopping,
+* **Eu quero** saber o horário de pico, o efeito do clima/eventos no meu segmento e gerar campanhas relâmpago em 1 clique,
+* **Para que** eu ajuste escala, estoque e promoções antes da concorrência sem depender de planilhas.
 * **Critérios de Aceite (Gherkin/BDD):**
-  * *Cenário 1: Sucesso no fluxo principal*
-    * **Dado que** o usuário acessa a plataforma e preenche os dados válidos,
-    * **Quando** clicar no botão de confirmação,
-    * **Então** o sistema deve processar os dados em <1s e exibir o resultado consolidado.
-  * *Cenário 2: Validação de dados incorretos*
-    * **Dado que** o usuário deixa campos obrigatórios em branco,
-    * **Quando** tentar submeter,
-    * **Então** o sistema deve bloquear o envio e exibir alertas claros de validação.
+  * *Cenário 1: Recálculo contextual em tempo real*
+    * **Dado que** o lojista seleciona clima (ex: Calor 38°C), horário (ex: Pós-Cinema 20h) e evento do shopping,
+    * **Quando** qualquer fator muda no painel,
+    * **Então** o sistema deve recalcular o Score de Oportunidade (0–100) em <300ms e liberar diagnóstico tático via IA/fallback resiliente.
+  * *Cenário 2: Lançamento de Campanha Relâmpago*
+    * **Dado que** o lojista preenche título e código do cupom no modal,
+    * **Quando** confirmar a publicação,
+    * **Então** a campanha deve ficar visível instantaneamente no Concierge QR do consumidor.
 
-#### US-02: [Integração de IA Especializada]
-* **Como** [usuário/gestor],
-* **Eu quero** [gerar insights automáticos / análise assistida por IA],
-* **Para que** [tome decisões inteligentes sem esforço manual].
-* **Critérios de Aceite:**
-  * *Cenário 1: Geração de resposta inteligente*
-    * **Dado que** o usuário solicita a geração assistida pelo modelo,
-    * **Quando** a requisição for processada pela API,
-    * **Então** a resposta deve ser devolvida estruturada em JSON/Markdown sanitizado com fallbacks caso ocorra timeout.
+#### US-02: Webcam na Vitrine Alimentando o Painel em Tempo Real (Sensor de Borda LGPD)
+* **Como** gerente de loja física,
+* **Eu quero** conectar uma webcam apontada para a fachada/vitrine para contar quem passa, quem para e quem entra/sai,
+* **Para que** os dados reais de fluxo alimentem automaticamente o painel sem gravar imagens nem violar a LGPD.
+* **Critérios de Aceite (Gherkin/BDD):**
+  * *Cenário 1: Processamento anônimo na borda*
+    * **Dado que** o usuário ativa a webcam local na aba `Sensor Câmera`,
+    * **Quando** houver movimento nas regiões virtuais (Corredor, Vitrine e Porta),
+    * **Então** o sistema deve processar a diferença de pixels em RAM (<5ms, sem salvar vídeo), atualizar os contadores e elevar o fluxo da ala no Painel Lojista.
 
-#### US-03: [Dashboard / Painel de Visualização de Resultados]
-* **Como** [gestor/usuário],
-* **Eu quero** [visualizar os indicadores e dados sintetizados],
-* **Para que** [tenha controle total e visibilidade instantânea].
-* **Critérios de Aceite:**
-  * *Cenário 1: Renderização de métricas*
-    * **Dado que** existem dados cadastrados ou gerados no sistema,
-    * **Quando** o usuário abrir o dashboard,
-    * **Então** as métricas consolidadas e gráficos devem ser renderizados de forma reativa.
+#### US-03: Registro de Venda Perdida em 1 Toque (Modo Balcão)
+* **Como** vendedor atendendo no balcão da loja,
+* **Eu quero** registrar em menos de 2 segundos o motivo real pelo qual o cliente não concluiu a compra,
+* **Para que** objeções como falta de numeração/grade ou parcelamento virem ações reais de reposição e oferta.
+* **Critérios de Aceite (Gherkin/BDD):**
+  * *Cenário 1: Registro tátil instantâneo*
+    * **Dado que** o vendedor seleciona a ala e a objeção ocorrida,
+    * **Quando** tocar em registrar,
+    * **Então** o sistema deve atualizar imediatamente o ranking de gargalos da ala no Mapa 3D e na trilha de auditoria.
 
 ---
 
 ### 🟡 SHOULD HAVE (Diferenciais de Alto Impacto)
 
-#### US-04: [Exportação de Relatórios / Alertas Proativos]
-* **Como** [usuário],
-* **Eu quero** [exportar o relatório consolidado em PDF/JSON ou receber alertas],
-* **Para que** [possa compartilhar o resultado formalmente com stakeholders].
+#### US-04: Descoberta Guiada Sem App e Sem Login (Concierge QR Consumidor)
+* **Como** consumidor caminhando pelos corredores do Capim Dourado Shopping,
+* **Eu quero** escanear um QR Code, informar o que procuro no meu orçamento e receber um cupom na hora sem cadastrar CPF ou baixar app,
+* **Para que** eu encontre o produto certo rápido e o shopping capture a intenção de demanda anonimamente.
 
-#### US-05: [Filtros Dinâmicos e Busca em Tempo Real]
-* **Como** [usuário],
-* **Eu quero** [filtrar e pesquisar registros instantaneamente],
-* **Para que** [encontre informações sem recarregar a tela].
+#### US-05: Planta Mix Oficial em 3D com Rotas e Espaços Vagos (Mapa 3D Capim Dourado)
+* **Como** superintendente ou lojista em expansão,
+* **Eu quero** navegar pelos 2 pavimentos oficiais (Térreo e Praça de Alimentação) em 3D com calor de demanda e espaços vagos mapeados,
+* **Para que** eu identifique rotas quentes entre âncoras e oportunidades para novas operações.
 
 ---
 

@@ -5,6 +5,7 @@ import {
   LostSaleReason,
   ShopContextFactors,
   ShoppingZone,
+  VisionFunnelSnapshot,
   ZoneId,
 } from '../types';
 
@@ -66,22 +67,31 @@ export interface ZoneLiveTelemetry {
   dominantReason: LostSaleReason;
   opportunityScore: number;
   multiplier: number;
+  cameraFeedLinked: boolean;
 }
 
 export function computeZoneTelemetry(
   zone: ShoppingZone,
   factors: ShopContextFactors,
   signals: ConsumerSignal[],
-  lostSales: LostSaleEvent[]
+  lostSales: LostSaleEvent[],
+  visionSnapshot?: VisionFunnelSnapshot
 ): ZoneLiveTelemetry {
   const multiplier = computeContextMultiplier(zone.id, factors);
   const zoneSignals = signals.filter((s) => s.zoneId === zone.id);
   const zoneLost = lostSales.filter((l) => l.zoneId === zone.id);
 
-  const footTraffic = Math.round(zone.baseFootTraffic * multiplier);
-  const vitrineStops = Math.round(zone.baseVitrineStops * multiplier) + zoneSignals.length * 3;
+  const cameraFeedLinked = Boolean(visionSnapshot && visionSnapshot.zoneId === zone.id);
+  const extraPassers = cameraFeedLinked && visionSnapshot ? visionSnapshot.passersBy : 0;
+  const extraStops = cameraFeedLinked && visionSnapshot ? visionSnapshot.vitrineStops : 0;
+  const extraEntries = cameraFeedLinked && visionSnapshot ? visionSnapshot.entries : 0;
+
+  const footTraffic = Math.round(zone.baseFootTraffic * multiplier) + extraPassers;
+  const vitrineStops =
+    Math.round(zone.baseVitrineStops * multiplier) + zoneSignals.length * 3 + extraStops;
+  const totalEntries = zone.conversions + extraEntries;
   const conversionRate =
-    vitrineStops > 0 ? Number(((zone.conversions / vitrineStops) * 100).toFixed(1)) : 0;
+    vitrineStops > 0 ? Number(((totalEntries / vitrineStops) * 100).toFixed(1)) : 0;
 
   const reasonCounts: Record<LostSaleReason, number> = {
     preco: 0,
@@ -119,6 +129,7 @@ export function computeZoneTelemetry(
     dominantReason,
     opportunityScore,
     multiplier,
+    cameraFeedLinked,
   };
 }
 

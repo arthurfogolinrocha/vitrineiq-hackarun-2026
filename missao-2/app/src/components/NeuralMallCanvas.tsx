@@ -126,3 +126,4 @@ export const NeuralMallCanvas: React.FC<NeuralMallCanvasProps> = ({ paused }) =>
     />
   );
 };
+

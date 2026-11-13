@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Activity,
+  Camera,
   CloudRain,
   Flame,
   Megaphone,
@@ -15,6 +16,7 @@ import {
   MallEvent,
   ShopContextFactors,
   TimeSlot,
+  VisionFunnelSnapshot,
   WeatherCondition,
   ZoneId,
 } from '../types';
@@ -33,6 +35,8 @@ interface RetailerCockpitProps {
   onRunCopilot: (telemetry: ZoneLiveTelemetry) => Promise<void>;
   isAnalyzing: boolean;
   lastAnalysis: AIAnalysisResponse | null;
+  visionSnapshot?: VisionFunnelSnapshot;
+  onOpenVision?: () => void;
 }
 
 export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
@@ -46,6 +50,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   onRunCopilot,
   isAnalyzing,
   lastAnalysis,
+  visionSnapshot,
+  onOpenVision,
 }) => {
   const current =
     zonesTelemetry.find((t) => t.zone.id === selectedZoneId) || zonesTelemetry[0];
@@ -148,6 +154,41 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           <span className="text-[11px] text-slate-400">Visíveis ao consumidor agora</span>
         </SpotlightCard>
       </div>
+
+      {/* Faixa de Alimentação Ao Vivo via Câmera / Webcam da Vitrine */}
+      {visionSnapshot && (
+        <div className="bg-slate-900/75 border border-emerald-500/30 rounded-2xl px-5 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Camera className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">
+                  Sensor Câmera na Vitrine ({visionSnapshot.sourceMode === 'webcam_live' ? 'Webcam Real Conectada' : 'Stream Simulado'})
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Alimentando Painel
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Passantes: <strong className="text-sky-300">{visionSnapshot.passersBy}</strong> • Paradas (&gt;3s): <strong className="text-amber-300">{visionSnapshot.vitrineStops}</strong> • Entradas: <strong className="text-emerald-300">{visionSnapshot.entries}</strong> • Passaram sem entrar: <strong className="text-rose-300">{visionSnapshot.passedWithoutEntering}</strong> • Atração: <strong className="text-white">{visionSnapshot.attractionRate}%</strong>
+              </p>
+            </div>
+          </div>
+
+          {onOpenVision && (
+            <button
+              type="button"
+              onClick={onOpenVision}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition"
+            >
+              <Camera className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Abrir / Conectar Webcam</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Simulador Contextual + Painel de Decisão IA */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -58,3 +58,4 @@ export const SpotlightCard: React.FC<SpotlightCardProps> = ({ children, classNam
     </div>
   );
 };
+

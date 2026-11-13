@@ -129,4 +129,6 @@ export interface VisionFunnelSnapshot {
   exits: number;
   passedWithoutEntering: number;
   attractionRate: number;
+  sourceMode?: 'simulation' | 'webcam_live';
+  lastMotionRegion?: 'corridor' | 'vitrine' | 'door' | 'none';
 }

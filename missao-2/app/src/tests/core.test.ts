@@ -134,4 +134,34 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
     expect(response.success).toBe(true);
     expect(response.content.length).toBeGreaterThan(20);
   });
+
+  it('deve somar telemetria da webcam ao vivo no fluxo e score da ala correspondente', () => {
+    const cinemaZone = CAPIM_DOURADO_ZONES.find((z) => z.id === 'ala-lazer-cinema')!;
+    const base = computeZoneTelemetry(
+      cinemaZone,
+      { weather: 'calor_38c', timeSlot: 'pos_cinema_20h', mallEvent: 'estreia_cinemark' },
+      [],
+      INITIAL_LOST_SALES
+    );
+    const withCamera = computeZoneTelemetry(
+      cinemaZone,
+      { weather: 'calor_38c', timeSlot: 'pos_cinema_20h', mallEvent: 'estreia_cinemark' },
+      [],
+      INITIAL_LOST_SALES,
+      {
+        zoneId: 'ala-lazer-cinema',
+        passersBy: 50,
+        vitrineStops: 18,
+        entries: 9,
+        exits: 6,
+        passedWithoutEntering: 41,
+        attractionRate: 18,
+        sourceMode: 'webcam_live',
+      }
+    );
+
+    expect(withCamera.cameraFeedLinked).toBe(true);
+    expect(withCamera.footTraffic).toBe(base.footTraffic + 50);
+    expect(withCamera.vitrineStops).toBe(base.vitrineStops + 18);
+  });
 });

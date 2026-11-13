@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
+  BookOpen,
   Camera,
   Compass,
   Lock,
@@ -45,13 +46,15 @@ import { ConsumerConcierge } from './components/ConsumerConcierge';
 import { SecurityAuditPanel } from './components/SecurityAuditPanel';
 import { EdgeVisionSensor } from './components/EdgeVisionSensor';
 import { NeuralMallCanvas } from './components/NeuralMallCanvas';
+import { UserStoriesBoard } from './components/UserStoriesBoard';
 
-type ActiveTab = 'cockpit' | 'map' | 'vision' | 'counter' | 'concierge' | 'audit';
+type ActiveTab = 'cockpit' | 'map' | 'vision' | 'stories' | 'counter' | 'concierge' | 'audit';
 
 const TAB_TITLES: Record<ActiveTab, string> = {
   cockpit: 'Painel do Lojista & IA | VitrineIQ',
   map: 'Mapa Capim Dourado 3D | VitrineIQ',
   vision: 'Sensor Câmera (Borda) | VitrineIQ',
+  stories: 'User Stories (Roleta) | VitrineIQ',
   counter: 'Modo Balcão 1-Toque | VitrineIQ',
   concierge: 'Concierge QR Consumidor | VitrineIQ',
   audit: 'Segurança, LGPD & Auditoria | VitrineIQ',
@@ -65,6 +68,7 @@ function getInitialTab(): ActiveTab {
   if (mode === 'counter') return 'counter';
   if (mode === 'map') return 'map';
   if (mode === 'vision') return 'vision';
+  if (mode === 'stories') return 'stories';
   return 'cockpit';
 }
 
@@ -141,9 +145,9 @@ export default function App() {
   const zonesTelemetry = useMemo(
     () =>
       CAPIM_DOURADO_ZONES.map((zone) =>
-        computeZoneTelemetry(zone, factors, signals, lostSales)
+        computeZoneTelemetry(zone, factors, signals, lostSales, visionSnapshot)
       ),
-    [factors, signals, lostSales]
+    [factors, signals, lostSales, visionSnapshot]
   );
 
   const appendAudit = (action: string, status: SystemAuditLog['status'], details: string) => {
@@ -280,6 +284,7 @@ export default function App() {
     { id: 'cockpit', label: 'Painel Lojista & IA', icon: <BarChart3 className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'map', label: 'Mapa 3D', icon: <Compass className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'vision', label: 'Sensor Câmera', icon: <Camera className="w-3.5 h-3.5" aria-hidden="true" /> },
+    { id: 'stories', label: 'User Stories', icon: <BookOpen className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'counter', label: 'Modo Balcão', icon: <Store className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'concierge', label: 'Concierge QR', icon: <QrCode className="w-3.5 h-3.5" aria-hidden="true" /> },
     { id: 'audit', label: 'LGPD & Segurança', icon: <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" /> },
@@ -380,6 +385,8 @@ export default function App() {
             onRunCopilot={handleRunCopilot}
             isAnalyzing={isAnalyzing}
             lastAnalysis={lastAnalysis}
+            visionSnapshot={visionSnapshot}
+            onOpenVision={() => setActiveTab('vision')}
           />
         )}
 
@@ -403,6 +410,10 @@ export default function App() {
             onUpdateSnapshot={setVisionSnapshot}
             onAnalyzeWithVision={handleAnalyzeWithVision}
           />
+        )}
+
+        {activeTab === 'stories' && (
+          <UserStoriesBoard onNavigateTab={(tab) => setActiveTab(tab)} />
         )}
 
         {activeTab === 'counter' && (

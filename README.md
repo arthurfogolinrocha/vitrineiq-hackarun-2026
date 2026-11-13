@@ -10,14 +10,18 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 ## 🎯 Pilares da Solução
 
 1. **Painel do Lojista + Copiloto IA (`RetailerCockpit`):**
-   * Recalcula em tempo real o **Score de Oportunidade (0–100)** por ala cruzando clima em Palmas, faixa horária, eventos do shopping (ex: estreias no Cinemark) e objeções de venda.
+   * Recalcula em tempo real o **Score de Oportunidade (0–100)** por ala cruzando clima em Palmas, faixa horária, eventos do shopping (ex: estreias no Cinemark), objeções de venda e os dados ao vivo do **Sensor Câmera**.
    * Integração com **Google Gemini (`gemini-3.8-flash`)** + fallback heurístico resiliente para gerar planos de ação imediatos, textos prontos de WhatsApp e **Campanhas Relâmpago** em 1 clique.
-2. **Mapa Interativo do Capim Dourado Shopping (`ShoppingMap`):**
-   * Planta esquemática de **2 pavimentos (1º Pavimento Térreo e 2º Pavimento Praça de Alimentação)** com mapa de calor por ala, rotas quentes entre segmentos e identificação de demanda oculta para espaços vagos.
-3. **Modo Balcão — 1 Toque (`CounterQuickLog`):**
+2. **Sensor Webcam na Vitrine — Borda LGPD (`EdgeVisionSensor`):**
+   * Conecta uma **webcam real** (ou simulador 60fps) para detectar movimento por região (**Corredor**, **Vitrine** e **Porta**) em RAM sem gravar imagens, contando quem passa, quem para na vitrine, quem entra e quem sai e alimentando o Painel em tempo real.
+3. **Mapa 3D Oficial do Capim Dourado Shopping (`ShoppingMap`):**
+   * Planta arquitetônica em **2 pavimentos (1º Pavimento Térreo e 2º Pavimento Praça de Alimentação)** fiel à Planta Mix oficial (38.800,50 m²), com perspectiva 3D isométrica, rotas quentes animadas e espaços vagos.
+4. **Modo Balcão — 1 Toque (`CounterQuickLog`):**
    * Registro em 2 segundos pelo vendedor do motivo de venda perdida (*Preço/Parcelamento*, *Sem Tamanho/Estoque*, *Só Olhando*, *Fila/Demora*).
-4. **Concierge QR do Consumidor (`ConsumerConcierge`):**
+5. **Concierge QR do Consumidor (`ConsumerConcierge`):**
    * Experiência web instantânea via QR Code (zero app, zero login/CPF): o consumidor informa o que procura, desbloqueia um cupom relâmpago na hora e alimenta o painel da ala anonimamente.
+6. **Story Map Interativo — Item Obrigatório da Roleta (`UserStoriesBoard`):**
+   * Aba dedicada **User Stories** + modo **Slide de Abertura** conectando cada história de usuário diretamente à tela funcional correspondente.
 
 ---
 
@@ -62,5 +66,6 @@ npm run build
 
 ## 👥 Equipe & Colaboradores
 * `@arthurfogolinrocha`
-* `@mcbs9`
+* `@MCPS9`
+* `@LCapistrano25`
 * `@jesseLR-stack`
