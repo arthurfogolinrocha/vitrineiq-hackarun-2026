@@ -130,3 +130,26 @@ def test_grupos_e_sinais_novos():
     assert r["sozinhos"] == {"pessoas": 2, "pararam": 1}
     assert r["travessia_media_s"] == 7.0  # (7,5 + 6 + 7,5) / 3: 400 px de 600 em 5, 4 e 5 s
     assert (r["chegaram_perto"], r["pararam_no_celular"], r["voltaram_a_olhar"]) == (1, 1, 1)
+
+
+def test_regiao_cabeca_pelos_pontos_do_rosto_e_reserva_pela_caixa():
+    from vitrine_camera.pose import regiao_cabeca
+
+    caixa = (100, 50, 200, 350)
+    xy = [[150, 100], [140, 95], [160, 95], [130, 100], [170, 100]] + [[0, 0]] * 12
+    conf = [0.9] * 5 + [0.0] * 12
+    x0, y0, x1, y1 = regiao_cabeca(xy, conf, caixa)
+    assert x0 < 130 and x1 > 170 and y0 < 95 and y1 > 100  # cobre nariz, olhos e orelhas com margem
+    assert regiao_cabeca(xy, [0.0] * 17, caixa) == (100, 50, 200, 150)  # de costas: terço de cima da caixa
+
+
+def test_pixelizar_apaga_detalhe_so_na_regiao():
+    import numpy as np
+
+    from vitrine_camera.camera import pixelizar
+
+    img = np.random.default_rng(0).integers(0, 255, (100, 100, 3), dtype=np.uint8)
+    original = img.copy()
+    pixelizar(img, (-10, 20, 40, 60))  # sai da imagem pela esquerda: recorta sem erro
+    assert len(np.unique(img[20:60, 0:40].reshape(-1, 3), axis=0)) <= 64  # no máximo 8x8 blocos
+    assert (img[60:, :] == original[60:, :]).all() and (img[:, 40:] == original[:, 40:]).all()

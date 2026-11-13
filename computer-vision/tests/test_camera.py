@@ -50,3 +50,14 @@ def test_sessao_envia_resumo_e_alerta_para_a_api(monkeypatch):
     alerta, evento = enviados[0][1], enviados[1][1]
     assert alerta["evento"] == "atencao_alta" and alerta["zonaVitrine"] == "centro" and "zona" not in alerta
     assert evento["passantes"] == 1 and "loja_id" not in evento
+
+
+def test_deteccoes_conta_so_quem_passa_de_conf_pessoa():
+    """O YOLO roda com confiança baixa para desfocar todos os rostos; a contagem fica com quem passa de CONF_PESSOA."""
+    import torch
+
+    boxes = SimpleNamespace(id=torch.tensor([1, 2]), conf=torch.tensor([0.9, 0.4]),
+                            xywh=torch.tensor([[10.0, 0, 0, 50], [20.0, 0, 0, 60]]))
+    kps = SimpleNamespace(xy=torch.zeros(2, 17, 2), conf=torch.ones(2, 17))
+    dets = camera.deteccoes(SimpleNamespace(boxes=boxes, keypoints=kps))
+    assert [d[:3] for d in dets] == [[1, 10.0, 50.0]]

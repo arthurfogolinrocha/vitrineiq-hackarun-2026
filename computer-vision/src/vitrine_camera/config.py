@@ -16,6 +16,7 @@ os.environ.setdefault("OPENCV_VIDEOIO_PRIORITY_MSMF", "0")
 OLHAR_S = 1.5         # segundos de frente para contar como "olhou"
 GATILHO_S = 3.0       # segundos de frente para disparar o alerta de atenção alta
 CONF_PESSOA = 0.65    # confiança mínima do YOLO para contar uma detecção como pessoa
+CONF_DESFOQUE = 0.25  # mais baixa: quem não entra na contagem ainda tem o rosto desfocado no preview
 CONF_OLHO = 0.5       # calibre na vitrine real
 JANELA_S = 10         # grava um resumo a cada N segundos
 MIN_PRESENCA_S = 1.0  # ID que dura menos é troca de ID do tracker, não passante

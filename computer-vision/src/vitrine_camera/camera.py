@@ -6,9 +6,9 @@ import time
 from .analise import atualizar_parado, olhar_frame, resumir, segurou, zona_de
 from .armazenamento import hora, salvar
 from .envio import enviar
-from .config import (ALERTAS, ARQUIVO, CAMERA, CELULAR_S, CONF_PESSOA, GATILHO_S, JANELA_S, LOJA_ID, LOTACAO_INTERVALO_S, LOTACAO_N,
+from .config import (ALERTAS, ARQUIVO, CAMERA, CELULAR_S, CONF_DESFOQUE, CONF_PESSOA, GATILHO_S, JANELA_S, LOJA_ID, LOTACAO_INTERVALO_S, LOTACAO_N,
                      MODELO, MOSTRAR, OLHAR_S, PERTO_FRAC, SUMIR_S, URL_MODELO)
-from .pose import apontando, de_frente, no_celular
+from .pose import apontando, de_frente, no_celular, regiao_cabeca
 
 
 def alertar(evento, agora, **dados):
@@ -48,8 +48,9 @@ def deteccoes(r):
     """(id, x, altura da caixa, keypoints xy, confiança) de cada pessoa rastreada no frame do YOLO."""
     if r.boxes.id is None or r.keypoints is None or r.keypoints.conf is None:
         return []
-    return list(zip(r.boxes.id.int().tolist(), r.boxes.xywh[:, 0].tolist(), r.boxes.xywh[:, 3].tolist(),
-                    r.keypoints.xy.tolist(), r.keypoints.conf.tolist()))
+    todas = zip(r.boxes.conf.tolist(), r.boxes.id.int().tolist(), r.boxes.xywh[:, 0].tolist(),
+                r.boxes.xywh[:, 3].tolist(), r.keypoints.xy.tolist(), r.keypoints.conf.tolist())
+    return [d for c, *d in todas if c >= CONF_PESSOA]  # o modelo roda com CONF_DESFOQUE; só conta quem passa daqui
 
 
 class Sessao:
@@ -98,11 +99,32 @@ class Sessao:
             self.fechar_janela(time.time())
 
 
-def mostrar(r, sessao):
-    """Desenha detecções, zonas e contadores; devolve False quando o usuário aperta q."""
+def pixelizar(img, regiao, blocos=8):
+    """Troca a região por blocos grandes (irreconhecível); recorta nas bordas da imagem."""
     import cv2
 
-    frame = r.plot()
+    h, w = img.shape[:2]
+    x0, y0, x1, y1 = max(regiao[0], 0), max(regiao[1], 0), min(regiao[2], w), min(regiao[3], h)
+    if x1 - x0 < 2 or y1 - y0 < 2:
+        return
+    pequeno = cv2.resize(img[y0:y1, x0:x1], (blocos, blocos), interpolation=cv2.INTER_LINEAR)
+    img[y0:y1, x0:x1] = cv2.resize(pequeno, (x1 - x0, y1 - y0), interpolation=cv2.INTER_NEAREST)
+
+
+def sem_rostos(r):
+    """Cópia do frame com a cabeça de cada pessoa pixelizada. Sempre ligado: o preview aparece na demo e no vídeo."""
+    img = r.orig_img.copy()
+    if r.boxes is not None and r.keypoints is not None and r.keypoints.conf is not None:
+        for caixa, xy, conf in zip(r.boxes.xyxy.tolist(), r.keypoints.xy.tolist(), r.keypoints.conf.tolist()):
+            pixelizar(img, regiao_cabeca(xy, conf, caixa))
+    return img
+
+
+def mostrar(r, sessao):
+    """Desenha detecções, zonas e contadores sobre o frame sem rostos; devolve False quando o usuário aperta q."""
+    import cv2
+
+    frame = r.plot(img=sem_rostos(r))
     h, largura = frame.shape[0], sessao.largura
     for i in (1, 2):  # divisões das zonas da vitrine
         cv2.line(frame, (largura * i // 3, 0), (largura * i // 3, h), (255, 255, 0), 1)
@@ -144,7 +166,7 @@ def main():
     sessao = Sessao()
     print(f"Câmera {CAMERA} ligada. Gravando em {ARQUIVO.resolve()} (Ctrl+C ou q na janela para parar)")
     try:
-        for r in model.track(source=CAMERA, stream=True, persist=True, classes=[0], conf=CONF_PESSOA, verbose=False):
+        for r in model.track(source=CAMERA, stream=True, persist=True, classes=[0], conf=CONF_DESFOQUE, verbose=False):
             sessao.processar(r, time.time())
             if MOSTRAR and not mostrar(r, sessao):
                 break
