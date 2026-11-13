@@ -41,7 +41,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
             Backend Python (FastAPI) &amp; Espelho TypeScript
           </div>
           <p className="text-slate-600 leading-relaxed">
-            O backend em Python (<code>missao-2/backend/app/engine.py</code>, rotas <code>/api/score</code> e <code>/api/ia/plano</code>) é a fonte de verdade do cálculo. A interface web usa o espelho TypeScript com <strong>paridade validada em testes</strong>. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
+            O backend em Python (<code>api/app/engine.py</code>, rotas <code>/api/score</code> e <code>/api/ia/plano</code>) é a fonte de verdade do cálculo. A interface web usa o espelho TypeScript com <strong>paridade validada em testes</strong>. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
           </p>
         </div>
 

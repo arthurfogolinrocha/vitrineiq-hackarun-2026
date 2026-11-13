@@ -10,7 +10,7 @@ import {
 } from '../types';
 
 /**
- * Espelho determinístico do backend Python (`missao-2/backend/app/engine.py`).
+ * Espelho determinístico do backend Python (`api/app/engine.py`).
  * Garante paridade matemática entre a API FastAPI e a interface web.
  */
 export function calculateRetailOpportunityScore(

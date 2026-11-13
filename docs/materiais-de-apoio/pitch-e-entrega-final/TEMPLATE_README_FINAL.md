@@ -71,7 +71,7 @@
 ```bash
 # 1. Clonar o repositório
 git clone https://github.com/[usuario]/[repositorio].git
-cd [repositorio]/missao-2/app
+cd [repositorio]/frontend
 
 # 2. Instalar dependências
 npm install

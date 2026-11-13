@@ -34,8 +34,9 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 ## 📁 Estrutura do Repositório
 
 * [`docs/materiais-de-apoio/planejamento/`](./docs/materiais-de-apoio/planejamento) — Planejamento técnico inicial, telas propostas, arquitetura e integração da Roleta Tecnológica *(Entrega: Sexta 13/11 até 12h)*.
-* [`missao-2/app/`](./missao-2/app) — Aplicação React 19 + TypeScript + Vite + Tailwind CSS + Suíte Vitest (`19` testes).
-* [`missao-2/backend/`](./missao-2/backend) — Backend Python + FastAPI + Uvicorn (`/api/score`, `/api/ia/plano`, `/api/audit/hash`) + Suíte `pytest` (`27` testes).
+* [`frontend/`](./frontend) — Aplicação React 19 + TypeScript + Vite + Tailwind CSS + Suíte Vitest (`19` testes).
+* [`api/`](./api) — Backend Python + FastAPI + Uvicorn (`/api/score`, `/api/ia/plano`, `/api/audit/hash`) + Suíte `pytest` (`27` testes).
+* [`computer-vision/`](./computer-vision) — Visão computacional da vitrine: script da câmera que conta passantes e atenção (só contagens anônimas) e envia para `/vitrine/*` da API.
 * [`docs/materiais-de-apoio/pitch-e-entrega-final/`](./docs/materiais-de-apoio/pitch-e-entrega-final) — Documentação final, declaração ética de uso de IA (Artigo 6) e roteiro do pitch.
 
 ---
@@ -49,12 +50,12 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 ### Instalação e Execução
 ```bash
 # 1. Frontend (React + Vite)
-npm --prefix missao-2/app install
-cp missao-2/app/.env.example missao-2/app/.env   # opcional: aponte VITE_API_URL
-npm --prefix missao-2/app run dev
+npm --prefix frontend install
+cp frontend/.env.example frontend/.env   # opcional: aponte VITE_API_URL
+npm --prefix frontend run dev
 
 # 2. Backend (Python + FastAPI)
-cd missao-2/backend
+cd api
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env                             # opcional: GEMINI_API_KEY no servidor

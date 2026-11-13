@@ -2,7 +2,7 @@
 
 Backend do **VitrineIQ**, plataforma de inteligência comercial para lojistas do Capim Dourado Shopping (Palmas-TO).
 
-- **Repositório único (Monorepo):** https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026 (`missao-2/app` + `missao-2/backend`)
+- **Repositório único (Monorepo):** https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026 (`frontend` + `api`)
 - **App em produção:** https://vitrineiq-capim-dourado.vercel.app
 - **API em produção:** https://vitrineiq-hackarun-2026-api.vercel.app — documentação interativa em [`/docs`](https://vitrineiq-hackarun-2026-api.vercel.app/docs)
 
