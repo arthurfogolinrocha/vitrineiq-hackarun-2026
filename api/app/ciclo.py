@@ -133,8 +133,8 @@ def buscar_oferta(body: BuscaIn) -> dict[str, Any]:
 class VitrineEventoIn(BaseModel):
     """Resumo de 10 s que o computer-vision grava (formato do vitrine_eventos.json) + a ala."""
     zona: ZoneId
-    inicio: str
-    fim: str
+    inicio: datetime  # a câmera manda sem fuso ("2026-11-13T19:00:00"); vale o horário local dela
+    fim: datetime
     passantes: int = Field(ge=0, le=10_000)
     olharam: int = Field(ge=0, le=10_000)
     pararam_sem_olhar: int = Field(default=0, ge=0, le=10_000)
@@ -148,20 +148,21 @@ class VitrineEventoIn(BaseModel):
 class VitrineAlertaIn(BaseModel):
     zona: ZoneId
     evento: Literal["atencao_alta", "lotacao", "apontou"]
-    momento: str
+    momento: datetime
     zonaVitrine: Optional[str] = Field(default=None, max_length=20)
     olhando_s: Optional[float] = None
     pessoas: Optional[int] = None
 
 
+# mode="json" grava as datas em ISO: o JSON continua serializável e resumo_vitrine lê com fromisoformat.
 @router.post("/vitrine/eventos", status_code=201)
 def receber_evento(body: VitrineEventoIn) -> dict[str, Any]:
-    return db.inserir("vitrine", body.zona, body.model_dump())
+    return db.inserir("vitrine", body.zona, body.model_dump(mode="json"))
 
 
 @router.post("/vitrine/alertas", status_code=201)
 def receber_alerta(body: VitrineAlertaIn) -> dict[str, Any]:
-    return db.inserir("alerta", body.zona, body.model_dump(exclude_none=True))
+    return db.inserir("alerta", body.zona, body.model_dump(mode="json", exclude_none=True))
 
 
 def _pct(a: int, b: int) -> int:

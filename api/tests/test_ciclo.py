@@ -80,3 +80,15 @@ def test_camera_alimenta_resumo_e_alerta_da_vitrine():
     estado = client.get("/api/estado").json()
     assert estado["vitrine"][ALA]["passantes"] == 10
     assert [a["evento"] for a in estado["alertas"]] == ["atencao_alta"]
+
+
+EVENTO = {"zona": ALA, "inicio": "2026-11-13T19:00:00", "fim": "2026-11-13T19:00:10", "passantes": 1, "olharam": 1}
+
+
+def test_data_invalida_da_camera_e_recusada_e_estado_segue_de_pe():
+    # Issue #36: "abc" era gravado e GET /api/estado passava a responder 500 para sempre.
+    assert client.post("/api/vitrine/eventos", json={**EVENTO, "inicio": "abc"}).status_code == 422
+    assert client.post("/api/vitrine/alertas", json={"zona": ALA, "evento": "lotacao", "momento": "abc"}).status_code == 422
+    assert client.post("/api/vitrine/eventos", json=EVENTO).status_code == 201
+    res = client.get("/api/estado")
+    assert res.status_code == 200 and res.json()["vitrine"][ALA]["atualizadoEm"] == "2026-11-13T19:00:10"
