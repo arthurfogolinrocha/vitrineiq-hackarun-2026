@@ -2,10 +2,8 @@
 
 Time **Nido King** · Desafio 06 – Inteligência comercial para lojistas · 1º HackaRun UniCatólica 2026
 
-| Missão | Pasta | Situação |
+| Missão | O que entrega | Abrir |
 |---|---|---|
-| **Missão 1 – Planejamento técnico** | [`missao-1/`](./missao-1/) | ✅ Entregue |
-| Missão 2 – Protótipo funcional | `missao-2/` (código na raiz do repositório) | Em andamento |
-| Missão 3 – Entrega final e pitch | `missao-3/` | A fazer |
-
-**Comece por aqui:** [`missao-1/01_Planejamento_Tecnico_v1.1.pdf`](./missao-1/01_Planejamento_Tecnico_v1.1.pdf)
+| **1 · Planejamento técnico** | Telas, documentação, linguagem, arquitetura, tecnologias e User Stories | 👉 [**docs/missao-1**](./missao-1/) |
+| 2 · Protótipo funcional | Código, fluxo principal e evidências de testes | [docs/missao-2](./missao-2/) |
+| 3 · Entrega final e pitch | Vídeo, roteiro e declaração de IA | [docs/missao-3](./missao-3/) |
