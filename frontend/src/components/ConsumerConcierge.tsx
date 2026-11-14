@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
+  Filter,
   Gift,
+  MapPin,
   Navigation,
   QrCode,
   Send,
@@ -9,7 +11,8 @@ import {
   Sparkles,
   Ticket,
 } from 'lucide-react';
-import { ConsumerSignal, FlashCampaign, FloorId, ShoppingZone, ZoneId } from '../types';
+import { ConsumerSignal, FlashCampaign, FloorId, SegmentCategory, ShoppingZone, ZoneId } from '../types';
+import { SEGMENT_LABELS } from '../data/shoppingData';
 
 interface ConsumerConciergeProps {
   zones: ShoppingZone[];
@@ -20,7 +23,8 @@ interface ConsumerConciergeProps {
   onSubmitConsumerSignal: (
     zoneId: ZoneId,
     query: string,
-    budget: ConsumerSignal['budget']
+    budget: ConsumerSignal['budget'],
+    segmento?: string
   ) => Promise<ConsumerSignal>;
   onNavigateToStore?: (storeName: string, floor?: FloorId) => void;
 }
@@ -30,6 +34,13 @@ const QUICK_CHIPS = [
   'Tênis confortável / academia',
   'Almoço rápido sem fila no 2º piso',
   'Algo gelado pro calor de Palmas',
+];
+
+const ORIGIN_PINS: { label: string; zoneId: ZoneId }[] = [
+  { label: 'Cinemark L2', zoneId: 'ala-lazer-cinema' },
+  { label: 'Detran / PF / É Pra Já', zoneId: 'ala-sul-esporte' },
+  { label: 'Praça L2', zoneId: 'praca-alimentacao-l2' },
+  { label: 'Portaria P1 / Central', zoneId: 'ala-central-ancoras' },
 ];
 
 export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
@@ -43,6 +54,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [budget, setBudget] = useState<ConsumerSignal['budget']>('80_200');
+  const [segmentFilter, setSegmentFilter] = useState<SegmentCategory>('todos');
   const [queryTouched, setQueryTouched] = useState(false);
   const [latestReward, setLatestReward] = useState<ConsumerSignal | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
@@ -50,7 +62,13 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
   const isQueryInvalid = queryTouched && query.trim().length < 3;
 
-  const ofertasDaAla = campaigns.filter((c) => c.active && c.zoneId === selectedZoneId);
+  const ofertasDaAla = campaigns.filter((c) => {
+    if (!c.active || c.zoneId !== selectedZoneId) return false;
+    if (segmentFilter === 'todos') return true;
+    const textMatch = `${c.storeName} ${c.title} ${c.whatsappCopy}`.toLowerCase();
+    const segLabel = (SEGMENT_LABELS[segmentFilter] ?? '').toLowerCase();
+    return c.segmento === segmentFilter || textMatch.includes(segmentFilter) || (segLabel && textMatch.includes(segLabel.split(' ')[0]));
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +77,12 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
       setLiveStatus('Erro: informe o que você procura com pelo menos 3 caracteres.');
       return;
     }
-    const created = await onSubmitConsumerSignal(selectedZoneId, query.trim(), budget);
+    const created = await onSubmitConsumerSignal(
+      selectedZoneId,
+      query.trim(),
+      budget,
+      segmentFilter === 'todos' ? undefined : segmentFilter
+    );
     setLatestReward(created);
     setLiveStatus(
       created.couponCode
@@ -77,34 +100,54 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
       </div>
 
       {/* Simulador Mobile-First Limpo (Ponta do Consumidor) */}
-      <section className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-md space-y-5 max-w-md mx-auto w-full">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <section className="lg:col-span-5 bento-card-cream rounded-3xl p-6 space-y-5 max-w-md mx-auto w-full border-[#E2A83B]/35">
+        <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200">
-              <QrCode className="w-5 h-5 text-amber-600" aria-hidden="true" />
+            <div className="p-2 rounded-xl bg-[#0B0D12] border border-[#E2A83B]/40 text-[#F5C76B]">
+              <QrCode className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-sm font-extrabold text-slate-900">Concierge QR — Capim Dourado</h2>
+              <h2 className="text-sm font-extrabold text-[#0B0D12]">Concierge QR — Capim Dourado</h2>
               <span className="text-[11px] text-emerald-700 font-semibold">
                 Sem baixar app • Zero cadastro
               </span>
             </div>
           </div>
-          <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-mono font-bold border border-slate-200 shrink-0 whitespace-nowrap">
+          <span className="px-2 py-0.5 rounded bg-stone-100 text-stone-700 text-[10px] font-mono font-bold border border-stone-200 shrink-0 whitespace-nowrap">
             Sem cadastro
           </span>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs" noValidate>
-          <div>
-            <label htmlFor="qr-zone" className="block font-bold text-slate-700 mb-1.5">
+          <div className="space-y-2">
+            <label htmlFor="qr-zone" className="block font-bold text-stone-700">
               Onde você está agora no shopping?
             </label>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Atalhos de origem no Capim Dourado">
+              {ORIGIN_PINS.map((pin) => {
+                const isSelected = selectedZoneId === pin.zoneId;
+                return (
+                  <button
+                    key={pin.label}
+                    type="button"
+                    onClick={() => onSelectZone(pin.zoneId)}
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 border transition ${
+                      isSelected
+                        ? 'bg-[#0B0D12] text-[#F5C76B] border-[#E2A83B]'
+                        : 'bg-[#FAF8F5] text-stone-700 border-stone-300 hover:border-[#7A4B0A]'
+                    }`}
+                  >
+                    <MapPin className="w-3 h-3" aria-hidden="true" />
+                    {pin.label}
+                  </button>
+                );
+              })}
+            </div>
             <select
               id="qr-zone"
               value={selectedZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-medium"
+              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -114,11 +157,30 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             </select>
           </div>
 
+          <div className="space-y-1.5">
+            <label htmlFor="qr-segment" className="font-bold text-stone-700 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-[#7A4B0A]" aria-hidden="true" />
+              <span>Filtrar por Segmento</span>
+            </label>
+            <select
+              id="qr-segment"
+              value={segmentFilter}
+              onChange={(e) => setSegmentFilter(e.target.value as SegmentCategory)}
+              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-[#0B0D12] font-semibold"
+            >
+              {Object.entries(SEGMENT_LABELS).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
-            <label htmlFor="qr-query" className="block font-bold text-slate-700 mb-1">
+            <label htmlFor="qr-query" className="block font-bold text-stone-700 mb-1">
               O que você procura ou achou das lojas hoje?
             </label>
-            <span id="qr-query-hint" className="block text-[11px] text-slate-500 mb-1.5">
+            <span id="qr-query-hint" className="block text-[11px] text-stone-500 mb-1.5">
               Mínimo de 3 caracteres. Sua busca libera cupons na hora (não pedimos nome nem contato; não escreva dados pessoais).
             </span>
             <input
@@ -134,8 +196,8 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               onBlur={() => setQueryTouched(true)}
               onInvalid={() => setQueryTouched(true)}
               placeholder="Ex: Presente até R$ 150 ou camisa tamanho M"
-              className={`w-full bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-900 placeholder-slate-400 ${
-                isQueryInvalid ? 'user-invalid-fallback border-rose-500' : 'border-slate-300'
+              className={`w-full bg-[#FAF8F5] border rounded-xl px-3.5 py-2.5 text-[#0B0D12] placeholder-stone-400 ${
+                isQueryInvalid ? 'user-invalid-fallback border-rose-500' : 'border-stone-300'
               }`}
             />
             <div
@@ -157,7 +219,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                   setQuery(chip);
                   setQueryTouched(false);
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[11px] text-slate-700 font-medium transition"
+                className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] text-stone-700 font-medium transition"
               >
                 {chip}
               </button>
@@ -165,14 +227,14 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           </div>
 
           <div>
-            <label htmlFor="qr-budget" className="block font-bold text-slate-700 mb-1.5">
+            <label htmlFor="qr-budget" className="block font-bold text-stone-700 mb-1.5">
               Faixa de valor desejada
             </label>
             <select
               id="qr-budget"
               value={budget}
               onChange={(e) => setBudget(e.target.value as ConsumerSignal['budget'])}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-medium"
+              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium"
             >
               <option value="ate_80">Até R$ 80</option>
               <option value="80_200">Entre R$ 80 e R$ 200</option>
@@ -182,7 +244,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
+            className="w-full py-3 rounded-xl gold-pill-metallic text-xs flex items-center justify-center gap-2 transition"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
             <span>Buscar oferta</span>

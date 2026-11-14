@@ -53,6 +53,25 @@ export type WeatherCondition = 'calor_38c' | 'chuva_forte' | 'ameno';
 export type TimeSlot = 'manha' | 'almoco' | 'pos_trabalho' | 'pos_cinema_20h';
 export type MallEvent = 'estreia_cinemark' | 'fim_de_semana' | 'dia_pagamento' | 'fluxo_normal';
 
+export type SegmentCategory =
+  | 'todos'
+  | 'moda'
+  | 'esportes'
+  | 'eletronicos'
+  | 'alimentacao'
+  | 'servicos';
+
+export type AccessRole = 'admin' | 'store';
+
+export interface StoreTenant {
+  id: string;
+  storeName: string;
+  zoneId: ZoneId;
+  segment: Exclude<SegmentCategory, 'todos'>;
+  avgTicket: number;
+  floorLabel: string;
+}
+
 export interface ShopContextFactors {
   weather: WeatherCondition;
   timeSlot: TimeSlot;
@@ -93,6 +112,7 @@ export interface ConsumerSignal {
   zoneId: ZoneId;
   query: string;
   budget: 'ate_80' | '80_200' | 'acima_200';
+  segmento?: string;
   preference: string;
   couponCode: string;
   matchedOffer: string;
@@ -117,6 +137,7 @@ export interface FlashCampaign {
   couponCode: string;
   whatsappCopy: string;
   expiresInMinutes: number;
+  segmento?: string;
   active: boolean;
   createdAt: string;
 }

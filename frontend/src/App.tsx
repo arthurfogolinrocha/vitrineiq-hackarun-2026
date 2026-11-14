@@ -2,15 +2,18 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   BookOpen,
   Box,
+  Building2,
   Camera,
   ClipboardCheck,
   LayoutDashboard,
+  Lock,
   QrCode,
   ShieldCheck,
   Store,
 } from 'lucide-react';
 import {
   AIAnalysisResponse,
+  AccessRole,
   ConsumerSignal,
   FlashCampaign,
   FloorId,
@@ -22,6 +25,7 @@ import {
   ZoneId,
 } from './types';
 import {
+  CAPIM_DOURADO_STORES,
   CAPIM_DOURADO_ZONES,
   CROSS_SEGMENT_ROUTES,
   INITIAL_FLASH_CAMPAIGNS,
@@ -36,7 +40,7 @@ import {
 import { analyzeWithAI } from './services/ai';
 import { api, CicloEstado, LiveContextPayload, VitrineAlerta, VitrineResumo } from './services/api';
 import { generateAuditHash } from './utils/security';
-import { readUrlView } from './utils/urlView';
+import { readTenantUrl, readUrlView } from './utils/urlView';
 import { RetailerCockpit } from './components/RetailerCockpit';
 import { ShoppingMap } from './components/ShoppingMap';
 import { EdgeVisionSensor } from './components/EdgeVisionSensor';
@@ -98,8 +102,22 @@ const TAB_META: Record<
 export function App() {
   // ?tela=concierge|balcao abre a tela sozinha (QR do visitante / aparelho do vendedor)
   const [urlView] = useState(() => readUrlView(window.location.search));
+  const [initialTenant] = useState(() => readTenantUrl(window.location.search));
   const kioskTab = urlView.kioskTab;
-  const initialZoneId = urlView.zoneId ?? 'ala-central-ancoras';
+
+  const [accessRole, setAccessRole] = useState<AccessRole>(initialTenant.role);
+  const [activeStoreId, setActiveStoreId] = useState<string>(
+    initialTenant.storeId ?? CAPIM_DOURADO_STORES[0].id
+  );
+  const activeTenant = useMemo(
+    () =>
+      accessRole === 'store'
+        ? CAPIM_DOURADO_STORES.find((s) => s.id === activeStoreId) ?? CAPIM_DOURADO_STORES[0]
+        : null,
+    [accessRole, activeStoreId]
+  );
+
+  const initialZoneId = activeTenant?.zoneId ?? urlView.zoneId ?? 'ala-central-ancoras';
   const [activeTab, setActiveTab] = useState<ActiveTab>(kioskTab ?? 'cockpit');
   const [floor, setFloor] = useState<FloorId>(
     CAPIM_DOURADO_ZONES.find((z) => z.id === initialZoneId)?.floor ?? 'L1'
@@ -176,7 +194,10 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const e = await api.estado();
+      const filtro = activeTenant
+        ? { loja: activeTenant.storeName, ala: activeTenant.zoneId }
+        : undefined;
+      const e = await api.estado(filtro);
       setLostSales(e.lostSales);
       setCompletedSalesByZone(e.completedSalesByZone);
       setSignals(e.signals);
@@ -188,7 +209,15 @@ export function App() {
     } catch {
       setOnline(false);
     }
-  }, []);
+  }, [activeTenant]);
+
+  useEffect(() => {
+    if (activeTenant) {
+      setSelectedZoneId(activeTenant.zoneId);
+      const z = CAPIM_DOURADO_ZONES.find((item) => item.id === activeTenant.zoneId);
+      if (z) setFloor(z.floor);
+    }
+  }, [activeTenant]);
 
   useEffect(() => {
     refresh();
@@ -264,20 +293,118 @@ export function App() {
       }
     : visionSnapshot, [cameraResumo, selectedZoneId, visionSnapshot]);
 
-  const alertaAtivo = alertas.find((a) => a.evento === 'atencao_alta' && !alertasVistos.includes(a.id));
+  const [demoCameraOverlay, setDemoCameraOverlay] = useState<{
+    zoneId: ZoneId;
+    apontaram: number;
+    noCelular: number;
+    voltaramOlhar: number;
+    olharesPorZona: { esquerda: number; centro: number; direita: number };
+    lastPointedPart: 'esquerda' | 'centro' | 'direita' | null;
+  } | null>(null);
 
-  const zonesTelemetry = useMemo(
-    () =>
-      CAPIM_DOURADO_ZONES.map((zone) =>
-        computeZoneTelemetry(zone, factors, signals, lostSales, effectiveVision)
-      ),
-    [factors, signals, lostSales, effectiveVision]
+  const alertaAtivo = alertas.find(
+    (a) =>
+      (a.evento === 'atencao_alta' || a.evento === 'apontou' || a.evento === 'lotacao') &&
+      !alertasVistos.includes(a.id)
   );
+
+  const scopedLostSales = useMemo(
+    () =>
+      activeTenant
+        ? lostSales.filter(
+            (ls) => ls.storeName.trim().toLowerCase() === activeTenant.storeName.toLowerCase()
+          )
+        : lostSales,
+    [activeTenant, lostSales]
+  );
+
+  const scopedCampaigns = useMemo(
+    () =>
+      activeTenant
+        ? campaigns.filter(
+            (c) => c.storeName.trim().toLowerCase() === activeTenant.storeName.toLowerCase()
+          )
+        : campaigns,
+    [activeTenant, campaigns]
+  );
+
+  const zonesTelemetry = useMemo(() => {
+    const list = activeTenant
+      ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
+      : CAPIM_DOURADO_ZONES;
+    return list.map((zone) =>
+      computeZoneTelemetry(zone, factors, signals, scopedLostSales, effectiveVision)
+    );
+  }, [activeTenant, factors, signals, scopedLostSales, effectiveVision]);
 
   const selectedTelemetry =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
 
+  const mergedVitrineResumo = useMemo<VitrineResumo>(() => {
+    const base = cameraResumo;
+    const demo = demoCameraOverlay?.zoneId === selectedZoneId ? demoCameraOverlay : null;
+    const passantes = (base?.passantes ?? effectiveVision.passersBy) + (demo ? 4 : 0);
+    const olharam = (base?.olharam ?? effectiveVision.vitrineStops) + (demo ? demo.apontaram : 0);
+    const leftBase = base?.olharesPorZona?.esquerda ?? Math.round(olharam * 0.28);
+    const centerBase = base?.olharesPorZona?.centro ?? Math.round(olharam * 0.44);
+    const rightBase =
+      base?.olharesPorZona?.direita ?? Math.max(0, olharam - leftBase - centerBase);
+    return {
+      passantes,
+      olharam,
+      taxaAtencao: passantes ? Math.round((olharam * 100) / passantes) : 0,
+      pararamSemOlhar: base?.pararamSemOlhar ?? Math.round(passantes * 0.14),
+      atencaoMediaS: base?.atencaoMediaS ?? 6.4,
+      picoSimultaneo: base?.picoSimultaneo ?? 5,
+      apontaram: (base?.apontaram ?? 2) + (demo?.apontaram ?? 0),
+      noCelular: (base?.noCelular ?? 3) + (demo?.noCelular ?? 0),
+      voltaramOlhar: (base?.voltaramOlhar ?? 2) + (demo?.voltaramOlhar ?? 0),
+      chegaramPerto: (base?.chegaramPerto ?? 6) + (demo ? 2 : 0),
+      horaPico: base?.horaPico ?? 19,
+      porHora: base?.porHora ?? {},
+      olharesPorZona: {
+        esquerda: leftBase + (demo?.olharesPorZona.esquerda ?? 0),
+        centro: centerBase + (demo?.olharesPorZona.centro ?? 0),
+        direita: rightBase + (demo?.olharesPorZona.direita ?? 0),
+      },
+      acoes: base?.acoes ?? [],
+      atualizadoEm: base?.atualizadoEm ?? null,
+    };
+  }, [cameraResumo, demoCameraOverlay, effectiveVision, selectedZoneId]);
+
+  const handleSimulatePointGesture = (part: 'esquerda' | 'centro' | 'direita') => {
+    setDemoCameraOverlay((prev) => {
+      const sameZone = prev && prev.zoneId === selectedZoneId;
+      const baseZona = sameZone ? prev.olharesPorZona : { esquerda: 0, centro: 0, direita: 0 };
+      return {
+        zoneId: selectedZoneId,
+        apontaram: (sameZone ? prev.apontaram : 0) + 1,
+        noCelular: (sameZone ? prev.noCelular : 0) + (part === 'centro' ? 1 : 0),
+        voltaramOlhar: (sameZone ? prev.voltaramOlhar : 0) + 1,
+        olharesPorZona: {
+          ...baseZona,
+          [part]: baseZona[part] + 3,
+        },
+        lastPointedPart: part,
+      };
+    });
+    const fakeAlert: VitrineAlerta = {
+      id: `sim-apontou-${Date.now()}`,
+      zona: selectedZoneId,
+      evento: 'apontou',
+      zonaVitrine: part,
+      olhando_s: 4.5,
+      timestamp: new Date().toISOString(),
+    };
+    setAlertas((prev) => [fakeAlert, ...prev.slice(0, 9)]);
+    appendAudit(
+      'VITRINE_GESTURE_DETECTED',
+      `Pose YOLO detectou cliente apontando para vitrine ${part.toUpperCase()} (${selectedTelemetry.zone.shortName})`
+    );
+  };
+
   const handleSelectZone = (zoneId: ZoneId) => {
+    if (activeTenant && zoneId !== activeTenant.zoneId) return;
     if (zoneId !== selectedZoneId) {
       setSelectedZoneId(zoneId);
       setLastAnalysis(null);
@@ -430,11 +557,12 @@ export function App() {
   const handleSubmitConsumerSignal = async (
     zoneId: ZoneId,
     query: string,
-    budget: ConsumerSignal['budget']
+    budget: ConsumerSignal['budget'],
+    segmento?: string
   ): Promise<ConsumerSignal> => {
     if (online) {
       try {
-        const salvo = await api.buscar(zoneId, query, budget);
+        const salvo = await api.buscar(zoneId, query, budget, segmento);
         refresh();
         return salvo;
       } catch {
@@ -442,12 +570,21 @@ export function App() {
       }
     }
     const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId) ?? CAPIM_DOURADO_ZONES[0];
-    const match = matchConsumerOffer(query, zone, campaigns);
+    const filteredCampaigns =
+      segmento && segmento !== 'todos'
+        ? campaigns.filter((c) => !c.segmento || c.segmento === segmento)
+        : campaigns;
+    const match = matchConsumerOffer(
+      query,
+      zone,
+      filteredCampaigns.length ? filteredCampaigns : campaigns
+    );
     const signal: ConsumerSignal = {
       id: `sig-${Date.now()}`,
       zoneId,
       query,
       budget,
+      segmento,
       preference: zone.segment,
       couponCode: match.couponCode,
       matchedOffer: match.matchedOffer,
@@ -481,24 +618,80 @@ export function App() {
   const meta = TAB_META[activeTab];
 
   return (
-    <div className="min-h-screen bg-[#F4F2EE] text-[#111318] flex flex-col lg:flex-row">
-      {/* SIDEBAR EXECUTIVA OBSIDIAN (DESKTOP) */}
-      <aside className={`${kioskTab ? 'hidden' : 'hidden lg:flex'} lg:w-64 lg:shrink-0 lg:flex-col lg:justify-between bg-[#111318] text-white border-r border-white/10 p-5 sticky top-0 h-screen`}>
-        <div className="space-y-6">
+    <div className="min-h-screen bg-[#F6F2EA] text-[#0B0D12] flex flex-col lg:flex-row">
+      {/* SIDEBAR EXECUTIVA OBSIDIAN + CAPIM DOURADO (DESKTOP) */}
+      <aside className={`${kioskTab ? 'hidden' : 'hidden lg:flex'} lg:w-72 lg:shrink-0 lg:flex-col lg:justify-between bg-[#0B0D12] text-white border-r border-[#E2A83B]/20 p-5 sticky top-0 h-screen overflow-y-auto`}>
+        <div className="space-y-5">
           {/* Identidade da Marca */}
-          <div className="flex items-center gap-3 pb-4 border-b border-white/10">
-            <div className="w-10 h-10 rounded-xl bg-[#E2A83B] text-[#111318] font-black text-lg flex items-center justify-center shadow-sm">
+          <div className="flex items-center gap-3 pb-4 border-b border-[#E2A83B]/15">
+            <div className="w-10 h-10 rounded-xl gold-pill-metallic font-black text-lg flex items-center justify-center shrink-0">
               V
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base tracking-tight text-white">VitrineIQ</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Sistema Online" />
+                <span className="live-status-dot live-status-dot--gold" title="Sistema Online" />
               </div>
-              <span className="text-[11px] text-stone-400 block truncate">
+              <span className="text-[11px] text-[#F5C76B] font-semibold block truncate">
                 Capim Dourado • Palmas-TO
               </span>
             </div>
+          </div>
+
+          {/* Seletor Multi-Tenant: Admin do Shopping vs Lojista da Loja */}
+          <div className="rounded-2xl bg-[#12151D] border border-[#E2A83B]/25 p-3 space-y-2.5">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#F5C76B]">
+              <span className="flex items-center gap-1.5">
+                {activeTenant ? <Lock className="w-3 h-3" aria-hidden="true" /> : <Building2 className="w-3 h-3" aria-hidden="true" />}
+                {activeTenant ? 'Modo Lojista Isolado' : 'Admin Shopping'}
+              </span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-stone-300">
+                Multi-Tenant
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setAccessRole('admin')}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                  accessRole === 'admin'
+                    ? 'gold-pill-metallic'
+                    : 'bg-white/5 text-stone-300 hover:bg-white/10'
+                }`}
+              >
+                Admin Geral
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccessRole('store')}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition ${
+                  accessRole === 'store'
+                    ? 'gold-pill-metallic'
+                    : 'bg-white/5 text-stone-300 hover:bg-white/10'
+                }`}
+              >
+                Minha Loja
+              </button>
+            </div>
+            {accessRole === 'store' && (
+              <div className="space-y-1">
+                <label htmlFor="tenant-store-select" className="text-[10px] text-stone-400 block">
+                  Loja logada (dados isolados):
+                </label>
+                <select
+                  id="tenant-store-select"
+                  value={activeStoreId}
+                  onChange={(e) => setActiveStoreId(e.target.value)}
+                  className="w-full rounded-lg bg-[#0B0D12] border border-[#E2A83B]/30 px-2.5 py-1.5 text-xs font-bold text-[#F5C76B]"
+                >
+                  {CAPIM_DOURADO_STORES.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.storeName} ({st.floorLabel.split('•')[1]?.trim() ?? st.zoneId})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Navegação Numerada Principal */}
@@ -615,8 +808,32 @@ export function App() {
               </div>
             </div>
 
-            {/* Atalhos Rápidos */}
-            <div className="flex items-center gap-2">
+            {/* Atalhos Rápidos + Indicador de Conta */}
+            <div className="flex flex-wrap items-center gap-2">
+              {!kioskTab && (
+                <button
+                  type="button"
+                  onClick={() => setAccessRole(accessRole === 'admin' ? 'store' : 'admin')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border transition ${
+                    activeTenant
+                      ? 'bg-[#0B0D12] border-[#E2A83B]/40 text-[#F5C76B]'
+                      : 'bg-white border-stone-200 text-[#0B0D12] hover:border-[#E2A83B]'
+                  }`}
+                  title="Alternar entre visão Admin do Shopping e visão isolada da Loja"
+                >
+                  {activeTenant ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-[#E2A83B]" aria-hidden="true" />
+                      <span>Loja: {activeTenant.storeName}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Building2 className="w-3.5 h-3.5 text-[#7A4B0A]" aria-hidden="true" />
+                      <span>Visão Admin (Todas as Lojas)</span>
+                    </>
+                  )}
+                </button>
+              )}
               {kioskTab && activeTab !== kioskTab && (
                 <button
                   type="button"
@@ -692,14 +909,20 @@ export function App() {
             {!kioskTab && alertaAtivo && (
               <div
                 role="alert"
-                className="mb-5 p-4 rounded-2xl bg-[#111318] text-white flex flex-wrap items-center justify-between gap-3 shadow-md"
+                className="mb-5 p-4 rounded-2xl bento-card-obsidian text-white flex flex-wrap items-center justify-between gap-3"
               >
-                <span className="text-sm font-bold">
-                  👀 Cliente olhando a vitrine agora
-                  {' — '}
-                  {CAPIM_DOURADO_ZONES.find((z) => z.id === alertaAtivo.zona)?.shortName ?? alertaAtivo.zona}
-                  {alertaAtivo.zonaVitrine ? `, parte da ${alertaAtivo.zonaVitrine}` : ''}
-                  {alertaAtivo.olhando_s ? ` (${alertaAtivo.olhando_s} s)` : ''}. Hora de uma campanha relâmpago.
+                <span className="text-sm font-bold flex items-center gap-2">
+                  <span className="live-status-dot live-status-dot--gold shrink-0" />
+                  <span>
+                    {alertaAtivo.evento === 'apontou'
+                      ? `👉 Cliente APONTOU para a vitrine${alertaAtivo.zonaVitrine ? ` (${alertaAtivo.zonaVitrine.toUpperCase()})` : ''}`
+                      : alertaAtivo.evento === 'lotacao'
+                        ? `🔥 Pico de concentração na frente da loja${alertaAtivo.pessoas ? ` (${alertaAtivo.pessoas} pessoas)` : ''}`
+                        : '👀 Cliente olhando a vitrine agora'}
+                    {' — '}
+                    {CAPIM_DOURADO_ZONES.find((z) => z.id === alertaAtivo.zona)?.shortName ?? alertaAtivo.zona}
+                    {alertaAtivo.olhando_s ? ` (${alertaAtivo.olhando_s} s)` : ''}. Hora de liberar oferta relâmpago!
+                  </span>
                 </span>
                 <span className="flex gap-2">
                   <button
@@ -709,7 +932,7 @@ export function App() {
                       setActiveTab('cockpit');
                       setAlertasVistos((v) => [...v, alertaAtivo.id]);
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-[#E2A83B] text-[#111318] text-xs font-extrabold"
+                    className="px-3 py-1.5 rounded-xl gold-pill-metallic text-xs font-extrabold"
                   >
                     Criar campanha
                   </button>
@@ -735,7 +958,15 @@ export function App() {
                 isContextAuto={isContextAuto}
                 isSyncingContext={isSyncingContext}
                 onSyncLiveContext={() => syncLiveContext(true)}
-                campaigns={campaigns}
+                activeTenant={activeTenant}
+                vitrineResumo={mergedVitrineResumo}
+                lastPointedPart={
+                  demoCameraOverlay?.zoneId === selectedZoneId
+                    ? demoCameraOverlay.lastPointedPart
+                    : (alertaAtivo?.evento === 'apontou' ? (alertaAtivo.zonaVitrine as 'esquerda' | 'centro' | 'direita' | undefined) ?? null : null)
+                }
+                onSimulatePointGesture={handleSimulatePointGesture}
+                campaigns={scopedCampaigns}
                 onLaunchCampaign={handleLaunchCampaign}
                 onToggleCampaign={handleToggleCampaign}
                 onDeleteCampaign={handleDeleteCampaign}
@@ -775,10 +1006,15 @@ export function App() {
 
             {activeTab === 'counter' && (
               <CounterQuickLog
-                zones={CAPIM_DOURADO_ZONES}
+                zones={
+                  activeTenant
+                    ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
+                    : CAPIM_DOURADO_ZONES
+                }
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
-                lostSales={lostSales}
+                lostSales={scopedLostSales}
+                lockedStoreName={activeTenant?.storeName}
                 onLogLostSale={handleLogLostSale}
                 onUndoLostSale={handleUndoLostSale}
                 onLogCompletedSale={handleLogCompletedSale}

@@ -141,3 +141,52 @@ def test_perfil_por_hora_junta_camera_balcao_e_concierge():
     assert perfil["19"]["passaram"] == 7 and perfil["19"]["olharam"] == 2
     agora = str(db.agora().hour)
     assert (perfil[agora]["vendas"], perfil[agora]["perdidas"], perfil[agora]["buscas"]) == (1, 1, 1)
+
+
+def test_micro_sinais_comportamentais_da_vitrine_sao_agregados():
+    client.post(
+        "/api/vitrine/eventos",
+        json={**EVENTO, "apontaram": 3, "no_celular": 4, "voltaram_a_olhar": 2, "chegaram_perto": 5},
+    )
+    resumo = client.get("/api/estado").json()["vitrine"][ALA]
+    assert resumo["apontaram"] == 3
+    assert resumo["noCelular"] == 4
+    assert resumo["voltaramOlhar"] == 2
+    assert resumo["chegaramPerto"] == 5
+
+
+def test_estado_isola_dados_por_loja_sem_vazar_concorrentes():
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Centauro", "tipo": "perdida", "reason": "preco"})
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Renner", "tipo": "perdida", "reason": "estoque_grade"})
+    client.post("/api/balcao", json={"zoneId": ALA, "storeName": "Centauro", "tipo": "venda"})
+    client.post(
+        "/api/campanhas",
+        json={"zoneId": ALA, "storeName": "Renner", "title": "Segredo Renner", "discountBadge": "10%", "couponCode": "REN10"},
+    )
+    client.post(
+        "/api/campanhas",
+        json={"zoneId": ALA, "storeName": "Centauro", "title": "Oferta Centauro", "discountBadge": "15%", "couponCode": "CEN15"},
+    )
+
+    isolado = client.get("/api/estado", params={"loja": "Centauro", "ala": ALA}).json()
+    assert len(isolado["lostSales"]) == 1
+    assert isolado["lostSales"][0]["storeName"] == "Centauro"
+    assert isolado["completedSalesByZone"] == {ALA: 1}
+    assert [c["storeName"] for c in isolado["campaigns"]] == ["Centauro"]
+
+
+def test_concierge_prioriza_segmento_escolhido():
+    client.post(
+        "/api/campanhas",
+        json={"zoneId": ALA, "storeName": "Restaurante X", "title": "Almoço", "discountBadge": "10%", "couponCode": "ALM10", "segmento": "alimentacao"},
+    )
+    client.post(
+        "/api/campanhas",
+        json={"zoneId": ALA, "storeName": "Tech Y", "title": "Fone BT", "discountBadge": "20%", "couponCode": "TECH20", "segmento": "eletronicos"},
+    )
+    busca = client.post(
+        "/api/concierge/busca",
+        json={"zoneId": ALA, "query": "fone sem fio", "segmento": "eletronicos"},
+    ).json()
+    assert busca["couponCode"] == "TECH20"
+

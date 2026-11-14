@@ -3,8 +3,86 @@ import {
   FlashCampaign,
   LostSaleEvent,
   LostSaleReason,
+  SegmentCategory,
   ShoppingZone,
+  StoreTenant,
 } from '../types';
+
+export const SEGMENT_LABELS: Record<SegmentCategory, string> = {
+  todos: 'Todos os Segmentos',
+  moda: 'Moda & Calçados',
+  esportes: 'Esportes & Fitness',
+  eletronicos: 'Eletrônicos & Tech',
+  alimentacao: 'Alimentação & Café',
+  servicos: 'Serviços & Lazer',
+};
+
+export const CAPIM_DOURADO_STORES: StoreTenant[] = [
+  {
+    id: 'centauro',
+    storeName: 'Centauro',
+    zoneId: 'ala-sul-esporte',
+    segment: 'esportes',
+    avgTicket: 289,
+    floorLabel: 'Térreo • Ala Sul JK',
+  },
+  {
+    id: 'renner',
+    storeName: 'Renner',
+    zoneId: 'ala-sul-esporte',
+    segment: 'moda',
+    avgTicket: 189,
+    floorLabel: 'Térreo • Ala Sul JK',
+  },
+  {
+    id: 'cea',
+    storeName: 'C&A',
+    zoneId: 'ala-central-ancoras',
+    segment: 'moda',
+    avgTicket: 165,
+    floorLabel: 'Térreo • Ala Central',
+  },
+  {
+    id: 'samsung',
+    storeName: 'Samsung Capim Dourado',
+    zoneId: 'ala-central-ancoras',
+    segment: 'eletronicos',
+    avgTicket: 690,
+    floorLabel: 'Térreo • Ala Central',
+  },
+  {
+    id: 'outback',
+    storeName: 'Outback',
+    zoneId: 'alameda-gourmet',
+    segment: 'alimentacao',
+    avgTicket: 215,
+    floorLabel: 'Térreo • Alameda Gourmet P1',
+  },
+  {
+    id: 'vivara',
+    storeName: 'Vivara',
+    zoneId: 'alameda-gourmet',
+    segment: 'moda',
+    avgTicket: 440,
+    floorLabel: 'Térreo • Alameda Gourmet P1',
+  },
+  {
+    id: 'studioz',
+    storeName: 'Studio Z (STZ)',
+    zoneId: 'ala-lazer-cinema',
+    segment: 'moda',
+    avgTicket: 159,
+    floorLabel: 'Térreo • Ala Norte Cinemark',
+  },
+  {
+    id: 'pizza-hut',
+    storeName: 'Pizza Hut',
+    zoneId: 'praca-alimentacao-l2',
+    segment: 'alimentacao',
+    avgTicket: 98,
+    floorLabel: '2º Piso • Praça de Alimentação',
+  },
+];
 
 export const LOST_SALE_LABELS: Record<LostSaleReason, string> = {
   preco: 'Preço / Condição de Parcelamento',
