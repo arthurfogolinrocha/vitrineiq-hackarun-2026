@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogOut } from 'lucide-react';
+import { Dices, LogOut } from 'lucide-react';
 import { AccessRole, StoreTenant } from '../../types';
 import { Papel, Sessao } from '../../services/api';
 import { ActiveTab } from '../../utils/acesso';
@@ -26,6 +26,7 @@ interface AppTopHeaderProps {
   onLogout: () => void;
   navItems: NavItem[];
   onSelectTab: (tab: ActiveTab) => void;
+  onOpenStories?: () => void;
 }
 
 /** Barra superior compacta com contexto executivo, status de conexão, logout e navegação mobile. */
@@ -49,6 +50,7 @@ export const AppTopHeader: React.FC<AppTopHeaderProps> = ({
   onLogout,
   navItems,
   onSelectTab,
+  onOpenStories,
 }) => {
   const meta = TAB_META[activeTab];
 
@@ -92,6 +94,17 @@ export const AppTopHeader: React.FC<AppTopHeaderProps> = ({
               onSelectStore={onSelectStore}
               variant="compact"
             />
+          )}
+          {!kioskTab && !conciergePublico && onOpenStories && (
+            <button
+              type="button"
+              onClick={onOpenStories}
+              title="Abrir mapa das User Stories (Prática Sorteada: STORIES)"
+              className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#0B0D12] hover:bg-[#171B26] border border-[#E2A83B]/45 text-xs font-extrabold text-[#F5C76B] inline-flex items-center gap-1.5 shadow-sm transition"
+            >
+              <Dices className="w-3.5 h-3.5 text-[#E2A83B]" aria-hidden="true" />
+              <span>Stories (Roleta)</span>
+            </button>
           )}
           <span
             role="status"

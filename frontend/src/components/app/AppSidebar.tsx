@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store } from 'lucide-react';
+import { Dices, Store } from 'lucide-react';
 import { AccessRole, StoreTenant } from '../../types';
 import { Papel } from '../../services/api';
 import { ZoneLiveTelemetry } from '../../services/opportunityEngine';
@@ -21,6 +21,7 @@ interface AppSidebarProps {
   onSelectTab: (tab: ActiveTab) => void;
   getTabNumber: (id: ActiveTab) => string;
   selectedTelemetry: ZoneLiveTelemetry;
+  onOpenStories?: () => void;
 }
 
 /** Sidebar executiva desktop (Obsidian + Capim Dourado) com multi-tenant e navegação numerada. */
@@ -37,6 +38,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onSelectTab,
   getTabNumber,
   selectedTelemetry,
+  onOpenStories,
 }) => {
   return (
     <aside
@@ -114,6 +116,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             );
           })}
         </nav>
+
+        {onOpenStories && (
+          <button
+            type="button"
+            onClick={onOpenStories}
+            title="Abrir mapa das User Stories (Prática Sorteada: STORIES)"
+            className="w-full px-3 py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.09] border border-[#E2A83B]/35 text-xs font-bold text-[#F5C76B] flex items-center justify-between gap-2 transition"
+          >
+            <span className="flex items-center gap-2.5 truncate">
+              <Dices className="w-4 h-4 text-[#E2A83B] shrink-0" aria-hidden="true" />
+              <span className="truncate">Stories (Roleta)</span>
+            </span>
+            <span className="text-[10px] font-mono text-stone-400">US-01..05</span>
+          </button>
+        )}
       </div>
 
       {/* Cartão de Contexto da Loja ou Ala Ativa no Rodapé da Sidebar */}

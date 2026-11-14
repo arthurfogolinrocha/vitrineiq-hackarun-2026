@@ -5,24 +5,24 @@
 
 ### Verificação Crítica de Submissão:
 
-- [ ] **1. Deploy em Produção Ativo:**
-  - Aplicação online na Vercel com link HTTPS funcionando sem erros no console?
-  - Testado no navegador mobile (iOS e Android)?
-  - Todas as abas e botões operando perfeitamente?
+- [x] **1. Deploy em Produção Ativo (`9.8 / 10` na Auditoria Técnica):**
+  - Frontend online na Vercel (`https://vitrineiq-capim-dourado.vercel.app`) + API FastAPI (`https://vitrineiq-hackarun-2026-api.vercel.app/docs`) validados sem erros no console, CSP ou API.
+  - Smoke E2E multi-viewport (`390x844` e `1440x900`) + WCAG (`axe-core`) verificado em produção.
+  - Todas as 7 abas, Sensor LGPD, Gêmeo 3D L1/L2, Balcão Voz + Fila Offline, Crowd-Drop e troca de senha (`PATCH /api/auth/senha`) operando.
 
-- [ ] **2. Repositório GitHub Limpo e Documentado:**
-  - `README.md` preenchido com badges, links, prints da aplicação e instruções de execução local?
-  - Suíte de testes automatizados passando no repositório?
-  - Histórico de commits consistente e organizado ao longo dos dias 12, 13 e 14?
+- [x] **2. Repositório GitHub Limpo e Documentado:**
+  - `README.md`, `docs/missao-2/README.md` e `docs/missao-3/README.md` atualizados com arquitetura modular, badges, score `9.8/10` e instruções de execução local / Docker Compose.
+  - Suíte completa de testes automatizados verdes (`107 pytest` + `51 Vitest` = `158` testes) + CI GitHub Actions (`.github/workflows/ci.yml`).
+  - Histórico de commits consistente ao longo dos dias 12, 13 e 14.
 
-- [ ] **3. Conformidade com o Artigo 6 (Declaração de IA):**
-  - Documento `TEMPLATE_DECLARACAO_IA.md` revisado e anexado ou citado no README?
-  - Toda a equipe alinhada para explicar qualquer linha de código perante a banca?
+- [x] **3. Conformidade com o Artigo 6 (Declaração de IA):**
+  - [x] Documento [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) atualizado com os integrantes da equipe, métricas reais (`158` testes, score `9.8/10`) e citado no `README.md`.
+  - [ ] Toda a equipe alinhada para explicar qualquer linha de código perante a banca.
 
 - [ ] **4. Vídeo de Pitch (Critério Crítico de Eliminação):**
-  - Duração **RIGOROSAMENTE entre 1m15s (75s) e 2m00s (120s)**?
-  - Vídeo hospedado no YouTube (Não Listado) com áudio e imagem nítidos?
-  - Demonstração do produto ao vivo incluída no vídeo?
+  - Duração **RIGOROSAMENTE entre 1m15s (75s) e 2m00s (120s)** (`VitrineIQ_Pitch_FINAL_COM_VOZ.mp4` atualizado com `115,6s`, `3840x2160` 4K UHD, `60fps`, demonstrando UI real em produção no MacBook/iPhone 3D, Gêmeo 3D L1/L2 + Subsolo `356` vagas, Crowd-Drop, Raio-X Gemini, Balcão Voz 4s, Stories da Roleta, Multi-Tenant e `158` testes).
+  - [ ] Vídeo hospedado no YouTube (Não Listado) com áudio e imagem nítidos.
+  - [x] Demonstração do produto incluída no vídeo.
 
 - [ ] **5. Submissão nos Canais Oficiais:**
   - Formulário oficial preenchido e submetido antes das **13h00** do dia 14/11.
@@ -33,4 +33,3 @@
 - [ ] Chegar ao shopping com antecedência para as **Missões-surpresa** (15h–16h45) que valem **+1.0 ponto extra** na nota final.
 - [ ] Baterias de notebooks e celulares 100% carregadas + adaptadores de tomada.
 - [ ] Roteiro do pitch presencial de 5 minutos ensaiado entre a equipe.
-

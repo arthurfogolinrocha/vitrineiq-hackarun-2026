@@ -1,0 +1,42 @@
+[
+  {
+    "id": "m01_hook",
+    "durationSec": 6.586,
+    "frames": 396
+  },
+  {
+    "id": "m02_dor",
+    "durationSec": 7.421,
+    "frames": 446
+  },
+  {
+    "id": "m03_revelacao",
+    "durationSec": 8.202,
+    "frames": 493
+  },
+  {
+    "id": "m04_cockpit_3d",
+    "durationSec": 12.232,
+    "frames": 734
+  },
+  {
+    "id": "m05_crowddrop",
+    "durationSec": 9.304,
+    "frames": 559
+  },
+  {
+    "id": "m06_raiox_lgpd",
+    "durationSec": 9.469,
+    "frames": 569
+  },
+  {
+    "id": "m07_balcao_qr",
+    "durationSec": 13.219,
+    "frames": 794
+  },
+  {
+    "id": "m08_cta",
+    "durationSec": 8.161,
+    "frames": 490
+  }
+]
