@@ -551,14 +551,6 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                   <Megaphone className="w-4 h-4 text-[#E2A83B]" aria-hidden="true" />
                   <span>Lançar Oferta Relâmpago</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setCrowdDropOpen(true)}
-                  className="px-4 py-2.5 rounded-xl bg-[#E2A83B]/15 hover:bg-[#E2A83B]/30 text-[#F5C76B] border border-[#E2A83B]/45 text-xs font-extrabold flex items-center gap-2"
-                >
-                  <Flame className="w-4 h-4" aria-hidden="true" />
-                  <span>Telão Crowd-Drop</span>
-                </button>
               </div>
             </div>
 

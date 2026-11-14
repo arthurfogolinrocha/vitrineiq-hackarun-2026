@@ -950,26 +950,6 @@ export function App() {
                   variant="compact"
                 />
               )}
-              {abas.includes('map') && aba !== 'map' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('map')}
-                  className="px-3 py-1.5 rounded-xl bg-white hover:bg-stone-100 border border-stone-200 text-xs font-bold text-[#111318] flex items-center gap-1.5 shadow-sm"
-                >
-                  <Box className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
-                  <span>Abrir Tour 3D</span>
-                </button>
-              )}
-              {abas.includes('vision') && aba !== 'vision' && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('vision')}
-                  className="px-3 py-1.5 rounded-xl bg-[#111318] hover:bg-stone-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
-                >
-                  <Camera className="w-3.5 h-3.5 text-[#E2A83B]" aria-hidden="true" />
-                  <span>Webcam</span>
-                </button>
-              )}
               <span
                 role="status"
                 title={

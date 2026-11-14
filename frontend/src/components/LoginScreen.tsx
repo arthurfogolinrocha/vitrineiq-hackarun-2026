@@ -117,20 +117,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onEntrar, onDemo, avis
           </button>
         </form>
 
-        {apiFora && (
-          <div className="pt-4 border-t border-stone-100 space-y-2 text-xs">
-            <p className="text-stone-500">
-              A API não está respondendo. Você pode ver uma demonstração com dados fictícios; nada é enviado.
-            </p>
-            <button
-              type="button"
-              onClick={onDemo}
-              className="w-full min-h-[44px] rounded-xl bg-white hover:bg-stone-100 border border-stone-300 text-[#111318] font-bold"
-            >
-              Ver demonstração offline
-            </button>
-          </div>
-        )}
+        <div className="pt-4 border-t border-stone-100 space-y-2 text-xs">
+          <p className="text-stone-500">
+            {apiFora
+              ? 'A API não está respondendo. Você pode ver uma demonstração com dados fictícios; nada é enviado.'
+              : 'Prefere testar o painel sem criar conta agora? Use a visão de demonstração com dados simulados.'}
+          </p>
+          <button
+            type="button"
+            onClick={onDemo}
+            className="w-full min-h-[44px] rounded-xl bg-white hover:bg-stone-100 border border-stone-300 text-[#111318] font-bold transition"
+          >
+            {apiFora ? 'Ver demonstração offline' : 'Explorar Modo Demonstração (Sem Login)'}
+          </button>
+        </div>
       </main>
     </div>
   );
