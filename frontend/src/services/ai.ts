@@ -1,5 +1,6 @@
 import { AIAnalysisRequest, AIAnalysisResponse } from '../types';
 import { sanitizeInput, containsRestrictedPatterns } from '../utils/security';
+import { cabecalhoAuth, DEFAULT_API_URL, resolveApiUrl, tratar401 } from './api';
 
 /**
  * Serviço do Agente de IA — VitrineIQ
@@ -8,15 +9,7 @@ import { sanitizeInput, containsRestrictedPatterns } from '../utils/security';
  * provedor de IA. Se o backend estiver indisponível, usa o fallback heurístico
  * local (zero quebra na demo).
  */
-export const DEFAULT_API_URL = 'https://vitrineiq-hackarun-2026-api.vercel.app';
-
-export function resolveApiUrl(): string {
-  const metaEnv =
-    typeof import.meta !== 'undefined'
-      ? (import.meta as unknown as { env?: Record<string, string> }).env
-      : undefined;
-  return (metaEnv?.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
-}
+export { DEFAULT_API_URL, resolveApiUrl };
 
 export async function analyzeWithAI(
   request: AIAnalysisRequest,
@@ -44,7 +37,7 @@ export async function analyzeWithAI(
     try {
       const response = await fetch(`${baseUrl}/api/ia/plano`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...cabecalhoAuth() },
         signal: controller.signal,
         body: JSON.stringify({
           prompt: cleanPrompt,
@@ -53,6 +46,7 @@ export async function analyzeWithAI(
         }),
       });
 
+      if (response.status === 401) tratar401();
       if (response.ok) {
         const data = (await response.json()) as {
           success: boolean;
