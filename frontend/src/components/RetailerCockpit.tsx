@@ -122,6 +122,8 @@ interface RetailerCockpitProps {
   completedSalesByZone: Partial<Record<ZoneId, number>>;
   /** Movimento real de hoje por hora na ala selecionada (câmera, Balcão e Concierge). */
   perfilHoje?: PerfilPorHora;
+  /** Lojista logado: a campanha sai sempre em nome da loja dele e a ala não muda. */
+  lojaFixa?: string | null;
 }
 
 const WEATHER_OPTIONS: { value: WeatherCondition; label: string; icon: 'sun' | 'rain' | 'mild' }[] = [
@@ -186,6 +188,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   onOpenVision,
   completedSalesByZone,
   perfilHoje,
+  lojaFixa,
 }) => {
   const current =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
@@ -252,10 +255,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     dialogRef.current?.close();
   };
 
+  const lojaCampanha = (lojaFixa ?? storeName).trim();
+
   const handleSubmitCampaign = (e: React.FormEvent) => {
     e.preventDefault();
     if (
-      storeName.trim().length === 0 ||
+      lojaCampanha.length === 0 ||
       title.trim().length === 0 ||
       couponCode.trim().length === 0 ||
       discountBadge.trim().length === 0 ||
@@ -265,7 +270,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       return;
     }
     setValidationError(null);
-    const cleanStore = storeName.trim();
+    const cleanStore = lojaCampanha; // lojista: sempre a loja do login, nunca a digitada
     const cleanTitle = title.trim();
     const cleanBadge = discountBadge.trim() || 'OFERTA';
     const cleanCoupon = couponCode.trim().toUpperCase();
@@ -1218,6 +1223,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               {activeTenant && <Lock className="w-3 h-3 text-[#7A4B0A]" aria-hidden="true" />}
               {activeTenant ? `Ala Isolada de ${activeTenant.storeName}` : 'Ala / Loja Monitorada'}
             </span>
+            {lojaFixa ? (
+              <p className="text-xs font-bold text-[#111318]">
+                {lojaFixa} · {current.zone.shortName}
+              </p>
+            ) : (
             <div className="flex flex-wrap gap-1.5">
               {zonesTelemetry.map((z) => {
                 const active = z.zone.id === current.zone.id;
@@ -1239,6 +1249,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 );
               })}
             </div>
+            )}
           </div>
 
           {/* Clima em Palmas */}
@@ -1616,9 +1627,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <input
                 type="text"
                 required
-                value={storeName}
+                value={lojaFixa ?? storeName}
                 onChange={(e) => setStoreName(e.target.value)}
-                readOnly={Boolean(activeTenant)}
+                readOnly={Boolean(lojaFixa || activeTenant)}
                 className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium read-only:bg-amber-50/70"
               />
             </label>

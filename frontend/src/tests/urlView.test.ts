@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { readTenantUrl, readUrlView } from '../utils/urlView';
+import { readUrlView } from '../utils/urlView';
 import { CAPIM_DOURADO_STORES, findStoreByName } from '../data/shoppingData';
 
 describe('readUrlView (US: QR abre o Concierge direto)', () => {
@@ -20,32 +20,8 @@ describe('readUrlView (US: QR abre o Concierge direto)', () => {
   });
 });
 
-describe('readTenantUrl (Multi-tenant Admin vs Lojista)', () => {
-  it('isola o painel para uma loja específica via ?perfil=loja&loja=centauro', () => {
-    expect(readTenantUrl('?perfil=loja&loja=centauro')).toEqual({
-      role: 'store',
-      storeId: 'centauro',
-    });
-  });
-
-  it('aceita busca case-insensitive por nome da loja (ex: Outback)', () => {
-    expect(readTenantUrl('?loja=Outback')).toEqual({
-      role: 'store',
-      storeId: 'outback',
-    });
-  });
-
-  it('retorna admin quando nenhum filtro de loja é informado', () => {
-    expect(readTenantUrl('')).toEqual({ role: 'admin', storeId: null });
-  });
-
-  it('faz fallback seguro para a primeira loja quando ?perfil=loja sem loja válida', () => {
-    expect(readTenantUrl('?perfil=loja&loja=inexistente')).toEqual({
-      role: 'store',
-      storeId: CAPIM_DOURADO_STORES[0].id,
-    });
-  });
-
+// A loja do lojista vem do login (token), não da URL: readTenantUrl foi removido na feat/login.
+describe('catálogo do Capim Dourado', () => {
   it('carrega catálogo completo do Capim Dourado (180+ lojas) com logos oficiais', () => {
     expect(CAPIM_DOURADO_STORES.length).toBeGreaterThanOrEqual(180);
     const withLogo = CAPIM_DOURADO_STORES.filter((s) => Boolean(s.logoUrl));

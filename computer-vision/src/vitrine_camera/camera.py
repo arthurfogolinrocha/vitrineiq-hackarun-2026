@@ -112,20 +112,25 @@ def pixelizar(img, regiao, blocos=8):
     img[y0:y1, x0:x1] = cv2.resize(pequeno, (x1 - x0, y1 - y0), interpolation=cv2.INTER_NEAREST)
 
 
-def sem_rostos(r):
-    """Cópia do frame com a cabeça de cada pessoa pixelizada. Sempre ligado: o preview aparece na demo e no vídeo."""
+def sem_rostos(r, cru=None):
+    """Cópia do frame com a cabeça de cada pessoa pixelizada. Sempre ligado: o preview aparece na demo e no vídeo.
+
+    cru = o mesmo frame antes do tracker. O tracker só devolve quem já tem ID confirmado; sem `cru`,
+    quem acabou de chegar ou tem confiança baixa apareceria sem desfoque.
+    """
     img = r.orig_img.copy()
-    if r.boxes is not None and r.keypoints is not None and r.keypoints.conf is not None:
-        for caixa, xy, conf in zip(r.boxes.xyxy.tolist(), r.keypoints.xy.tolist(), r.keypoints.conf.tolist()):
+    d = r if cru is None else cru
+    if d.boxes is not None and d.keypoints is not None and d.keypoints.conf is not None:
+        for caixa, xy, conf in zip(d.boxes.xyxy.tolist(), d.keypoints.xy.tolist(), d.keypoints.conf.tolist()):
             pixelizar(img, regiao_cabeca(xy, conf, caixa))
     return img
 
 
-def mostrar(r, sessao):
+def mostrar(r, sessao, cru=None):
     """Desenha detecções, zonas e contadores sobre o frame sem rostos; devolve False quando o usuário aperta q."""
     import cv2
 
-    frame = r.plot(img=sem_rostos(r))
+    frame = r.plot(img=sem_rostos(r, cru))
     h, largura = frame.shape[0], sessao.largura
     for i in (1, 2):  # divisões das zonas da vitrine
         cv2.line(frame, (largura * i // 3, 0), (largura * i // 3, h), (255, 255, 0), 1)
@@ -174,12 +179,19 @@ def main():
 
     baixar_modelo()
     model = YOLO(str(MODELO))
+    crus = []  # detecções do frame antes do tracker, para o desfoque cobrir também quem ainda não tem ID
+
+    def guardar_crus(predictor):
+        crus[:] = predictor.results  # copia a lista: o tracker troca os itens de predictor.results depois
+
+    # Registrado antes do track(): os callbacks rodam na ordem de inserção, então este roda antes do tracker.
+    model.add_callback("on_predict_postprocess_end", guardar_crus)
     sessao = Sessao()
     print(f"Câmera {CAMERA} ligada. Gravando em {ARQUIVO.resolve()} (Ctrl+C ou q na janela para parar)")
     try:
         for r in model.track(source=CAMERA, stream=True, persist=True, classes=[0], conf=CONF_DESFOQUE, verbose=False):
             sessao.processar(r, time.time())
-            if MOSTRAR and not mostrar(r, sessao):
+            if MOSTRAR and not mostrar(r, sessao, crus[0] if crus else None):
                 break
     except KeyboardInterrupt:
         pass

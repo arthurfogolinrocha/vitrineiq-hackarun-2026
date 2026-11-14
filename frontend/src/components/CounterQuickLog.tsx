@@ -29,6 +29,8 @@ interface CounterQuickLogProps {
   onLogCompletedSale: (zoneId: ZoneId, storeName: string) => void;
   completedSalesCount: number;
   onQuickFlashFromVoice?: (note: string, reason: LostSaleReason) => void;
+  /** Lojista logado: ala e loja vêm da conta, sem seletor nem campo livre. */
+  lojaFixa?: string | null;
 }
 
 interface SpeechRecognitionAlternativeLike {
@@ -150,8 +152,9 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   onLogCompletedSale,
   completedSalesCount,
   onQuickFlashFromVoice,
+  lojaFixa,
 }) => {
-  const effectiveLockedStore = activeTenant?.storeName || lockedStoreName;
+  const effectiveLockedStore = lojaFixa || activeTenant?.storeName || lockedStoreName;
   const effectiveZoneId: ZoneId = activeTenant ? activeTenant.zoneId : selectedZoneId;
   const resolvedStore =
     activeTenant ?? (effectiveLockedStore ? findStoreByName(effectiveLockedStore) : undefined);
@@ -513,6 +516,13 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           )}
         </div>
 
+        {lojaFixa ? (
+          <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+            <strong className="text-slate-900">{lojaFixa}</strong>
+            {' · '}
+            {zones.find((z) => z.id === selectedZoneId)?.shortName ?? selectedZoneId}
+          </p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="counter-zone" className="block text-xs font-bold text-stone-700 mb-1.5">
@@ -547,6 +557,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             />
           </div>
         </div>
+        )}
 
         <div>
           <label htmlFor="counter-note" className="block text-xs font-bold text-slate-700 mb-1">

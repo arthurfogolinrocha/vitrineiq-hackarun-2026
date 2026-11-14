@@ -11,8 +11,9 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def sem_chave_de_ia(monkeypatch):
+def sem_chave_de_ia(monkeypatch, admin):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    client.headers.update(admin)  # /api/ia/plano exige login
     main._chamadas_ia.clear()  # o limite de chamadas é global no processo
 
 

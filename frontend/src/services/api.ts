@@ -10,8 +10,101 @@ import {
   WeatherCondition,
   ZoneId,
 } from '../types';
-import { resolveApiUrl } from './ai';
 import { PerfilPorHora } from '../utils/horario';
+
+export const DEFAULT_API_URL = 'https://vitrineiq-hackarun-2026-api.vercel.app';
+
+export function resolveApiUrl(): string {
+  const metaEnv =
+    typeof import.meta !== 'undefined'
+      ? (import.meta as unknown as { env?: Record<string, string> }).env
+      : undefined;
+  return (metaEnv?.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
+}
+
+export type Papel = 'admin' | 'lojista';
+
+/** Quem está logado, como `POST /api/auth/login` e `GET /api/auth/eu` devolvem. */
+export interface Usuario {
+  nome: string;
+  papel: Papel;
+  lojaId: string | null;
+  lojaNome: string | null;
+  zoneId: ZoneId | null;
+}
+
+export interface Sessao {
+  token: string;
+  usuario: Usuario;
+}
+
+export interface Lojista {
+  id: string | number;
+  usuario: string;
+  lojaNome: string;
+  zoneId: ZoneId;
+  criadoEm: string;
+}
+
+/** Erro HTTP da API com a mensagem (`detail`) já pronta para mostrar. */
+export class ApiErro extends Error {
+  status: number;
+  constructor(status: number, mensagem: string) {
+    super(mensagem);
+    this.status = status;
+  }
+}
+
+const CHAVE_SESSAO = 'vitrineiq.sessao';
+let token: string | null = null;
+let aoExpirar: (() => void) | null = null;
+
+/** Lê a sessão salva e passa a usar o token dela. Sem storage (ou JSON inválido), não há sessão. */
+export function lerSessao(storage?: Storage): Sessao | null {
+  try {
+    const s = JSON.parse((storage ?? localStorage).getItem(CHAVE_SESSAO) ?? 'null') as Sessao | null;
+    if (!s?.token || (s.usuario?.papel !== 'admin' && s.usuario?.papel !== 'lojista')) return null;
+    token = s.token;
+    return s;
+  } catch {
+    return null;
+  }
+}
+
+/** Grava (ou apaga, com `null`) a sessão. Sem storage, a sessão só dura na memória. */
+export function salvarSessao(sessao: Sessao | null, storage?: Storage): void {
+  token = sessao?.token ?? null;
+  try {
+    const st = storage ?? localStorage;
+    if (sessao) st.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
+    else st.removeItem(CHAVE_SESSAO);
+  } catch {
+    // storage bloqueado (modo privado, quiosque): fica só na memória
+  }
+}
+
+/** O App registra aqui o que fazer quando a API recusar o token (401). */
+export function definirAoExpirar(fn: (() => void) | null): void {
+  aoExpirar = fn;
+}
+
+export function cabecalhoAuth(): Record<string, string> {
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** 401 com token enviado = sessão expirada ou revogada: limpa e avisa o App. 403 não desloga. */
+export function tratar401(): void {
+  if (!token) return;
+  salvarSessao(null);
+  aoExpirar?.();
+}
+
+const MENSAGENS: Record<number, string> = {
+  401: 'Usuário ou senha inválidos.',
+  403: 'Sem permissão para esta ação.',
+  429: 'Muitas tentativas. Espere um pouco e tente de novo.',
+  503: 'Servidor sem configuração de login.',
+};
 
 /** Telemetria real de clima, calendário e eventos de Palmas-TO (`GET /api/contexto`). */
 export interface LiveContextPayload {
@@ -84,11 +177,18 @@ async function chamar<T>(
   try {
     const res = await fetch(`${resolveApiUrl()}/api${caminho}`, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...cabecalhoAuth() },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`API ${method} ${caminho}: ${res.status}`);
+    if (!res.ok) {
+      const detail = await res.json().then((d) => d?.detail, () => undefined);
+      if (res.status === 401) tratar401();
+      throw new ApiErro(
+        res.status,
+        typeof detail === 'string' ? detail : MENSAGENS[res.status] ?? `Erro ${res.status} na API.`
+      );
+    }
     return (res.status === 204 ? undefined : await res.json()) as T;
   } finally {
     clearTimeout(timer);
@@ -104,6 +204,15 @@ export interface VitrineAuditPayload {
 }
 
 export const api = {
+  saude: () => chamar('/health'),
+  login: (usuario: string, senha: string) => chamar<Sessao>('/auth/login', 'POST', { usuario, senha }),
+  eu: () => chamar<Usuario>('/auth/eu'),
+  lojistas: () => chamar<Lojista[]>('/admin/lojistas'),
+  criarLojista: (dados: { usuario: string; senha: string; lojaNome: string; zoneId: ZoneId }) =>
+    chamar<Lojista>('/admin/lojistas', 'POST', dados),
+  removerLojista: (id: Lojista['id']) => chamar(`/admin/lojistas/${encodeURIComponent(String(id))}`, 'DELETE'),
+  campanhasAtivas: (zoneId: ZoneId) =>
+    chamar<FlashCampaign[]>(`/campanhas/ativas?ala=${encodeURIComponent(zoneId)}`),
   estado: (filtro?: { loja?: string; ala?: ZoneId }) => {
     const q = new URLSearchParams();
     if (filtro?.loja) q.set('loja', filtro.loja);

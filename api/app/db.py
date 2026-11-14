@@ -27,7 +27,7 @@ _engine: Optional[Engine] = None
 
 def _url() -> str:
     padrao_dir = Path("/tmp") if os.getenv("VERCEL") else Path(__file__).resolve().parents[1]
-    url = os.getenv("DATABASE_URL", f"sqlite:///{padrao_dir / 'vitrineiq.db'}")
+    url = os.getenv("DATABASE_URL", f"sqlite:///{(padrao_dir / 'vitrineiq.db').as_posix()}")
     # Neon e Supabase entregam postgres:// ou postgresql://; o SQLAlchemy usa o driver psycopg 3.
     for prefixo in ("postgres://", "postgresql://"):
         if url.startswith(prefixo):
