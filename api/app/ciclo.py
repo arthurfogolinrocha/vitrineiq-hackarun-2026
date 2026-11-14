@@ -13,10 +13,13 @@ from collections import Counter
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from collections import defaultdict, deque
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field, StringConstraints
 
 from . import db
+from .auth import exigir_login, limitar_por_ip
 from .engine import ZoneId
 from .security import mascarar_dados_pessoais, sanitize_input
 
@@ -27,6 +30,18 @@ Budget = Literal["ate_80", "80_200", "acima_200"]
 
 ZONAS_VITRINE = ("esquerda", "centro", "direita")
 ALERTA_RECENTE_S = 60  # alertas mais antigos que isso não aparecem no painel
+
+Usuario = Annotated[dict[str, Any], Depends(exigir_login)]
+
+
+def _da_loja(u: dict[str, Any], registro: dict[str, Any]) -> bool:
+    """Admin mexe em tudo; lojista só no que tem o lojaId dele (registros antigos sem lojaId são só do admin)."""
+    return u["papel"] == "admin" or registro.get("lojaId") == u["lojaId"]
+
+
+def _loja_e_ala(u: dict[str, Any], zone_id: str, store_name: str) -> tuple[str, str]:
+    """Lojista: loja e ala vêm do token (ignora o body). Admin: o que veio no body."""
+    return (u["zoneId"], u["lojaNome"]) if u["papel"] == "lojista" else (zone_id, store_name)
 
 
 # ---------- Balcão ----------
@@ -40,21 +55,24 @@ class BalcaoIn(BaseModel):
 
 
 @router.post("/balcao", status_code=201)
-def registrar_balcao(body: BalcaoIn) -> dict[str, Any]:
+def registrar_balcao(body: BalcaoIn, u: Usuario) -> dict[str, Any]:
     if body.tipo == "perdida" and body.reason is None:
         raise HTTPException(422, "Venda perdida precisa de um motivo (RN07).")
-    dados = {"zoneId": body.zoneId, "storeName": sanitize_input(body.storeName), "tipo": body.tipo}
+    zona, loja = _loja_e_ala(u, body.zoneId, body.storeName)
+    dados = {"zoneId": zona, "storeName": sanitize_input(loja), "tipo": body.tipo, "lojaId": u["lojaId"]}
     if body.tipo == "perdida":
         dados["reason"] = body.reason
         if body.note:
             dados["note"] = mascarar_dados_pessoais(sanitize_input(body.note))
-    return db.inserir("balcao", body.zoneId, dados)
+    return db.inserir("balcao", zona, dados)
 
 
 @router.delete("/balcao/{rid}", status_code=204, response_model=None)
-def desfazer_balcao(rid: int) -> Response:
-    if not db.apagar("balcao", rid):
+def desfazer_balcao(rid: int, u: Usuario) -> Response:
+    r = db.buscar("balcao", rid)
+    if r is None or not _da_loja(u, r):
         raise HTTPException(404, "Registro não encontrado.")
+    db.apagar("balcao", rid)
     return Response(status_code=204)
 
 
@@ -79,15 +97,17 @@ def _campanha(c: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/campanhas", status_code=201)
-def publicar_campanha(body: CampanhaIn) -> dict[str, Any]:
-    dados = {k: sanitize_input(v) if isinstance(v, str) else v for k, v in body.model_dump().items()}
-    return _campanha(db.inserir("campanha", body.zoneId, {**dados, "active": True}))
+def publicar_campanha(body: CampanhaIn, u: Usuario) -> dict[str, Any]:
+    zona, loja = _loja_e_ala(u, body.zoneId, body.storeName)
+    dados = {k: sanitize_input(v) if isinstance(v, str) else v
+             for k, v in {**body.model_dump(), "zoneId": zona, "storeName": loja}.items()}
+    return _campanha(db.inserir("campanha", zona, {**dados, "active": True, "lojaId": u["lojaId"]}))
 
 
 @router.patch("/campanhas/{rid}")
-def alterar_campanha(rid: int, body: CampanhaPatch) -> dict[str, Any]:
+def alterar_campanha(rid: int, body: CampanhaPatch, u: Usuario) -> dict[str, Any]:
     c = db.buscar("campanha", rid)
-    if c is None:
+    if c is None or not _da_loja(u, c):
         raise HTTPException(404, "Campanha não encontrada.")
     dados = {k: v for k, v in c.items() if k not in ("id", "timestamp", "criadoEm")}
     db.atualizar("campanha", rid, {**dados, "active": body.active})
@@ -95,15 +115,19 @@ def alterar_campanha(rid: int, body: CampanhaPatch) -> dict[str, Any]:
 
 
 @router.delete("/campanhas/{rid}", status_code=204, response_model=None)
-def remover_campanha(rid: int) -> Response:
-    if not db.apagar("campanha", rid):
+def remover_campanha(rid: int, u: Usuario) -> Response:
+    c = db.buscar("campanha", rid)
+    if c is None or not _da_loja(u, c):
         raise HTTPException(404, "Campanha não encontrada.")
+    db.apagar("campanha", rid)
     return Response(status_code=204)
 
 
 @router.get("/campanhas/ativas")
 def campanhas_ativas(ala: Optional[ZoneId] = None) -> list[dict[str, Any]]:
-    return [_campanha(c) for c in db.listar("campanha") if c["active"] and (ala is None or c["zoneId"] == ala)]
+    # Rota pública: sem lojaId, que é o id da conta do lojista.
+    return [{k: v for k, v in _campanha(c).items() if k != "lojaId"}
+            for c in db.listar("campanha") if c["active"] and (ala is None or c["zoneId"] == ala)]
 
 
 # ---------- Concierge QR ----------
@@ -114,9 +138,15 @@ class BuscaIn(BaseModel):
     budget: Budget = "80_200"
 
 
+LIMITE_BUSCAS_POR_MINUTO = 20
+_buscas: defaultdict[str, deque[float]] = defaultdict(deque)
+
+
 @router.post("/concierge/busca", status_code=201)
-def buscar_oferta(body: BuscaIn) -> dict[str, Any]:
+def buscar_oferta(body: BuscaIn, request: Request) -> dict[str, Any]:
     """Registra a busca anônima. Só entrega cupom se houver campanha publicada pelo lojista (T1)."""
+    # Cada busca soma no Score; sem limite, um estranho levaria qualquer ala a 100 no meio da demo.
+    limitar_por_ip(request, _buscas, LIMITE_BUSCAS_POR_MINUTO, "Muitas buscas seguidas. Tente de novo em 1 minuto.")
     ativas = campanhas_ativas()
     oferta = next((c for c in ativas if c["zoneId"] == body.zoneId), None) or (ativas[0] if ativas else None)
     dados = {
@@ -260,27 +290,45 @@ def perfil_por_hora(vitrine_regs: list[dict[str, Any]], balcao: list[dict[str, A
 
 
 @router.get("/vitrine/resumo")
-def vitrine_resumo(ala: ZoneId) -> dict[str, Any]:
+def vitrine_resumo(ala: ZoneId, u: Usuario) -> dict[str, Any]:
+    if u["papel"] == "lojista":
+        ala = u["zoneId"]  # lojista só vê a câmera da ala dele
     return resumo_vitrine([r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala])
 
 
 # ---------- Estado completo para o painel ----------
 
 @router.get("/estado")
-def estado() -> dict[str, Any]:
-    """Tudo o que o front precisa para desenhar o ciclo, numa chamada só (polling de 3 s)."""
+def estado(u: Usuario) -> dict[str, Any]:
+    """Tudo o que o front precisa para desenhar o ciclo, numa chamada só (polling de 3 s).
+
+    Admin vê tudo. Lojista vê vendas, perdas e campanhas só da loja dele; câmera e Concierge só da ala dele.
+    """
     balcao = db.listar("balcao", 500)
-    vendas: Counter[str] = Counter(r["zoneId"] for r in balcao if r["tipo"] == "venda")
+    campanhas = db.listar("campanha", 100)
+    signals = db.listar("busca", 100)
+    buscas_hoje = db.listar("busca", 500, _hoje())
     vitrine_regs = db.listar("vitrine", 5000, _hoje())
+    alertas = db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S))
+    if u["papel"] == "lojista":
+        # shortcut: filtra depois do LIMIT; com muitas lojas, filtrar por lojaId/ala no SQL
+        ala = u["zoneId"]
+        balcao = [r for r in balcao if _da_loja(u, r)]
+        campanhas = [c for c in campanhas if _da_loja(u, c)]
+        signals = [s for s in signals if s["zoneId"] == ala]
+        buscas_hoje = [s for s in buscas_hoje if s["zoneId"] == ala]
+        vitrine_regs = [r for r in vitrine_regs if r["zona"] == ala]
+        alertas = [a for a in alertas if a["zona"] == ala]
+    vendas: Counter[str] = Counter(r["zoneId"] for r in balcao if r["tipo"] == "venda")
     vitrine = {z: resumo_vitrine([r for r in vitrine_regs if r["zona"] == z])
                for z in sorted({r["zona"] for r in vitrine_regs})}
     return {
-        "porHora": perfil_por_hora(vitrine_regs, balcao, db.listar("busca", 500, _hoje())),
+        "porHora": perfil_por_hora(vitrine_regs, balcao, buscas_hoje),
         "lostSales": [r for r in balcao if r["tipo"] == "perdida"],
         "completedSalesByZone": dict(vendas),
-        "signals": db.listar("busca", 100),
-        "campaigns": [_campanha(c) for c in db.listar("campanha", 100)],
+        "signals": signals,
+        "campaigns": [_campanha(c) for c in campanhas],
         "vitrine": vitrine,
-        "alertas": db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S)),
+        "alertas": alertas,
         "agora": db.agora().isoformat(),
     }

@@ -14,6 +14,12 @@ Backend do **VitrineIQ**, plataforma de inteligência comercial para lojistas do
 | `POST` | `/api/score` | Score de Oportunidade (0–100) + multiplicador de contexto (clima de Palmas, horário, eventos do shopping) |
 | `POST` | `/api/ia/plano` | Agente de IA: plano de ação, texto de cupom e parceria cross-segmento. Timeout de 4,5 s e fallback heurístico |
 | `POST` | `/api/audit/hash` | Hash SHA-256 encadeado (`prevHash:id:timestamp:payload`) para a trilha de auditoria |
+| `POST` | `/api/auth/login` | Login (`{usuario, senha}`) → `{token, usuario}`. Máx. 10 tentativas/min por IP |
+| `GET` | `/api/auth/eu` | Usuário do token (`nome, papel, lojaId, lojaNome, zoneId`) |
+| `GET/POST` | `/api/admin/lojistas` | Só admin: lista e cria contas de lojista (uma conta = uma loja) |
+| `DELETE` | `/api/admin/lojistas/{id}` | Só admin: apaga a conta (o lojista perde o acesso na hora) |
+
+**Login:** o token vai em `Authorization: Bearer <token>` e vale 12 h. Exigem login: `GET /api/estado`, `POST/DELETE /api/balcao`, `POST/PATCH/DELETE /api/campanhas`, `GET /api/vitrine/resumo` e `POST /api/ia/plano`. O lojista só vê e altera vendas, perdas e campanhas da loja dele, e câmera e Concierge da ala dele; o admin vê tudo. Continuam abertas as rotas do visitante (busca no Concierge, limitada a 20 por minuto por IP, e campanhas ativas) e as da câmera (com `X-Vitrine-Token`). Variáveis: `AUTH_SECRET` (obrigatória em produção, com 32 caracteres ou mais; trocá-la derruba todos os tokens), `ADMIN_USUARIO` e `ADMIN_SENHA` (veja `.env.example`). Senhas ficam no banco só como hash PBKDF2-SHA256.
 
 ### Exemplo
 
