@@ -8,6 +8,7 @@ import {
   tratar401,
 } from '../services/api';
 import { abasPermitidas } from '../utils/acesso';
+import { USER_STORIES_ROLETA } from '../data/userStoriesData';
 
 function storageFalso(): Storage {
   const dados = new Map<string, string>();
@@ -100,5 +101,18 @@ describe('abasPermitidas (quem vê o quê)', () => {
 
   it('sem login, só o Concierge do visitante', () => {
     expect(abasPermitidas(null)).toEqual(['concierge']);
+  });
+});
+
+describe('Stories (Roleta)', () => {
+  it('mapeia US-01 a US-05 com prioridades MoSCoW e destinos válidos para admin', () => {
+    const allowed = abasPermitidas('admin');
+    expect(USER_STORIES_ROLETA.map((story) => story.id)).toEqual(['US-01', 'US-02', 'US-03', 'US-04', 'US-05']);
+    for (const story of USER_STORIES_ROLETA) {
+      expect(allowed).toContain(story.targetTab);
+      expect(story.bdd.dado.length).toBeGreaterThan(5);
+      expect(story.bdd.quando.length).toBeGreaterThan(5);
+      expect(story.bdd.entao.length).toBeGreaterThan(5);
+    }
   });
 });

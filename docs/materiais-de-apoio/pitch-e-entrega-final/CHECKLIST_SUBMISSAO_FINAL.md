@@ -17,7 +17,7 @@
 
 - [ ] **3. Conformidade com o Artigo 6 (Declaração de IA):**
   - [x] Documento [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) atualizado com métricas reais (`157` testes, score `9.8/10`) e citado no `README.md`.
-  - [ ] Preencher nome completo de `Jessé` e `@MCPS9` e curso de `Leonardo Capistrano` no [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) antes do envio final.
+  - [ ] Confirmar nome completo de `@MCPS9` (e sobrenome de Jessé `@jesseLR-stack`, se aplicável) e curso de `Leonardo Capistrano` no [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) antes do envio final.
   - [ ] Toda a equipe alinhada para explicar qualquer linha de código perante a banca.
 
 - [ ] **4. Vídeo de Pitch (Critério Crítico de Eliminação):**

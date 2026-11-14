@@ -26,6 +26,7 @@ import {
 import { readUrlView } from './utils/urlView';
 import { abasPermitidas, ActiveTab } from './utils/acesso';
 import { LoginScreen } from './components/LoginScreen';
+import { StoriesRoletaModal } from './components/StoriesRoletaModal';
 import { useAuditLogs } from './hooks/useAuditLogs';
 import { useIdlePrefetch } from './hooks/useIdlePrefetch';
 import { useStoreActions } from './hooks/useStoreActions';
@@ -86,6 +87,7 @@ export function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [lastAnalysis, setLastAnalysis] = useState<AIAnalysisResponse | null>(null);
   const [demoCameraOverlay, setDemoCameraOverlay] = useState<DemoCameraOverlay | null>(null);
+  const [storiesOpen, setStoriesOpen] = useState(false);
 
   const { auditLogs, appendAudit } = useAuditLogs();
   const sync = useVitrineSync({
@@ -408,6 +410,7 @@ export function App() {
           onLogout={() => sair()}
           navItems={navItems}
           onSelectTab={setActiveTab}
+          onOpenStories={() => setStoriesOpen(true)}
         />
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
@@ -481,6 +484,16 @@ export function App() {
           </div>
         </main>
       </div>
+
+      <StoriesRoletaModal
+        open={storiesOpen}
+        onClose={() => setStoriesOpen(false)}
+        allowedTabs={abas}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setStoriesOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -8,8 +8,8 @@
 * **Desafio:** `06. Inteligência comercial para lojistas` | **Roleta:** `STORIES (User Stories)`
 * **Integrantes da Equipe:**
   * Arthur Fogolin Rocha (`@arthurfogolinrocha`) — Inteligência Artificial / UniCatólica *(Líder Técnico)*
-  * Jessé (`@jesseLR-stack`) *(confirmar nome completo antes do envio final de sábado)*
-  * `@MCPS9` *(confirmar nome completo antes do envio final de sábado)*
+  * Jessé (`@jesseLR-stack`) — UniCatólica
+  * `@MCPS9` — UniCatólica *(confirmar nome completo se disponível)*
   * Leonardo Capistrano (`@LCapistrano25`) *(confirmar curso antes do envio final de sábado)*
 * **Repositório Oficial:** `https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026`
 * **Aplicação em Produção:** `https://vitrineiq-capim-dourado.vercel.app`

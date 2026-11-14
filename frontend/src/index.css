@@ -521,3 +521,14 @@ dialog::backdrop {
     transition: none;
   }
 }
+
+/* Modal nativo <dialog>: evita scroll chaining sobre a página de fundo */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+dialog::backdrop {
+  background-color: rgba(11, 13, 18, 0.72);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
