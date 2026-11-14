@@ -23,6 +23,8 @@ interface CounterQuickLogProps {
   onUndoLostSale?: () => void;
   onLogCompletedSale: (zoneId: ZoneId, storeName: string) => void;
   completedSalesCount: number;
+  /** Lojista logado: ala e loja vêm da conta, sem seletor nem campo livre. */
+  lojaFixa?: string | null;
 }
 
 const REASON_BUTTONS: {
@@ -77,10 +79,13 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   onUndoLostSale,
   onLogCompletedSale,
   completedSalesCount,
+  lojaFixa,
 }) => {
   const [storeName, setStoreName] = useState(lockedStoreName || 'Loja Piloto Capim Dourado');
   const [note, setNote] = useState('');
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
+
+  const cleanStore = lojaFixa || (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
 
   useEffect(() => {
     if (lockedStoreName) {
@@ -89,7 +94,6 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   }, [lockedStoreName]);
 
   const handleQuickTap = (reason: LostSaleReason) => {
-    const cleanStore = (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
     onLogLostSale(selectedZoneId, cleanStore, reason, note.trim() || undefined);
     setNote('');
     setFeedbackBanner(
@@ -98,7 +102,6 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   };
 
   const handleCompletedSale = () => {
-    const cleanStore = (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
     onLogCompletedSale(selectedZoneId, cleanStore);
     setFeedbackBanner('Venda concluída registrada — funil do Painel atualizado!');
   };
@@ -125,6 +128,13 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           )}
         </div>
 
+        {lojaFixa ? (
+          <p className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
+            <strong className="text-slate-900">{lojaFixa}</strong>
+            {' · '}
+            {zones.find((z) => z.id === selectedZoneId)?.shortName ?? selectedZoneId}
+          </p>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="counter-zone" className="block text-xs font-bold text-stone-700 mb-1.5">
@@ -159,6 +169,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             />
           </div>
         </div>
+        )}
 
         <div>
           <label htmlFor="counter-note" className="block text-xs font-bold text-slate-700 mb-1">

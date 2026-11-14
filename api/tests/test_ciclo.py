@@ -11,10 +11,9 @@ ALA = "ala-lazer-cinema"
 
 
 @pytest.fixture(autouse=True)
-def banco_temporario(tmp_path):
-    db.usar_banco(f"sqlite:///{tmp_path / 'teste.db'}")
-    yield
-    db.usar_banco(None)
+def como_admin(admin):
+    """Estes testes cobrem o ciclo com o admin logado; a separação por loja está em test_auth.py."""
+    client.headers.update(admin)
 
 
 def campanha(**extra):

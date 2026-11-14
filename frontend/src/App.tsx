@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BookOpen,
   Box,
   Camera,
   ClipboardCheck,
   LayoutDashboard,
+  LogOut,
   QrCode,
   ShieldCheck,
   Store,
+  Users,
 } from 'lucide-react';
 import {
   AIAnalysisResponse,
@@ -18,6 +19,7 @@ import {
   LostSaleEvent,
   LostSaleReason,
   ShopContextFactors,
+  StoreTenant,
   SystemAuditLog,
   VisionFunnelSnapshot,
   ZoneId,
@@ -36,87 +38,115 @@ import {
   ZoneLiveTelemetry,
 } from './services/opportunityEngine';
 import { analyzeWithAI } from './services/ai';
-import { api, CicloEstado, LiveContextPayload, VitrineAlerta, VitrineResumo } from './services/api';
+import {
+  api,
+  CicloEstado,
+  LiveContextPayload,
+  definirAoExpirar,
+  lerSessao,
+  salvarSessao,
+  Sessao,
+  VitrineAlerta,
+  VitrineResumo,
+} from './services/api';
 import { generateAuditHash } from './utils/security';
-import { readTenantUrl, readUrlView } from './utils/urlView';
+import { readUrlView } from './utils/urlView';
+import { abasPermitidas, ActiveTab } from './utils/acesso';
 import { RetailerCockpit } from './components/RetailerCockpit';
 import { ShoppingMap } from './components/ShoppingMap';
 import { EdgeVisionSensor } from './components/EdgeVisionSensor';
 import { CounterQuickLog } from './components/CounterQuickLog';
 import { ConsumerConcierge } from './components/ConsumerConcierge';
 import { SecurityAuditPanel } from './components/SecurityAuditPanel';
-import { UserStoriesBoard, StoryTargetTab } from './components/UserStoriesBoard';
+import { LoginScreen } from './components/LoginScreen';
+import { LojistasAdmin } from './components/LojistasAdmin';
 import { StoreTenantSwitcher } from './components/StoreTenantSwitcher';
 
-type ActiveTab = 'cockpit' | 'map' | 'vision' | 'counter' | 'concierge' | 'stories' | 'audit';
-
-const TAB_META: Record<
-  ActiveTab,
-  { number: string; label: string; shortLabel: string; subtitle: string }
-> = {
+const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; subtitle: string }> = {
   cockpit: {
-    number: '01',
     label: 'Painel do Lojista',
     shortLabel: 'Painel',
     subtitle: 'Score de oportunidade, horário de pico e planos IA',
   },
   map: {
-    number: '02',
     label: 'Shopping 3D (Tour)',
     shortLabel: 'Mapa 3D',
     subtitle: 'Maquete WebGL, Zoom nas lojas, Street View e 2º Piso',
   },
   vision: {
-    number: '03',
     label: 'Sensor Webcam',
     shortLabel: 'Câmera',
     subtitle: 'Contagem anônima na porta (quem passa vs. quem entra)',
   },
   counter: {
-    number: '04',
     label: 'Modo Balcão',
     shortLabel: 'Balcão',
     subtitle: 'Registro em 1 toque do porquê o cliente não comprou',
   },
   concierge: {
-    number: '05',
     label: 'Concierge QR',
     shortLabel: 'QR Cliente',
     subtitle: 'Totem anônimo que capta desejo real e libera cupom',
   },
-  stories: {
-    number: '06',
-    label: 'Stories (Roleta)',
-    shortLabel: 'Stories',
-    subtitle: 'Histórias de usuário obrigatórias rastreadas na solução',
-  },
   audit: {
-    number: '07',
     label: 'LGPD & Backend Python',
     shortLabel: 'Auditoria',
     subtitle: 'Registro das ações do sistema e o que coletamos (só contagens)',
   },
+  lojistas: {
+    label: 'Contas de Lojistas',
+    shortLabel: 'Lojistas',
+    subtitle: 'Cadastro das contas: cada lojista vê só a loja e a ala dele',
+  },
+};
+
+const SINAL_DEMO: ConsumerSignal = {
+  id: 'sig-init-1',
+  zoneId: 'ala-central-ancoras',
+  query: 'Presente masculino até R$ 150',
+  budget: '80_200',
+  preference: 'Moda rápida com troca garantida',
+  couponCode: 'VITRINE-QR10',
+  matchedOffer: 'Ala Central • Âncoras e Alameda das Cores',
+  timestamp: '20:54',
 };
 
 export function App() {
   // ?tela=concierge|balcao abre a tela sozinha (QR do visitante / aparelho do vendedor)
   const [urlView] = useState(() => readUrlView(window.location.search));
-  const [initialTenant] = useState(() => readTenantUrl(window.location.search));
   const kioskTab = urlView.kioskTab;
+  // O QR do visitante é público: nunca usa sessão nem /api/estado.
+  const conciergePublico = kioskTab === 'concierge';
+  const [sessao, setSessao] = useState<Sessao | null>(() => (conciergePublico ? null : lerSessao()));
+  const [demo, setDemo] = useState(false);
+  const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
+  const papel = sessao?.usuario.papel ?? null;
+  const zonaFixa = papel === 'lojista' ? sessao?.usuario.zoneId ?? null : null;
+  const lojaFixa = papel === 'lojista' ? sessao?.usuario.lojaNome ?? null : null;
 
-  const [accessRole, setAccessRole] = useState<AccessRole>(initialTenant.role);
-  const [activeStoreId, setActiveStoreId] = useState<string>(
-    initialTenant.storeId ?? CAPIM_DOURADO_STORES[0].id
-  );
-  const activeTenant = useMemo(
-    () =>
-      accessRole === 'store'
-        ? CAPIM_DOURADO_STORES.find((s) => s.id === activeStoreId) ?? CAPIM_DOURADO_STORES[0]
-        : null,
-    [accessRole, activeStoreId]
-  );
+  // Lojista: a loja vem da conta (token). Admin e demo podem "ver como loja" pelo seletor, só como filtro.
+  const [accessRole, setAccessRole] = useState<AccessRole>('admin');
+  const [activeStoreId, setActiveStoreId] = useState<string>(CAPIM_DOURADO_STORES[0].id);
+  const activeTenant = useMemo<StoreTenant | null>(() => {
+    if (papel === 'lojista' && lojaFixa && zonaFixa) {
+      const doCatalogo = CAPIM_DOURADO_STORES.find((s) => s.storeName.toLowerCase() === lojaFixa.toLowerCase());
+      if (doCatalogo) return { ...doCatalogo, zoneId: zonaFixa };
+      const zona = CAPIM_DOURADO_ZONES.find((z) => z.id === zonaFixa);
+      return {
+        id: 'conta',
+        storeName: lojaFixa,
+        zoneId: zonaFixa,
+        segment: CAPIM_DOURADO_STORES.find((s) => s.zoneId === zonaFixa)?.segment ?? 'moda',
+        avgTicket: 185, // mesmo padrão do painel quando a loja não está no catálogo
+        floorLabel: zona?.shortName ?? zonaFixa,
+      };
+    }
+    return accessRole === 'store'
+      ? CAPIM_DOURADO_STORES.find((s) => s.id === activeStoreId) ?? CAPIM_DOURADO_STORES[0]
+      : null;
+  }, [papel, lojaFixa, zonaFixa, accessRole, activeStoreId]);
 
-  const initialZoneId = activeTenant?.zoneId ?? urlView.zoneId ?? 'ala-central-ancoras';
+  const initialZoneId = urlView.zoneId ?? 'ala-central-ancoras';
   const [activeTab, setActiveTab] = useState<ActiveTab>(kioskTab ?? 'cockpit');
   const [floor, setFloor] = useState<FloorId>(
     CAPIM_DOURADO_ZONES.find((z) => z.id === initialZoneId)?.floor ?? 'L1'
@@ -129,21 +159,11 @@ export function App() {
     mallEvent: 'estreia_cinemark',
   });
 
-  const [lostSales, setLostSales] = useState<LostSaleEvent[]>(INITIAL_LOST_SALES);
+  // Dados fictícios só entram na demonstração offline; logado, tudo vem da API.
+  const [lostSales, setLostSales] = useState<LostSaleEvent[]>([]);
   const [completedSalesByZone, setCompletedSalesByZone] = useState<Partial<Record<ZoneId, number>>>({});
-  const [campaigns, setCampaigns] = useState<FlashCampaign[]>(INITIAL_FLASH_CAMPAIGNS);
-  const [signals, setSignals] = useState<ConsumerSignal[]>([
-    {
-      id: 'sig-init-1',
-      zoneId: 'ala-central-ancoras',
-      query: 'Presente masculino até R$ 150',
-      budget: '80_200',
-      preference: 'Moda rápida com troca garantida',
-      couponCode: 'VITRINE-QR10',
-      matchedOffer: 'Ala Central • Âncoras e Alameda das Cores',
-      timestamp: '20:54',
-    },
-  ]);
+  const [campaigns, setCampaigns] = useState<FlashCampaign[]>([]);
+  const [signals, setSignals] = useState<ConsumerSignal[]>([]);
 
   const [visionSnapshot, setVisionSnapshot] = useState<VisionFunnelSnapshot>({
     zoneId: 'ala-central-ancoras',
@@ -157,8 +177,8 @@ export function App() {
     lastMotionRegion: 'vitrine',
   });
 
-  // Ciclo entre aparelhos: com a API no ar, o estado vem de GET /api/estado a cada 3 s.
-  // Sem API (offline), tudo continua funcionando só neste navegador, como demo.
+  // Ciclo entre aparelhos: logado, o estado vem de GET /api/estado (já filtrado pela API para o
+  // lojista) a cada 3 s; no QR público, só as ofertas da ala. Na demonstração offline nada é enviado.
   const [online, setOnline] = useState(false);
   const [vitrine, setVitrine] = useState<Partial<Record<ZoneId, VitrineResumo>>>({});
   const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
@@ -197,37 +217,44 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const filtro = activeTenant
-        ? { loja: activeTenant.storeName, ala: activeTenant.zoneId }
-        : undefined;
-      const e = await api.estado(filtro);
-      setLostSales(e.lostSales);
-      setCompletedSalesByZone(e.completedSalesByZone);
-      setSignals(e.signals);
+      if (conciergePublico) {
+        setCampaigns(await api.campanhasAtivas(selectedZoneId));
+      } else if (sessao) {
+        // Lojista: a API filtra pelo token. Admin "vendo como loja": filtro opcional ?loja=&ala=.
+        const filtro = papel === 'admin' && activeTenant
+          ? { loja: activeTenant.storeName, ala: activeTenant.zoneId }
+          : undefined;
+        const e = await api.estado(filtro);
+        setLostSales(e.lostSales);
+        setCompletedSalesByZone(e.completedSalesByZone);
+        setSignals(e.signals);
 
-      // Mescla campanhas do servidor com publicações locais recentes (evita sumiço entre containers /tmp sem Postgres)
-      const deleted = deletedCampaignIdsRef.current;
-      const toggled = toggledCampaignsRef.current;
-      const serverFiltered = e.campaigns
-        .filter((c) => !deleted.has(c.id))
-        .map((c) => (c.id in toggled ? { ...c, active: toggled[c.id] } : c));
-      const extras = pendingCampaignsRef.current.filter((p) => {
-        if (deleted.has(p.id)) return false;
-        const alreadyOnServer = serverFiltered.some(
-          (s) => s.id === p.id || (s.couponCode === p.couponCode && s.storeName === p.storeName)
-        );
-        return !alreadyOnServer;
-      });
-      setCampaigns([...extras, ...serverFiltered]);
+        // Mescla campanhas do servidor com publicações locais recentes (evita sumiço entre containers /tmp sem Postgres)
+        const deleted = deletedCampaignIdsRef.current;
+        const toggled = toggledCampaignsRef.current;
+        const serverFiltered = e.campaigns
+          .filter((c) => !deleted.has(c.id))
+          .map((c) => (c.id in toggled ? { ...c, active: toggled[c.id] } : c));
+        const extras = pendingCampaignsRef.current.filter((p) => {
+          if (deleted.has(p.id)) return false;
+          const alreadyOnServer = serverFiltered.some(
+            (s) => s.id === p.id || (s.couponCode === p.couponCode && s.storeName === p.storeName)
+          );
+          return !alreadyOnServer;
+        });
+        setCampaigns([...extras, ...serverFiltered]);
 
-      setVitrine(e.vitrine);
-      setAlertas(e.alertas);
-      setPorHora(e.porHora ?? {});
+        setVitrine(e.vitrine);
+        setAlertas(e.alertas);
+        setPorHora(e.porHora ?? {});
+      } else {
+        return;
+      }
       setOnline(true);
     } catch {
       setOnline(false);
     }
-  }, [activeTenant]);
+  }, [conciergePublico, sessao, selectedZoneId, papel, activeTenant]);
 
   useEffect(() => {
     if (activeTenant) {
@@ -238,11 +265,12 @@ export function App() {
   }, [activeTenant]);
 
   useEffect(() => {
+    if (demo || (!sessao && !conciergePublico)) return;
     refresh();
     syncLiveContext(false);
     const timer = window.setInterval(refresh, 3000);
     return () => window.clearInterval(timer);
-  }, [refresh, syncLiveContext]);
+  }, [refresh, syncLiveContext, demo, sessao, conciergePublico]);
 
   /** Com a API no ar, grava nela e relê o estado; se a chamada falhar, cai no modo local. */
   const viaApi = (chamada: () => Promise<unknown>, local: () => void) => {
@@ -269,6 +297,67 @@ export function App() {
       prevHash: 'GENESIS_BLOCK_0000',
     },
   ]);
+
+  const limparDados = () => {
+    setLostSales([]);
+    setCompletedSalesByZone({});
+    setSignals([]);
+    setCampaigns([]);
+    setVitrine({});
+    setAlertas([]);
+    setPorHora({});
+    setAlertasVistos([]);
+    setLastAnalysis(null);
+    setOnline(false);
+  };
+
+  const entrar = (nova: Sessao) => {
+    limparDados();
+    salvarSessao(nova);
+    setSessao(nova);
+    setDemo(false);
+    setAvisoLogin(null);
+  };
+
+  const sair = (aviso: string | null = null) => {
+    salvarSessao(null);
+    setSessao(null);
+    setDemo(false);
+    limparDados();
+    setAvisoLogin(aviso);
+  };
+
+  const entrarDemo = () => {
+    setLostSales(INITIAL_LOST_SALES);
+    setCampaigns(INITIAL_FLASH_CAMPAIGNS);
+    setSignals([SINAL_DEMO]);
+    setAvisoLogin(null);
+    setDemo(true);
+  };
+
+  // Qualquer 401 numa rota autenticada derruba a sessão. Ao abrir, confere o token salvo.
+  useEffect(() => {
+    definirAoExpirar(() => sair('Sessão expirada. Entre de novo.'));
+    if (sessao) {
+      api.eu().then(
+        (usuario) => {
+          const atual = { token: sessao.token, usuario };
+          salvarSessao(atual);
+          setSessao(atual);
+        },
+        () => undefined // 401 já saiu pelo definirAoExpirar; com a rede fora, mantém a sessão salva
+      );
+    }
+    return () => definirAoExpirar(null);
+  }, []);
+
+  // Lojista: a ala vem da conta e não muda.
+  useEffect(() => {
+    if (!zonaFixa) return;
+    setSelectedZoneId(zonaFixa);
+    setLastAnalysis(null);
+    setFloor(CAPIM_DOURADO_ZONES.find((z) => z.id === zonaFixa)?.floor ?? 'L1');
+  }, [zonaFixa]);
 
   const appendAudit = (
     action: string,
@@ -422,6 +511,7 @@ export function App() {
   };
 
   const handleSelectZone = (zoneId: ZoneId) => {
+    if (zonaFixa) return;
     if (activeTenant && zoneId !== activeTenant.zoneId) return;
     if (zoneId !== selectedZoneId) {
       setSelectedZoneId(zoneId);
@@ -431,10 +521,6 @@ export function App() {
         setFloor(zone.floor);
       }
     }
-  };
-
-  const handleNavigateFromStory = (target: StoryTargetTab) => {
-    setActiveTab(target);
   };
 
   const handleRunCopilot = async (telemetry: ZoneLiveTelemetry) => {
@@ -449,7 +535,7 @@ export function App() {
         category: telemetry.zone.segment,
         context: `Ala: ${telemetry.zone.name} | Clima: ${factors.weather} | Turno: ${factors.timeSlot} | Evento: ${factors.mallEvent} | Gargalo: ${LOST_SALE_LABELS[telemetry.dominantReason]} | IQ: ${telemetry.opportunityScore}. ${camSummary}`,
         prompt: `Gere ações imediatas de vitrine, estoque e abordagem para aumentar a conversão em ${telemetry.zone.shortName} no Capim Dourado Shopping considerando o gargalo "${LOST_SALE_LABELS[telemetry.dominantReason]}" e buscas quentes (${telemetry.zone.hotSearches.join(', ')}).`,
-      });
+      }, demo ? '' : undefined); // demonstração offline: heurística local, nada vai para a API
       setLastAnalysis(response);
       const auditStatus =
         response.source === 'FALLBACK_LOCAL' || response.source === 'BACKEND_FALLBACK'
@@ -641,17 +727,39 @@ export function App() {
     appendAudit('CONCIERGE_ROUTE_REQUESTED', `Navegação até ${storeName} (${targetFloor}) iniciada`);
   };
 
-  const navItems: { id: ActiveTab; icon: React.ReactNode }[] = [
-    { id: 'cockpit', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'map', icon: <Box className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'vision', icon: <Camera className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'counter', icon: <ClipboardCheck className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'concierge', icon: <QrCode className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'stories', icon: <BookOpen className="w-4 h-4" aria-hidden="true" /> },
-    { id: 'audit', icon: <ShieldCheck className="w-4 h-4" aria-hidden="true" /> },
-  ];
+  // Quiosque mostra só a tela dele; a demonstração offline vê tudo menos as contas (precisam da API).
+  const abas: ActiveTab[] = kioskTab
+    ? [kioskTab]
+    : demo
+      ? abasPermitidas('admin').filter((a) => a !== 'lojistas')
+      : abasPermitidas(papel);
+  const aba = abas.includes(activeTab) ? activeTab : abas[0];
+  const numero = (id: ActiveTab) => String(abas.indexOf(id) + 1).padStart(2, '0');
 
-  const meta = TAB_META[activeTab];
+  const navItems = (
+    [
+      { id: 'cockpit', grupo: 'operacao', icon: <LayoutDashboard className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'map', grupo: 'operacao', icon: <Box className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'vision', grupo: 'operacao', icon: <Camera className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'counter', grupo: 'operacao', icon: <ClipboardCheck className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'concierge', grupo: 'operacao', icon: <QrCode className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'audit', grupo: 'gestao', icon: <ShieldCheck className="w-4 h-4" aria-hidden="true" /> },
+      { id: 'lojistas', grupo: 'gestao', icon: <Users className="w-4 h-4" aria-hidden="true" /> },
+    ] as { id: ActiveTab; grupo: 'operacao' | 'gestao'; icon: React.ReactNode }[]
+  ).filter((item) => abas.includes(item.id));
+
+  const meta = TAB_META[aba];
+
+  if (!conciergePublico && !sessao && !demo) {
+    return (
+      <LoginScreen
+        onEntrar={entrar}
+        onDemo={entrarDemo}
+        aviso={avisoLogin}
+        destino={kioskTab === 'counter' ? 'Entre com a conta da loja para abrir o Modo Balcão' : undefined}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F6F2EA] text-[#0B0D12] flex flex-col lg:flex-row">
@@ -674,83 +782,60 @@ export function App() {
             </div>
           </div>
 
-          {/* Seletor Multi-Tenant: Admin do Shopping vs Lojista da Loja */}
-          <StoreTenantSwitcher
-            accessRole={accessRole}
-            activeStoreId={activeStoreId}
-            activeTenant={activeTenant}
-            onChangeRole={setAccessRole}
-            onSelectStore={setActiveStoreId}
-            variant="sidebar"
-          />
+          {/* Seletor Multi-Tenant: admin/demo podem ver como uma loja (o lojista já vem fixo pelo login) */}
+          {papel !== 'lojista' && (
+            <StoreTenantSwitcher
+              accessRole={accessRole}
+              activeStoreId={activeStoreId}
+              activeTenant={activeTenant}
+              onChangeRole={setAccessRole}
+              onSelectStore={setActiveStoreId}
+              variant="sidebar"
+            />
+          )}
 
           {/* Navegação Numerada Principal */}
           <nav aria-label="Módulos do VitrineIQ" className="space-y-1">
-            <span className="px-2.5 text-[10px] font-bold uppercase tracking-widest text-stone-500 block mb-2">
-              Operação do Lojista
-            </span>
-            {navItems.slice(0, 5).map((item) => {
-              const info = TAB_META[item.id];
-              const active = activeTab === item.id;
+            {(['operacao', 'gestao'] as const).map((grupo) => {
+              const itens = navItems.filter((item) => item.grupo === grupo);
+              if (itens.length === 0) return null;
               return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition ${
-                    active
-                      ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
-                      : 'text-stone-300 hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <span className="flex items-center gap-2.5 truncate">
-                    {item.icon}
-                    <span className="truncate">{info.label}</span>
+                <div key={grupo} className={grupo === 'gestao' ? 'pt-4' : undefined}>
+                  <span className="px-2.5 text-[10px] font-bold uppercase tracking-widest text-stone-500 block mb-2">
+                    {grupo === 'operacao' ? 'Operação do Lojista' : 'Administração'}
                   </span>
-                  <span
-                    className={`text-[10px] font-mono ${
-                      active ? 'text-[#111318]/75 font-extrabold' : 'text-stone-500'
-                    }`}
-                  >
-                    {info.number}
-                  </span>
-                </button>
+                  {itens.map((item) => {
+                    const info = TAB_META[item.id];
+                    const active = aba === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActiveTab(item.id)}
+                        aria-current={active ? 'page' : undefined}
+                        className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition ${
+                          active
+                            ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
+                            : 'text-stone-300 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5 truncate">
+                          {item.icon}
+                          <span className="truncate">{info.label}</span>
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono ${
+                            active ? 'text-[#111318]/75 font-extrabold' : 'text-stone-500'
+                          }`}
+                        >
+                          {numero(item.id)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               );
             })}
-
-            <div className="pt-4">
-              <span className="px-2.5 text-[10px] font-bold uppercase tracking-widest text-stone-500 block mb-2">
-                Governança & Roleta
-              </span>
-              {navItems.slice(5).map((item) => {
-                const info = TAB_META[item.id];
-                const active = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition ${
-                      active
-                        ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
-                        : 'text-stone-300 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2.5 truncate">
-                      {item.icon}
-                      <span className="truncate">{info.label}</span>
-                    </span>
-                    <span
-                      className={`text-[10px] font-mono ${
-                        active ? 'text-[#111318]/75 font-extrabold' : 'text-stone-500'
-                      }`}
-                    >
-                      {info.number}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </nav>
         </div>
 
@@ -788,7 +873,7 @@ export function App() {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-mono font-bold text-[#B45309]">
-                    {kioskTab ? 'VitrineIQ' : `${meta.number} / 07`}
+                    {kioskTab ? 'VitrineIQ' : `${numero(aba)} / ${String(abas.length).padStart(2, '0')}`}
                   </span>
                   <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-[#111318]">
                     {meta.label}
@@ -798,9 +883,9 @@ export function App() {
               </div>
             </div>
 
-            {/* Atalhos Rápidos + Indicador de Conta */}
+            {/* Atalhos Rápidos + visão da conta */}
             <div className="flex flex-wrap items-center gap-2">
-              {!kioskTab && (
+              {!kioskTab && papel !== 'lojista' && (
                 <StoreTenantSwitcher
                   accessRole={accessRole}
                   activeStoreId={activeStoreId}
@@ -810,16 +895,7 @@ export function App() {
                   variant="compact"
                 />
               )}
-              {kioskTab && activeTab !== kioskTab && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab(kioskTab)}
-                  className="px-3 py-1.5 rounded-xl bg-[#111318] text-white text-xs font-bold shadow-sm"
-                >
-                  ← Voltar
-                </button>
-              )}
-              {!kioskTab && activeTab !== 'map' && (
+              {abas.includes('map') && aba !== 'map' && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('map')}
@@ -829,7 +905,7 @@ export function App() {
                   <span>Abrir Tour 3D</span>
                 </button>
               )}
-              {!kioskTab && activeTab !== 'vision' && (
+              {abas.includes('vision') && aba !== 'vision' && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('vision')}
@@ -841,14 +917,38 @@ export function App() {
               )}
               <span
                 role="status"
-                title={online ? 'Dados compartilhados entre aparelhos pela API' : 'API fora do ar: os dados ficam só neste navegador'}
+                title={
+                  demo
+                    ? 'Dados fictícios; nada é enviado para a API'
+                    : online
+                      ? 'Dados compartilhados entre aparelhos pela API'
+                      : 'API sem resposta: tentando de novo a cada 3 s'
+                }
                 className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold ${
                   online ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                {online ? 'Ao vivo' : 'Modo demo (offline)'}
+                {demo ? 'Demonstração offline' : online ? 'Ao vivo' : 'Sem conexão com a API'}
               </span>
+              {!conciergePublico && (sessao || demo) && (
+                <span className="flex items-center gap-2">
+                  {sessao && (
+                    <span className="text-[11px] text-stone-600 text-right leading-tight">
+                      <strong className="block text-[#111318]">{sessao.usuario.nome}</strong>
+                      {papel === 'admin' ? 'Admin' : `Lojista${lojaFixa ? ` · ${lojaFixa}` : ''}`}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => sair()}
+                    className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white hover:bg-stone-100 border border-stone-200 text-xs font-bold text-[#111318] flex items-center gap-1.5 shadow-sm"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
+                    <span>{demo ? 'Sair da demonstração' : 'Sair'}</span>
+                  </button>
+                </span>
+              )}
             </div>
           </div>
 
@@ -859,7 +959,7 @@ export function App() {
           >
             {navItems.map((item) => {
               const info = TAB_META[item.id];
-              const active = activeTab === item.id;
+              const active = aba === item.id;
               return (
                 <button
                   key={item.id}
@@ -923,7 +1023,7 @@ export function App() {
               </div>
             )}
 
-            {activeTab === 'cockpit' && (
+            {aba === 'cockpit' && (
               <RetailerCockpit
                 zonesTelemetry={zonesTelemetry}
                 selectedZoneId={selectedZoneId}
@@ -950,13 +1050,14 @@ export function App() {
                 isAnalyzing={isAnalyzing}
                 lastAnalysis={lastAnalysis}
                 visionSnapshot={effectiveVision}
-                onOpenVision={() => setActiveTab('vision')}
+                onOpenVision={abas.includes('vision') ? () => setActiveTab('vision') : undefined}
                 completedSalesByZone={completedSalesByZone}
                 perfilHoje={porHora[selectedZoneId]}
+                lojaFixa={lojaFixa}
               />
             )}
 
-            {activeTab === 'map' && (
+            {aba === 'map' && (
               <ShoppingMap
                 floor={floor}
                 onFloorChange={setFloor}
@@ -969,7 +1070,7 @@ export function App() {
               />
             )}
 
-            {activeTab === 'vision' && (
+            {aba === 'vision' && (
               <EdgeVisionSensor
                 zones={CAPIM_DOURADO_ZONES}
                 selectedZoneId={selectedZoneId}
@@ -980,7 +1081,7 @@ export function App() {
               />
             )}
 
-            {activeTab === 'counter' && (
+            {aba === 'counter' && (
               <CounterQuickLog
                 zones={
                   activeTenant
@@ -995,10 +1096,11 @@ export function App() {
                 onUndoLostSale={handleUndoLostSale}
                 onLogCompletedSale={handleLogCompletedSale}
                 completedSalesCount={completedSalesByZone[selectedZoneId] ?? 0}
+                lojaFixa={lojaFixa}
               />
             )}
 
-            {activeTab === 'concierge' && (
+            {aba === 'concierge' && (
               <ConsumerConcierge
                 zones={CAPIM_DOURADO_ZONES}
                 selectedZoneId={selectedZoneId}
@@ -1006,15 +1108,13 @@ export function App() {
                 campaigns={campaigns}
                 signals={signals}
                 onSubmitConsumerSignal={handleSubmitConsumerSignal}
-                onNavigateToStore={handleNavigateToStore}
+                onNavigateToStore={abas.includes('map') ? handleNavigateToStore : undefined}
               />
             )}
 
-            {activeTab === 'stories' && (
-              <UserStoriesBoard onNavigateTab={handleNavigateFromStory} />
-            )}
+            {aba === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
 
-            {activeTab === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
+            {aba === 'lojistas' && <LojistasAdmin />}
           </div>
         </main>
       </div>
