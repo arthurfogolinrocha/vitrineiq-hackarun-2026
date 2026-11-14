@@ -16,12 +16,28 @@
 
 :root {
   color-scheme: light;
+  --gold-primary: #E2A83B;
+  --gold-light: #F5C76B;
+  --bronze-deep: #7A4B0A;
+  --obsidian-bg: #0B0D12;
+  --obsidian-surface: #12151D;
+  --cream-surface: #FAF7F0;
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #F4F2EE;
-  color: #111318;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #F6F2EA;
+  background-image:
+    radial-gradient(900px circle at 12% -10%, rgba(226, 168, 59, 0.10), transparent 55%),
+    radial-gradient(700px circle at 92% 8%, rgba(245, 199, 107, 0.08), transparent 50%);
+  color: #0B0D12;
+}
+
+.kpi-metric {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+  letter-spacing: -0.02em;
 }
 
 /* Keyboard Focus Visibility */
@@ -204,6 +220,106 @@ dialog {
 }
 
 dialog::backdrop {
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
+  background: rgba(11, 13, 18, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+/* Capim Dourado Luxury Obsidian & 3D Depth */
+.bento-card-obsidian {
+  position: relative;
+  background: linear-gradient(165deg, rgba(20, 24, 34, 0.96) 0%, #0B0D12 100%);
+  border: 1px solid rgba(226, 168, 59, 0.28);
+  box-shadow:
+    0 12px 32px -8px rgba(11, 13, 18, 0.55),
+    0 28px 60px -16px rgba(11, 13, 18, 0.45),
+    inset 0 1px 0 rgba(245, 199, 107, 0.38);
+}
+
+.bento-card-cream {
+  position: relative;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAF7F0 100%);
+  border: 1px solid rgba(180, 131, 46, 0.20);
+  box-shadow:
+    0 8px 24px -10px rgba(11, 13, 18, 0.08),
+    0 1px 2px rgba(11, 13, 18, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.gold-pill-metallic {
+  background: linear-gradient(135deg, #D99B26 0%, #F5C76B 48%, #C88B1F 100%);
+  color: #0B0D12;
+  box-shadow:
+    0 4px 14px -2px rgba(226, 168, 59, 0.45),
+    inset 0 1px 0 rgba(255, 251, 235, 0.65);
+}
+
+.gold-pill-metallic:hover {
+  background: linear-gradient(135deg, #E2A83B 0%, #FCE694 50%, #D99B26 100%);
+}
+
+/* Textura granulada sutil (anti-banding) */
+.grain-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Radar ping para status ao vivo */
+.live-status-dot {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background-color: #34D399;
+  box-shadow: 0 0 10px rgba(52, 211, 153, 0.8);
+}
+
+.live-status-dot--gold {
+  background-color: #F5C76B;
+  box-shadow: 0 0 10px rgba(245, 199, 107, 0.85);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .live-status-dot::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 9999px;
+    background-color: currentColor;
+    opacity: 0.35;
+    animation: radarPulse 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+  }
+
+  .card-3d-tilt {
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+}
+
+@keyframes radarPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .bento-card-obsidian,
+  .bento-card-cream {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+  .gold-pill-metallic {
+    border: 1px solid ButtonText;
+    box-shadow: none;
+  }
 }

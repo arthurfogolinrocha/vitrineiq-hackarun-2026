@@ -130,6 +130,10 @@ export interface VitrineResumo {
   pararamSemOlhar: number;
   atencaoMediaS: number;
   picoSimultaneo: number;
+  apontaram?: number;
+  noCelular?: number;
+  voltaramOlhar?: number;
+  chegaramPerto?: number;
   horaPico: number | null;
   porHora: Record<string, number>;
   olharesPorZona: Record<string, number>;
@@ -193,15 +197,25 @@ export const api = {
   removerLojista: (id: Lojista['id']) => chamar(`/admin/lojistas/${encodeURIComponent(String(id))}`, 'DELETE'),
   campanhasAtivas: (zoneId: ZoneId) =>
     chamar<FlashCampaign[]>(`/campanhas/ativas?ala=${encodeURIComponent(zoneId)}`),
-  estado: () => chamar<CicloEstado>('/estado'),
+  estado: (filtro?: { loja?: string; ala?: ZoneId }) => {
+    const q = new URLSearchParams();
+    if (filtro?.loja) q.set('loja', filtro.loja);
+    if (filtro?.ala) q.set('ala', filtro.ala);
+    const qs = q.toString();
+    return chamar<CicloEstado>(qs ? `/estado?${qs}` : '/estado');
+  },
   contexto: (force = false) => chamar<LiveContextPayload>(force ? '/contexto?force=true' : '/contexto'),
   registrarVenda: (zoneId: ZoneId, storeName: string) =>
     chamar('/balcao', 'POST', { zoneId, storeName, tipo: 'venda' }),
   registrarPerda: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) =>
     chamar('/balcao', 'POST', { zoneId, storeName, tipo: 'perdida', reason, note }),
   desfazerBalcao: (id: string) => chamar(`/balcao/${id}`, 'DELETE'),
-  buscar: (zoneId: ZoneId, query: string, budget: ConsumerSignal['budget']) =>
-    chamar<ConsumerSignal>('/concierge/busca', 'POST', { zoneId, query, budget }),
+  buscar: (
+    zoneId: ZoneId,
+    query: string,
+    budget: ConsumerSignal['budget'],
+    segmento?: string
+  ) => chamar<ConsumerSignal>('/concierge/busca', 'POST', { zoneId, query, budget, segmento }),
   publicarCampanha: (draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) =>
     chamar<FlashCampaign>('/campanhas', 'POST', draft),
   alterarCampanha: (id: string, active: boolean) => chamar(`/campanhas/${id}`, 'PATCH', { active }),

@@ -10,11 +10,16 @@ import {
   Eye,
   Flame,
   Footprints,
+  Hand,
+  Lock,
   Megaphone,
   Pause,
   Play,
   RefreshCw,
+  RotateCcw,
   Search,
+  ShieldCheck,
+  Smartphone,
   Sparkles,
   Sun,
   Trash2,
@@ -28,16 +33,18 @@ import {
   FlashCampaign,
   MallEvent,
   ShopContextFactors,
+  StoreTenant,
   TimeSlot,
   VisionFunnelSnapshot,
   WeatherCondition,
   ZoneId,
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
-import { LiveContextPayload } from '../services/api';
-import { LOST_SALE_LABELS } from '../data/shoppingData';
+import { LiveContextPayload, VitrineResumo } from '../services/api';
+import { LOST_SALE_LABELS, SEGMENT_LABELS } from '../data/shoppingData';
 import { stripMarkdown } from '../services/ai';
 import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
+import { SpotlightCard } from './SpotlightCard';
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -49,6 +56,10 @@ interface RetailerCockpitProps {
   isContextAuto?: boolean;
   isSyncingContext?: boolean;
   onSyncLiveContext?: () => void;
+  activeTenant?: StoreTenant | null;
+  vitrineResumo?: VitrineResumo;
+  lastPointedPart?: 'esquerda' | 'centro' | 'direita' | null;
+  onSimulatePointGesture?: (part: 'esquerda' | 'centro' | 'direita') => void;
   campaigns: FlashCampaign[];
   onLaunchCampaign: (campaign: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) => void;
   onToggleCampaign?: (id: string) => void;
@@ -111,6 +122,10 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   isContextAuto = true,
   isSyncingContext = false,
   onSyncLiveContext,
+  activeTenant,
+  vitrineResumo,
+  lastPointedPart,
+  onSimulatePointGesture,
   campaigns,
   onLaunchCampaign,
   onToggleCampaign,
@@ -128,7 +143,10 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
 
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const [storeName, setStoreName] = useState(current.zone.anchors[0] || 'Loja Âncora');
+  const [storeName, setStoreName] = useState(
+    activeTenant?.storeName || current.zone.anchors[0] || 'Loja Âncora'
+  );
+  const [segmento, setSegmento] = useState<string>(activeTenant?.segment || 'todos');
   const [title, setTitle] = useState('Combo Pós-Cinema 2h Relâmpago');
   const [discountBadge, setDiscountBadge] = useState('15% OFF');
   const [couponCode, setCouponCode] = useState('CAPIM15');
@@ -167,8 +185,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   );
 
   useEffect(() => {
-    setStoreName(current.zone.anchors[0] || 'Loja Âncora');
-  }, [current.zone.id, current.zone.anchors]);
+    setStoreName(activeTenant?.storeName || current.zone.anchors[0] || 'Loja Âncora');
+    if (activeTenant?.segment) {
+      setSegmento(activeTenant.segment);
+    }
+  }, [activeTenant, current.zone.id, current.zone.anchors]);
 
   const openModal = () => {
     setValidationError(null);
@@ -197,6 +218,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     onLaunchCampaign({
       zoneId: current.zone.id,
       storeName: lojaCampanha,
+      segmento: segmento !== 'todos' ? segmento : activeTenant?.segment,
       title: title.trim(),
       discountBadge: discountBadge.trim() || 'OFERTA',
       couponCode: couponCode.trim().toUpperCase(),
@@ -245,12 +267,74 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   // Fator de escala para curva horária
   const maxHourlyFlow = Math.max(220, Math.round(current.footTraffic * 1.15));
 
+  // Vitrine Viva + Taxímetro "Dinheiro na Mesa" (R$/h) + Micro-Heatmap 3 Terços
+  const avgTicket = activeTenant?.avgTicket ?? 185;
+  const peopleNotEntered = Math.max(0, corridorTotal - entriesTotal);
+  const opportunityLossHour = Math.round(peopleNotEntered * 0.14 * avgTicket);
+  const tercos = vitrineResumo?.olharesPorZona ?? { esquerda: 0, centro: 0, direita: 0 };
+  const apontaramCount = vitrineResumo?.apontaram ?? 0;
+  const noCelularCount = vitrineResumo?.noCelular ?? 0;
+  const voltaramCount = vitrineResumo?.voltaramOlhar ?? 0;
+  const maxTerco = Math.max(1, tercos.esquerda, tercos.centro, tercos.direita);
+
+  const handleRescueVitrine = (part: 'esquerda' | 'centro' | 'direita') => {
+    const partLabel =
+      part === 'esquerda' ? 'Vitrine Esquerda' : part === 'centro' ? 'Vitrine Central' : 'Vitrine Direita';
+    const nextCode = `VITRINE${part.slice(0, 3).toUpperCase()}15`;
+    setTitle(`Resgate Ao Vivo — ${partLabel}`);
+    setDiscountBadge('15% OFF');
+    setCouponCode(nextCode);
+    setWhatsappCopy(
+      `Vimos você curtindo nossa ${partLabel} no Capim Dourado! Apresente ${nextCode} nos próximos 45 min e garanta 15% OFF exclusivo.`
+    );
+    setExpiresInMinutes(45);
+    openModal();
+  };
+
   return (
     <div className="space-y-5">
+      {activeTenant ? (
+        <div
+          role="status"
+          className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2.5 text-xs">
+            <span className="w-7 h-7 rounded-lg bg-[#E2A83B]/15 border border-[#E2A83B]/40 text-[#F5C76B] flex items-center justify-center shrink-0">
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+            </span>
+            <div>
+              <strong className="text-[#F5C76B]">
+                Painel Exclusivo da Loja: {activeTenant.storeName}
+              </strong>
+              <span className="text-stone-300 block sm:inline sm:ml-2">
+                ({activeTenant.floorLabel} • Ticket médio R$ {activeTenant.avgTicket}) — Dados de lojas concorrentes ocultos por isolamento multi-tenant.
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/30 text-[11px] font-bold flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+            Tenant Isolado
+          </span>
+        </div>
+      ) : (
+        <div
+          role="status"
+          className="rounded-2xl px-4 py-2.5 bg-amber-50/80 border border-[#E2A83B]/35 text-xs flex flex-wrap items-center justify-between gap-2 text-[#0B0D12]"
+        >
+          <span className="font-semibold flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-[#7A4B0A]" aria-hidden="true" />
+            <strong>Modo Admin do Shopping:</strong> Visão consolidada das 5 alas do Capim Dourado Shopping.
+          </span>
+          <span className="text-[11px] text-[#7A4B0A] font-bold">
+            Troque para Modo Lojista no topo para isolar uma única loja
+          </span>
+        </div>
+      )}
+
       {/* LINHA 1: HERO BENTO (8 cols Obsidian + 4 cols Funil Físico) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* HERO CARD OBSIDIAN & CHAMPAGNE GOLD */}
-        <section className="xl:col-span-8 bg-[#111318] text-white rounded-3xl p-6 sm:p-7 shadow-md border border-white/10 flex flex-col justify-between gap-6 relative overflow-hidden">
+        <section className="xl:col-span-8 bento-card-obsidian grain-overlay text-white rounded-3xl p-6 sm:p-7 flex flex-col justify-between gap-6 relative overflow-hidden">
           <div
             className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-20"
             style={{
@@ -372,7 +456,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 <Footprints className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
                 Fluxo Corredor
               </span>
-              <strong className="text-xl font-extrabold text-white mt-1 block">
+              <strong className="text-xl font-extrabold text-white mt-1 block kpi-metric">
                 {effectiveFootTraffic}
                 <span className="text-xs font-normal text-stone-400">/h</span>
               </strong>
@@ -382,7 +466,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 <Eye className="w-3.5 h-3.5 text-[#E2A83B]" aria-hidden="true" />
                 Paradas Vitrine
               </span>
-              <strong className="text-xl font-extrabold text-white mt-1 block">
+              <strong className="text-xl font-extrabold text-white mt-1 block kpi-metric">
                 {stopsTotal}
               </strong>
             </div>
@@ -391,7 +475,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
                 Conversão Ala
               </span>
-              <strong className="text-xl font-extrabold text-emerald-400 mt-1 block">
+              <strong className="text-xl font-extrabold text-emerald-400 mt-1 block kpi-metric">
                 {current.conversionRate}%
               </strong>
             </div>
@@ -400,7 +484,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400" aria-hidden="true" />
                 Perdas Balcão
               </span>
-              <strong className="text-xl font-extrabold text-rose-300 mt-1 block">
+              <strong className="text-xl font-extrabold text-rose-300 mt-1 block kpi-metric">
                 {current.lostSalesCount}
                 <span className="text-[10px] font-medium text-stone-400 ml-1">
                   {current.lostSalesCount === 0
@@ -413,7 +497,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
         </section>
 
         {/* RIGHT BENTO: FUNIL FÍSICO DE VITRINE */}
-        <section className="xl:col-span-4 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between gap-4">
+        <section className="xl:col-span-4 bento-card-cream rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#B45309]">
@@ -500,6 +584,126 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           </div>
         </section>
       </div>
+
+      {/* DIFERENCIAL: VITRINE VIVA + TAXÍMETRO DINHEIRO NA MESA (R$/h) + MICRO-HEATMAP 3 TERÇOS */}
+      <SpotlightCard
+        tilt3d
+        className="bento-card-obsidian grain-overlay text-white rounded-3xl p-5 sm:p-6 border border-[#E2A83B]/30"
+      >
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-center">
+          {/* Taxímetro R$/h */}
+          <div className="xl:col-span-4 space-y-2.5 border-b xl:border-b-0 xl:border-r border-white/10 pb-4 xl:pb-0 xl:pr-5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#F5C76B]">
+              <span className="live-status-dot" aria-hidden="true" />
+              Vitrine Viva • Dinheiro na Mesa
+            </span>
+            <div className="flex items-baseline gap-2">
+              <strong className="text-3xl sm:text-4xl font-black text-white kpi-metric">
+                R$ {opportunityLossHour.toLocaleString('pt-BR')}
+              </strong>
+              <span className="text-xs font-bold text-[#F5C76B]">/ hora</span>
+            </div>
+            <p className="text-xs text-stone-300 leading-relaxed">
+              {peopleNotEntered} passantes saíram sem entrar agora (ticket médio R$ {avgTicket}). Aponte a câmera YOLO na vitrine para capturar quem aponta para os produtos.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+              <span className="px-2.5 py-1 rounded-full bg-white/10 text-[#F5C76B] border border-[#E2A83B]/30 font-bold flex items-center gap-1">
+                <Hand className="w-3.5 h-3.5" aria-hidden="true" />
+                {apontaramCount} apontaram
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-white/10 text-stone-200 border border-white/10 font-semibold flex items-center gap-1">
+                <Smartphone className="w-3.5 h-3.5 text-sky-400" aria-hidden="true" />
+                {noCelularCount} no celular
+              </span>
+              <span className="px-2.5 py-1 rounded-full bg-white/10 text-stone-200 border border-white/10 font-semibold flex items-center gap-1">
+                <RotateCcw className="w-3.5 h-3.5 text-emerald-400" aria-hidden="true" />
+                {voltaramCount} voltaram
+              </span>
+            </div>
+          </div>
+
+          {/* Micro-Heatmap 3 Terços */}
+          <div className="xl:col-span-5 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-extrabold text-white">
+                Micro-Heatmap da Vitrine (Esquerda • Centro • Direita)
+              </h3>
+              <span className="text-[11px] text-stone-400">Onde o olhar e o gesto se concentram</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {(
+                [
+                  { id: 'esquerda', label: 'Esquerda', count: tercos.esquerda },
+                  { id: 'centro', label: 'Centro', count: tercos.centro },
+                  { id: 'direita', label: 'Direita', count: tercos.direita },
+                ] as const
+              ).map((slot) => {
+                const pct = Math.min(100, Math.round((slot.count / maxTerco) * 100));
+                const isPointed = lastPointedPart === slot.id;
+                return (
+                  <div
+                    key={slot.id}
+                    className={`rounded-2xl p-3 border transition ${
+                      isPointed
+                        ? 'bg-[#E2A83B]/20 border-[#F5C76B] shadow-lg'
+                        : 'bg-white/5 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className={isPointed ? 'text-[#F5C76B]' : 'text-stone-300'}>
+                        {slot.label}
+                      </span>
+                      <span className="kpi-metric text-white">{slot.count}</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#E2A83B] to-[#F5C76B]"
+                        style={{ width: `${Math.max(12, pct)}%` }}
+                      />
+                    </div>
+                    {isPointed && (
+                      <span className="mt-1.5 inline-block text-[10px] font-extrabold text-[#F5C76B]">
+                        👆 Apontada agora!
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Gatilho Demo Ao Vivo + CTA Resgate */}
+          <div className="xl:col-span-3 flex flex-col gap-2.5">
+            {onSimulatePointGesture && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                  Simular Apontada Ao Vivo (Demo Palco)
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['esquerda', 'centro', 'direita'] as const).map((part) => (
+                    <button
+                      key={part}
+                      type="button"
+                      onClick={() => onSimulatePointGesture(part)}
+                      className="px-2 py-1.5 rounded-lg bg-white/10 hover:bg-[#E2A83B]/25 border border-white/15 hover:border-[#F5C76B] text-[11px] font-bold text-white capitalize transition"
+                    >
+                      {part}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => handleRescueVitrine(lastPointedPart ?? 'centro')}
+              className="w-full py-2.5 px-3.5 rounded-xl gold-pill-metallic text-xs flex items-center justify-center gap-2 transition"
+            >
+              <Zap className="w-4 h-4" aria-hidden="true" />
+              <span>Resgatar Agora ({lastPointedPart ?? 'Centro'})</span>
+            </button>
+          </div>
+        </div>
+      </SpotlightCard>
 
       {/* LINHA 2: GRÁFICO DE HORÁRIO DE PICO (7 cols) + SIMULADOR TÁTIL DE CONTEXTO (5 cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
@@ -1067,9 +1271,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 type="text"
                 required
                 value={lojaFixa ?? storeName}
-                readOnly={Boolean(lojaFixa)}
                 onChange={(e) => setStoreName(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium read-only:bg-stone-100 read-only:text-stone-600"
+                readOnly={Boolean(lojaFixa || activeTenant)}
+                className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium read-only:bg-amber-50/70"
               />
             </label>
             <label className="text-xs font-bold text-[#111318] space-y-1 block">
@@ -1089,6 +1293,21 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               />
             </label>
           </div>
+
+          <label className="text-xs font-bold text-[#111318] space-y-1 block">
+            <span>Segmento da Oferta (Filtro do Concierge QR)</span>
+            <select
+              value={segmento}
+              onChange={(e) => setSegmento(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium"
+            >
+              {Object.entries(SEGMENT_LABELS).map(([id, label]) => (
+                <option key={id} value={id}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <label className="text-xs font-bold text-[#111318] space-y-1 block">
             <span>Título da Campanha</span>

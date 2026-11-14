@@ -86,6 +86,7 @@ class CampanhaIn(BaseModel):
     couponCode: str = Field(min_length=3, max_length=30)
     whatsappCopy: str = Field(default="", max_length=500)
     expiresInMinutes: int = Field(default=60, ge=1, le=24 * 60)
+    segmento: Optional[str] = Field(default=None, max_length=40)
 
 
 class CampanhaPatch(BaseModel):
@@ -136,6 +137,7 @@ class BuscaIn(BaseModel):
     zoneId: ZoneId
     query: str = Field(min_length=3, max_length=200)
     budget: Budget = "80_200"
+    segmento: Optional[str] = Field(default=None, max_length=40)
 
 
 LIMITE_BUSCAS_POR_MINUTO = 20
@@ -148,11 +150,17 @@ def buscar_oferta(body: BuscaIn, request: Request) -> dict[str, Any]:
     # Cada busca soma no Score; sem limite, um estranho levaria qualquer ala a 100 no meio da demo.
     limitar_por_ip(request, _buscas, LIMITE_BUSCAS_POR_MINUTO, "Muitas buscas seguidas. Tente de novo em 1 minuto.")
     ativas = campanhas_ativas()
+    seg = (body.segmento or "").strip().lower()
+    if seg and seg != "todos":
+        ativas_seg = [c for c in ativas if (c.get("segmento") or "").strip().lower() == seg]
+        if ativas_seg:
+            ativas = ativas_seg
     oferta = next((c for c in ativas if c["zoneId"] == body.zoneId), None) or (ativas[0] if ativas else None)
     dados = {
         "zoneId": body.zoneId,
         "query": mascarar_dados_pessoais(sanitize_input(body.query)),
         "budget": body.budget,
+        "segmento": sanitize_input(body.segmento) if body.segmento else "",
         "preference": "",
         "couponCode": oferta["couponCode"] if oferta else "",
         "matchedOffer": f"{oferta['storeName']} — {oferta['title']} ({oferta['discountBadge']})" if oferta else "",
@@ -186,8 +194,12 @@ class VitrineEventoIn(BaseModel):
     atencao_media_s: float = Field(default=0, ge=0, le=3600)
     olhares_por_zona: dict[ParteVitrine, Annotated[int, Field(ge=0, le=10_000)]] = Field(default_factory=dict, max_length=10)
     pico_simultaneo: int = Field(default=0, ge=0, le=1000)
+    apontaram: int = Field(default=0, ge=0, le=10_000)
+    no_celular: int = Field(default=0, ge=0, le=10_000)
+    voltaram_a_olhar: int = Field(default=0, ge=0, le=10_000)
+    chegaram_perto: int = Field(default=0, ge=0, le=10_000)
 
-    model_config = {"extra": "ignore"}  # a câmera manda mais contagens (fluxo, grupos...); a API não usa nem grava
+    model_config = {"extra": "ignore"}  # campos extras não mapeados seguem descartados
 
 
 class VitrineAlertaIn(BaseModel):
@@ -253,6 +265,10 @@ def resumo_vitrine(regs: list[dict[str, Any]]) -> dict[str, Any]:
         "pararamSemOlhar": sem_olhar,
         "atencaoMediaS": round(sum(r["atencao_media_s"] * r["olharam"] for r in com_tempo) / n_tempo, 1) if n_tempo else 0,
         "picoSimultaneo": max((r.get("pico_simultaneo", 0) for r in regs), default=0),
+        "apontaram": sum(r.get("apontaram", 0) for r in regs),
+        "noCelular": sum(r.get("no_celular", 0) for r in regs),
+        "voltaramOlhar": sum(r.get("voltaram_a_olhar", 0) for r in regs),
+        "chegaramPerto": sum(r.get("chegaram_perto", 0) for r in regs),
         "horaPico": hora_pico,
         "porHora": {str(h): n for h, n in sorted(por_hora.items())},
         "olharesPorZona": {z: zonas[z] for z in ZONAS_VITRINE},
@@ -299,10 +315,11 @@ def vitrine_resumo(ala: ZoneId, u: Usuario) -> dict[str, Any]:
 # ---------- Estado completo para o painel ----------
 
 @router.get("/estado")
-def estado(u: Usuario) -> dict[str, Any]:
+def estado(u: Usuario, loja: Optional[str] = None, ala: Optional[ZoneId] = None) -> dict[str, Any]:
     """Tudo o que o front precisa para desenhar o ciclo, numa chamada só (polling de 3 s).
 
-    Admin vê tudo. Lojista vê vendas, perdas e campanhas só da loja dele; câmera e Concierge só da ala dele.
+    Lojista vê vendas, perdas e campanhas só da loja dele e câmera e Concierge só da ala dele, pelo token
+    (os filtros da URL são ignorados). O admin vê tudo e pode filtrar por `loja` (nome) e `ala`.
     """
     balcao = db.listar("balcao", 500)
     campanhas = db.listar("campanha", 100)
@@ -315,10 +332,18 @@ def estado(u: Usuario) -> dict[str, Any]:
         ala = u["zoneId"]
         balcao = [r for r in balcao if _da_loja(u, r)]
         campanhas = [c for c in campanhas if _da_loja(u, c)]
-        signals = [s for s in signals if s["zoneId"] == ala]
-        buscas_hoje = [s for s in buscas_hoje if s["zoneId"] == ala]
-        vitrine_regs = [r for r in vitrine_regs if r["zona"] == ala]
-        alertas = [a for a in alertas if a["zona"] == ala]
+    elif loja and loja.strip():
+        loja_norm = loja.strip().lower()
+        balcao = [r for r in balcao if (r.get("storeName") or "").strip().lower() == loja_norm]
+        campanhas = [c for c in campanhas if (c.get("storeName") or "").strip().lower() == loja_norm]
+    if ala:
+        balcao = [r for r in balcao if r.get("zoneId") == ala]
+        campanhas = [c for c in campanhas if c.get("zoneId") == ala]
+        signals = [b for b in signals if b.get("zoneId") == ala]
+        buscas_hoje = [b for b in buscas_hoje if b.get("zoneId") == ala]
+        vitrine_regs = [v for v in vitrine_regs if v.get("zona") == ala]
+        alertas = [a for a in alertas if a.get("zona") == ala]
+
     vendas: Counter[str] = Counter(r["zoneId"] for r in balcao if r["tipo"] == "venda")
     vitrine = {z: resumo_vitrine([r for r in vitrine_regs if r["zona"] == z])
                for z in sorted({r["zona"] for r in vitrine_regs})}

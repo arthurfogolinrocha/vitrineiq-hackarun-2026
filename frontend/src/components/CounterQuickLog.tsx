@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Lock,
   PackageX,
   Search,
   Tag,
@@ -17,6 +18,7 @@ interface CounterQuickLogProps {
   selectedZoneId: ZoneId;
   onSelectZone: (zoneId: ZoneId) => void;
   lostSales: LostSaleEvent[];
+  lockedStoreName?: string;
   onLogLostSale: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) => void;
   onUndoLostSale?: () => void;
   onLogCompletedSale: (zoneId: ZoneId, storeName: string) => void;
@@ -72,17 +74,24 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   selectedZoneId,
   onSelectZone,
   lostSales,
+  lockedStoreName,
   onLogLostSale,
   onUndoLostSale,
   onLogCompletedSale,
   completedSalesCount,
   lojaFixa,
 }) => {
-  const [storeName, setStoreName] = useState('Loja Piloto Capim Dourado');
+  const [storeName, setStoreName] = useState(lockedStoreName || 'Loja Piloto Capim Dourado');
   const [note, setNote] = useState('');
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
 
-  const cleanStore = lojaFixa || storeName.trim() || 'Loja Piloto Capim Dourado';
+  const cleanStore = lojaFixa || (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
+
+  useEffect(() => {
+    if (lockedStoreName) {
+      setStoreName(lockedStoreName);
+    }
+  }, [lockedStoreName]);
 
   const handleQuickTap = (reason: LostSaleReason) => {
     onLogLostSale(selectedZoneId, cleanStore, reason, note.trim() || undefined);
@@ -100,15 +109,23 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-enter">
       {/* Botões de 1 Toque do Vendedor */}
-      <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-        <div>
-          <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-600" aria-hidden="true" />
-            Modo Balcão — Registro em 1 Toque
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Registre em 2 segundos por que o cliente saiu sem comprar e alimente o Copiloto IA na hora.
-          </p>
+      <div className="lg:col-span-2 bento-card-cream rounded-3xl p-6 space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-extrabold text-[#0B0D12] flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-rose-600" aria-hidden="true" />
+              Modo Balcão — Registro em 1 Toque
+            </h2>
+            <p className="text-xs text-stone-600 mt-1">
+              Registre em 2 segundos por que o cliente saiu sem comprar e alimente o Copiloto IA na hora.
+            </p>
+          </div>
+          {lockedStoreName && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0B0D12] text-[#F5C76B] border border-[#E2A83B]/40 text-[11px] font-bold">
+              <Lock className="w-3 h-3" aria-hidden="true" />
+              Modo Lojista: {lockedStoreName}
+            </span>
+          )}
         </div>
 
         {lojaFixa ? (
@@ -120,14 +137,15 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
         ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="counter-zone" className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label htmlFor="counter-zone" className="block text-xs font-bold text-stone-700 mb-1.5">
               Ala da Loja no Shopping
             </label>
             <select
               id="counter-zone"
               value={selectedZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium"
+              disabled={Boolean(lockedStoreName)}
+              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-medium disabled:opacity-75 disabled:cursor-not-allowed"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -138,15 +156,16 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           </div>
 
           <div>
-            <label htmlFor="counter-store" className="block text-xs font-bold text-slate-700 mb-1.5">
-              Nome da Loja (Demo)
+            <label htmlFor="counter-store" className="block text-xs font-bold text-stone-700 mb-1.5">
+              {lockedStoreName ? 'Loja Isolada (Tenant Ativo)' : 'Nome da Loja (Demo)'}
             </label>
             <input
               id="counter-store"
               type="text"
               value={storeName}
+              readOnly={Boolean(lockedStoreName)}
               onChange={(e) => setStoreName(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900"
+              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-semibold read-only:bg-amber-50/60 read-only:border-[#E2A83B]/50"
             />
           </div>
         </div>

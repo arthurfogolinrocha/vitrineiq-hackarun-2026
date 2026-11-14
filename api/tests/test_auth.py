@@ -178,3 +178,12 @@ def test_campanha_publica_nao_expoe_conta_e_lojista_ve_so_camera_da_ala(admin, l
     assert all("lojaId" not in c for c in client.get(f"/api/campanhas/ativas?ala={ALA}").json())
     outra = client.get("/api/vitrine/resumo?ala=ala-sul-esporte", headers=loja)
     assert outra.status_code == 200  # a ala pedida é ignorada: vem a do token
+
+
+def test_lojista_ignora_filtro_de_loja_da_url(admin, lojista):
+    _, a = lojista("loja-a", ALA, "Loja A")
+    _, b = lojista("loja-b", ALA, "Loja B")
+    client.post("/api/balcao", headers=b, json={"zoneId": ALA, "storeName": "x", "tipo": "perdida", "reason": "preco"})
+    # A tenta ver os dados de B pelo filtro ?loja= que o admin usa: a API segue o token
+    assert client.get("/api/estado", headers=a, params={"loja": "Loja B", "ala": ALA}).json()["lostSales"] == []
+    assert len(client.get("/api/estado", headers=admin, params={"loja": "Loja B"}).json()["lostSales"]) == 1
