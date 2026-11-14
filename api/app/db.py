@@ -39,11 +39,21 @@ def engine() -> Engine:
     global _engine
     if _engine is None:
         _engine = create_engine(_url(), pool_pre_ping=True)
-        id_col = "INTEGER PRIMARY KEY AUTOINCREMENT" if _engine.dialect.name == "sqlite" else "SERIAL PRIMARY KEY"
+        is_sqlite = _engine.dialect.name == "sqlite"
+        id_col = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
         with _engine.begin() as con:
+            if is_sqlite:
+                con.execute(text("PRAGMA journal_mode=WAL"))
+                con.execute(text("PRAGMA synchronous=NORMAL"))
             con.execute(text(
                 f"CREATE TABLE IF NOT EXISTS registros ("
                 f"id {id_col}, tipo TEXT NOT NULL, zona TEXT, dados TEXT NOT NULL, criado_em TEXT NOT NULL)"
+            ))
+            con.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_registros_tipo_criado ON registros (tipo, criado_em)"
+            ))
+            con.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_registros_tipo_zona_criado ON registros (tipo, zona, criado_em)"
             ))
     return _engine
 
@@ -73,10 +83,18 @@ def inserir(tipo: str, zona: Optional[str], dados: dict[str, Any]) -> dict[str, 
     return _linha(rid, dados, criado.isoformat())
 
 
-def listar(tipo: str, limite: int = 200, desde: Optional[datetime] = None) -> list[dict[str, Any]]:
-    """Registros do tipo, do mais novo para o mais antigo."""
+def listar(
+    tipo: str,
+    limite: int = 200,
+    desde: Optional[datetime] = None,
+    zona: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """Registros do tipo (e zona opcional), do mais novo para o mais antigo."""
     sql = "SELECT id, dados, criado_em FROM registros WHERE tipo = :t"
     params: dict[str, Any] = {"t": tipo, "n": limite}
+    if zona is not None:
+        sql += " AND zona = :z"
+        params["z"] = zona
     if desde is not None:
         sql += " AND criado_em >= :d"
         params["d"] = desde.isoformat()

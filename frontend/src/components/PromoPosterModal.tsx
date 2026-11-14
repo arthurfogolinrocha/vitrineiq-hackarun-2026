@@ -104,9 +104,17 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
     if (!dialog) return;
 
     if (draft && !dialog.open) {
-      dialog.showModal();
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      } else {
+        dialog.setAttribute('open', '');
+      }
     } else if (!draft && dialog.open) {
-      dialog.close();
+      if (typeof dialog.close === 'function') {
+        dialog.close();
+      } else {
+        dialog.removeAttribute('open');
+      }
     }
   }, [draft]);
 
@@ -119,6 +127,18 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       onClose();
     };
     dialog.addEventListener('close', handleClose);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (draft && event.key === 'Escape') {
+        event.preventDefault();
+        if (dialog.open && typeof dialog.close === 'function') {
+          dialog.close();
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
 
     if (!('closedBy' in HTMLDialogElement.prototype)) {
       const handleBackdropClick = (event: MouseEvent) => {
@@ -134,14 +154,16 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       dialog.addEventListener('click', handleBackdropClick);
       return () => {
         dialog.removeEventListener('close', handleClose);
+        window.removeEventListener('keydown', handleKeyDown);
         dialog.removeEventListener('click', handleBackdropClick);
       };
     }
 
     return () => {
       dialog.removeEventListener('close', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose]);
+  }, [draft, onClose]);
 
   // Renderiza o cartaz em Canvas 1080px com Logo da Loja + QR Code real do Concierge
   useEffect(() => {
@@ -334,16 +356,46 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
+    if (e.target !== e.currentTarget) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isSyntheticZeroClick = e.clientX === 0 && e.clientY === 0;
+    const isOutside =
+      isSyntheticZeroClick ||
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom;
+    if (isOutside) {
+      if (e.currentTarget.open && typeof e.currentTarget.close === 'function') {
+        e.currentTarget.close();
+      } else {
+        onClose();
+      }
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
       closedby="any"
+      role="dialog"
+      aria-modal="true"
       aria-labelledby="poster-modal-title"
-      className="w-[min(100%-2rem,60rem)] m-auto rounded-3xl border border-[#E2A83B]/45 bg-[#0B0D12] text-white p-0 shadow-2xl"
+      onCancel={(e) => {
+        e.preventDefault();
+        if (e.currentTarget.open && typeof e.currentTarget.close === 'function') {
+          e.currentTarget.close();
+        } else {
+          onClose();
+        }
+      }}
+      onClick={handleBackdropClick}
+      className="w-[min(100%-1.5rem,60rem)] max-h-[90vh] overflow-y-auto m-auto rounded-3xl border border-[#E2A83B]/45 bg-[#0B0D12] text-white p-0 shadow-2xl backdrop:bg-black/75"
     >
-      <div className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
-          <div className="flex items-center gap-3.5 min-w-0">
+      <div className="p-4 sm:p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3 min-w-0">
             {draft && (
               <StoreAvatar
                 storeName={draft.storeName}
@@ -357,19 +409,25 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
                 <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 Cartaz &amp; Arte Promocional com Logo da Loja
               </span>
-              <h3 id="poster-modal-title" className="text-lg font-extrabold text-white mt-0.5 truncate">
+              <h3 id="poster-modal-title" className="text-base sm:text-lg font-extrabold text-white mt-0.5 break-words leading-snug">
                 {draft ? `${draft.storeName} — ` : ''}Stories, WhatsApp ou TV da Vitrine
               </h3>
               {draft?.floorLabel && (
-                <p className="text-xs text-stone-400 truncate">{draft.floorLabel}</p>
+                <p className="text-xs text-stone-300 truncate">{draft.floorLabel}</p>
               )}
             </div>
           </div>
           <button
             type="button"
-            onClick={() => dialogRef.current?.close()}
-            aria-label="Fechar gerador de cartaz"
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition shrink-0"
+            onClick={() => {
+              if (dialogRef.current?.open && typeof dialogRef.current.close === 'function') {
+                dialogRef.current.close();
+              } else {
+                onClose();
+              }
+            }}
+            aria-label="Fechar modal"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -377,16 +435,16 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
           {/* Preview em tempo real */}
-          <div className="md:col-span-7 flex items-center justify-center bg-[#12151D] rounded-2xl border border-[#E2A83B]/25 p-3.5 min-h-[380px]">
+          <div className="md:col-span-7 flex items-center justify-center bg-[#12151D] rounded-2xl border border-[#E2A83B]/25 p-3 sm:p-3.5 min-h-[260px] sm:min-h-[380px]">
             <canvas ref={canvasRef} className="hidden" />
             {previewUrl ? (
               <img
                 src={previewUrl}
                 alt={`Cartaz promocional de ${draft?.storeName ?? 'VitrineIQ'}`}
-                className="max-h-[500px] w-auto rounded-xl shadow-xl border border-[#E2A83B]/35 object-contain"
+                className="max-h-[45vh] sm:max-h-[500px] max-w-full w-auto rounded-xl shadow-xl border border-[#E2A83B]/35 object-contain"
               />
             ) : (
-              <span className="text-xs text-stone-400">
+              <span className="text-xs text-stone-300" role="status" aria-live="polite">
                 {isRendering ? 'Gerando arte em alta resolução...' : 'Preparando cartaz...'}
               </span>
             )}
@@ -395,14 +453,15 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
           {/* Controles e Download */}
           <div className="md:col-span-5 space-y-4">
             <div className="space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 block">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-300 block">
                 Formato da Arte
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Formato da arte promocional">
                 <button
                   type="button"
+                  aria-pressed={format === 'vitrine'}
                   onClick={() => setFormat('vitrine')}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
+                  className={`min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                     format === 'vitrine'
                       ? 'gold-pill-metallic border-transparent'
                       : 'bg-white/5 border-white/15 text-stone-200 hover:bg-white/10'
@@ -413,8 +472,9 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
                 </button>
                 <button
                   type="button"
+                  aria-pressed={format === 'stories'}
                   onClick={() => setFormat('stories')}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
+                  className={`min-h-[44px] px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                     format === 'stories'
                       ? 'gold-pill-metallic border-transparent'
                       : 'bg-white/5 border-white/15 text-stone-200 hover:bg-white/10'
@@ -439,7 +499,7 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
               <a
                 href={previewUrl}
                 download={`vitrineiq-${fileSlug}-${format}.png`}
-                className="w-full py-3 px-4 rounded-xl gold-pill-metallic text-xs font-extrabold flex items-center justify-center gap-2 transition"
+                className="w-full min-h-[44px] py-3 px-4 rounded-xl gold-pill-metallic text-xs font-extrabold flex items-center justify-center gap-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 <Download className="w-4 h-4" aria-hidden="true" />
                 <span>Baixar Imagem PNG (1080p)</span>

@@ -365,7 +365,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-enter">
       {/* Botões de 1 Toque do Vendedor */}
-      <div className="lg:col-span-2 bento-card-cream rounded-3xl p-6 space-y-5">
+      <div className="lg:col-span-2 bento-card-cream rounded-3xl p-4 sm:p-6 space-y-5">
         {effectiveLockedStore && (
           <div className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3.5 min-w-0">
@@ -398,8 +398,8 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold text-[#0B0D12] flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-rose-600" aria-hidden="true" />
-              Modo Balcão — Registro em 1 Toque &amp; Voz 4s
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" aria-hidden="true" />
+              <span>Modo Balcão — Registro em 1 Toque &amp; Voz 4s</span>
             </h2>
             <p className="text-xs text-stone-600 mt-1">
               Registre em 2 segundos (por toque ou falando por 4s) por que o cliente saiu sem comprar.
@@ -410,19 +410,25 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
         {/* Balcão por Voz 4s */}
         <div className="rounded-2xl bg-white border border-[#E2A83B]/40 p-4 space-y-3 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <strong className="text-xs font-extrabold text-[#0B0D12] block">
                 Atalho de Balcão por Voz (4 segundos)
               </strong>
-              <span className="text-[11px] text-stone-500">
+              <span className="text-[11px] text-stone-600">
                 Fale a objeção do cliente — a IA classifica automaticamente e registra na hora.
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
+                aria-pressed={isListening}
+                aria-label={
+                  isListening
+                    ? `Parar gravação de voz (${voiceSecondsLeft} segundos restantes)`
+                    : 'Registrar venda perdida por voz em 4 segundos'
+                }
                 onClick={handleToggleVoiceCapture}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-sm ${
+                className={`min-h-[44px] flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   isListening
                     ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
                     : 'gold-pill-metallic'
@@ -430,35 +436,47 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               >
                 {isListening ? (
                   <>
-                    <MicOff className="w-4 h-4" aria-hidden="true" />
+                    <MicOff className="w-4 h-4 shrink-0" aria-hidden="true" />
                     <span>Ouvindo ({voiceSecondsLeft}s)... Toque p/ parar</span>
                   </>
                 ) : (
                   <>
-                    <Mic className="w-4 h-4" aria-hidden="true" />
+                    <Mic className="w-4 h-4 shrink-0" aria-hidden="true" />
                     <span>Registrar por Voz (4s)</span>
                   </>
                 )}
               </button>
               <button
                 type="button"
+                aria-expanded={showVoiceFallback}
                 onClick={() => setShowVoiceFallback((s) => !s)}
-                className="px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] font-bold text-stone-700"
+                className="min-h-[44px] px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] font-bold text-stone-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 {showVoiceFallback ? 'Ocultar Exemplos' : 'Exemplos de Voz'}
               </button>
             </div>
           </div>
 
+          {isListening && (
+            <p role="status" aria-live="polite" className="visually-hidden">
+              Microfone ativo. Fale o motivo da perda de venda em até {voiceSecondsLeft} segundos.
+            </p>
+          )}
+
           {voiceNotice && (
-            <p role="status" className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
-              {voiceNotice}
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-700 mt-0.5" aria-hidden="true" />
+              <span>{voiceNotice}</span>
             </p>
           )}
 
           {showVoiceFallback && (
             <div className="space-y-1.5 pt-1">
-              <span className="block text-[11px] font-bold text-stone-600">
+              <span className="block text-[11px] font-bold text-stone-700">
                 Toque para simular comando de voz em 1 clique:
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -467,7 +485,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
                     key={ex.text}
                     type="button"
                     onClick={() => handleSimulatedVoiceExample(ex.text)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] hover:bg-amber-50 border border-stone-300 hover:border-[#E2A83B] text-[11px] text-[#0B0D12] font-medium text-left transition"
+                    className="min-h-[44px] px-3 py-2 rounded-lg bg-[#FAF8F5] hover:bg-amber-50 border border-stone-300 hover:border-[#E2A83B] text-[11px] text-[#0B0D12] font-medium text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                   >
                     <span className="font-extrabold text-[#7A4B0A] mr-1">[{ex.hint}]</span>
                     &ldquo;{ex.text}&rdquo;
@@ -501,7 +519,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
                     `Oferta Relâmpago disparada para "${voiceTranscript}" (${LOST_SALE_LABELS[voiceReason]})!`
                   );
                 }}
-                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition ${
+                className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   flashTriggered
                     ? 'bg-emerald-500 text-white'
                     : 'gold-pill-metallic'
@@ -533,7 +551,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               value={effectiveZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
               disabled={Boolean(effectiveLockedStore)}
-              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-medium disabled:opacity-75 disabled:cursor-not-allowed"
+              className="w-full min-h-[44px] bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-medium disabled:opacity-75 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               {(activeTenant ? zones.filter((z) => z.id === activeTenant.zoneId) : zones).map((z) => (
                 <option key={z.id} value={z.id}>
@@ -553,7 +571,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               value={storeName}
               readOnly={Boolean(effectiveLockedStore)}
               onChange={(e) => setStoreName(e.target.value)}
-              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-semibold read-only:bg-amber-50/60 read-only:border-[#E2A83B]/50"
+              className="w-full min-h-[44px] bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-semibold read-only:bg-amber-50/60 read-only:border-[#E2A83B]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             />
           </div>
         </div>
@@ -563,7 +581,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
           <label htmlFor="counter-note" className="block text-xs font-bold text-slate-700 mb-1">
             Detalhe rápido opcional (ex: &ldquo;Tênis 41&rdquo; ou &ldquo;Presente até R$ 100&rdquo;)
           </label>
-          <span id="counter-note-hint" className="block text-[11px] text-slate-500 mb-1.5">
+          <span id="counter-note-hint" className="block text-[11px] text-slate-600 mb-1.5">
             Ajuda a IA a sugerir exatamente o produto ou promoção certa.
           </span>
           <input
@@ -573,7 +591,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Ex: Procurou camisa branca M e não tinha..."
-            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400"
+            className="w-full min-h-[44px] bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           />
         </div>
 
@@ -581,14 +599,14 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
         <button
           type="button"
           onClick={handleCompletedSale}
-          className="w-full min-h-[72px] p-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left transition flex items-center gap-3.5 shadow-sm"
+          className="w-full min-h-[72px] p-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-left transition flex items-center gap-3.5 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
         >
           <CheckCircle2 className="w-7 h-7 shrink-0" aria-hidden="true" />
-          <span className="flex-1">
+          <span className="flex-1 min-w-0">
             <span className="block text-base font-extrabold">Venda concluída</span>
             <span className="block text-xs text-emerald-50">O cliente comprou nesta ala</span>
           </span>
-          <span className="text-xs font-bold bg-white/20 rounded-lg px-2 py-1">
+          <span className="text-xs font-bold bg-white/20 rounded-lg px-2 py-1 shrink-0">
             {completedSalesCount} hoje
           </span>
         </button>
@@ -601,12 +619,12 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
               key={btn.reason}
               type="button"
               onClick={() => handleQuickTap(btn.reason)}
-              className={`min-h-[84px] p-4 rounded-2xl bg-slate-50/70 border text-left transition flex items-start gap-3.5 ${btn.accent}`}
+              className={`min-h-[84px] p-4 rounded-2xl bg-slate-50/70 border text-left transition flex items-start gap-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${btn.accent}`}
             >
               <div className={`p-2.5 rounded-xl border shrink-0 ${btn.iconBg}`}>
                 {btn.icon}
               </div>
-              <div>
+              <div className="min-w-0">
                 <span className="block text-sm font-bold text-slate-900">{btn.title}</span>
                 <span className="block text-xs text-slate-600 mt-0.5">{btn.subtitle}</span>
               </div>
@@ -627,7 +645,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
       </div>
 
       {/* Últimos registros de balcão */}
-      <aside className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <aside className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
             <Clock className="w-4 h-4 text-blue-600" aria-hidden="true" />
@@ -640,8 +658,8 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
                 onUndoLostSale();
                 setFeedbackBanner('Último registro desfeito com sucesso!');
               }}
-              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1 transition"
-              title="Desfazer último registro de venda perdida"
+              aria-label="Desfazer último registro de venda perdida"
+              className="min-h-[44px] px-3 py-2 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold flex items-center gap-1 transition shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Desfazer</span>
@@ -656,7 +674,7 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             >
               <div className="flex items-center justify-between gap-2">
                 <strong className="text-slate-900">{item.storeName}</strong>
-                <span className="font-mono text-[10px] text-slate-500">{item.timestamp}</span>
+                <span className="font-mono text-[10px] text-slate-600">{item.timestamp}</span>
               </div>
               <div className="text-rose-700 font-semibold">{LOST_SALE_LABELS[item.reason]}</div>
               {item.note && <p className="text-slate-600">{item.note}</p>}

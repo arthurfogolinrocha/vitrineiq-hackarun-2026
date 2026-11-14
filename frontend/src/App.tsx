@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Camera,
@@ -53,16 +53,29 @@ import {
 import { generateAuditHash } from './utils/security';
 import { readUrlView } from './utils/urlView';
 import { abasPermitidas, ActiveTab } from './utils/acesso';
-import { RetailerCockpit } from './components/RetailerCockpit';
-import { ShoppingMap } from './components/ShoppingMap';
-import { EdgeVisionSensor } from './components/EdgeVisionSensor';
-import { CounterQuickLog } from './components/CounterQuickLog';
 import { ConsumerConcierge } from './components/ConsumerConcierge';
-import { SecurityAuditPanel } from './components/SecurityAuditPanel';
 import { LoginScreen } from './components/LoginScreen';
-import { LojistasAdmin } from './components/LojistasAdmin';
 import { StoreTenantSwitcher } from './components/StoreTenantSwitcher';
 import { StoreAvatar } from './components/StoreAvatar';
+
+const RetailerCockpit = lazy(() =>
+  import('./components/RetailerCockpit').then((m) => ({ default: m.RetailerCockpit }))
+);
+const ShoppingMap = lazy(() =>
+  import('./components/ShoppingMap').then((m) => ({ default: m.ShoppingMap }))
+);
+const EdgeVisionSensor = lazy(() =>
+  import('./components/EdgeVisionSensor').then((m) => ({ default: m.EdgeVisionSensor }))
+);
+const CounterQuickLog = lazy(() =>
+  import('./components/CounterQuickLog').then((m) => ({ default: m.CounterQuickLog }))
+);
+const SecurityAuditPanel = lazy(() =>
+  import('./components/SecurityAuditPanel').then((m) => ({ default: m.SecurityAuditPanel }))
+);
+const LojistasAdmin = lazy(() =>
+  import('./components/LojistasAdmin').then((m) => ({ default: m.LojistasAdmin }))
+);
 
 const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; subtitle: string }> = {
   cockpit: {
@@ -276,8 +289,21 @@ export function App() {
     if (demo || (!sessao && !conciergePublico)) return;
     refresh();
     syncLiveContext(false);
-    const timer = window.setInterval(refresh, 3000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    }, 3000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [refresh, syncLiveContext, demo, sessao, conciergePublico]);
 
   /** Com a API no ar, grava nela e relê o estado; se a chamada falhar, cai no modo local. */
@@ -1058,117 +1084,125 @@ export function App() {
               </div>
             )}
 
-            {aba === 'cockpit' && (
-              <RetailerCockpit
-                zonesTelemetry={zonesTelemetry}
-                selectedZoneId={selectedZoneId}
-                onSelectZone={handleSelectZone}
-                factors={factors}
-                onChangeFactors={handleManualFactorsChange}
-                liveContext={liveContext}
-                isContextAuto={isContextAuto}
-                isSyncingContext={isSyncingContext}
-                onSyncLiveContext={() => syncLiveContext(true)}
-                activeTenant={activeTenant}
-                vitrineResumo={mergedVitrineResumo}
-                crowdDrop={crowdDropByZone[selectedZoneId]}
-                lastPointedPart={
-                  demoCameraOverlay?.zoneId === selectedZoneId
-                    ? demoCameraOverlay.lastPointedPart
-                    : (alertaAtivo?.evento === 'apontou' ? (alertaAtivo.zonaVitrine as 'esquerda' | 'centro' | 'direita' | undefined) ?? null : null)
-                }
-                onSimulatePointGesture={handleSimulatePointGesture}
-                campaigns={scopedCampaigns}
-                onLaunchCampaign={handleLaunchCampaign}
-                onToggleCampaign={handleToggleCampaign}
-                onDeleteCampaign={handleDeleteCampaign}
-                onRunCopilot={handleRunCopilot}
-                isAnalyzing={isAnalyzing}
-                lastAnalysis={lastAnalysis}
-                visionSnapshot={effectiveVision}
-                onOpenVision={abas.includes('vision') ? () => setActiveTab('vision') : undefined}
-                completedSalesByZone={completedSalesByZone}
-                perfilHoje={porHora[selectedZoneId]}
-                lojaFixa={lojaFixa}
-              />
-            )}
+            <Suspense
+              fallback={
+                <div className="rounded-3xl border border-amber-500/20 bg-slate-900/60 p-8 text-center text-sm text-amber-200/80 animate-pulse">
+                  Carregando módulo VitrineIQ…
+                </div>
+              }
+            >
+              {aba === 'cockpit' && (
+                <RetailerCockpit
+                  zonesTelemetry={zonesTelemetry}
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={handleSelectZone}
+                  factors={factors}
+                  onChangeFactors={handleManualFactorsChange}
+                  liveContext={liveContext}
+                  isContextAuto={isContextAuto}
+                  isSyncingContext={isSyncingContext}
+                  onSyncLiveContext={() => syncLiveContext(true)}
+                  activeTenant={activeTenant}
+                  vitrineResumo={mergedVitrineResumo}
+                  crowdDrop={crowdDropByZone[selectedZoneId]}
+                  lastPointedPart={
+                    demoCameraOverlay?.zoneId === selectedZoneId
+                      ? demoCameraOverlay.lastPointedPart
+                      : (alertaAtivo?.evento === 'apontou' ? (alertaAtivo.zonaVitrine as 'esquerda' | 'centro' | 'direita' | undefined) ?? null : null)
+                  }
+                  onSimulatePointGesture={handleSimulatePointGesture}
+                  campaigns={scopedCampaigns}
+                  onLaunchCampaign={handleLaunchCampaign}
+                  onToggleCampaign={handleToggleCampaign}
+                  onDeleteCampaign={handleDeleteCampaign}
+                  onRunCopilot={handleRunCopilot}
+                  isAnalyzing={isAnalyzing}
+                  lastAnalysis={lastAnalysis}
+                  visionSnapshot={effectiveVision}
+                  onOpenVision={abas.includes('vision') ? () => setActiveTab('vision') : undefined}
+                  completedSalesByZone={completedSalesByZone}
+                  perfilHoje={porHora[selectedZoneId]}
+                  lojaFixa={lojaFixa}
+                />
+              )}
 
-            {aba === 'map' && (
-              <ShoppingMap
-                floor={floor}
-                onFloorChange={setFloor}
-                zonesTelemetry={zonesTelemetry}
-                selectedZoneId={selectedZoneId}
-                onSelectZone={handleSelectZone}
-                routes={CROSS_SEGMENT_ROUTES}
-                campaigns={campaigns}
-                activeTenant={activeTenant}
-                selectedStoreName={selectedStoreName}
-                onSelectStoreName={setSelectedStoreName}
-              />
-            )}
+              {aba === 'map' && (
+                <ShoppingMap
+                  floor={floor}
+                  onFloorChange={setFloor}
+                  zonesTelemetry={zonesTelemetry}
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={handleSelectZone}
+                  routes={CROSS_SEGMENT_ROUTES}
+                  campaigns={campaigns}
+                  activeTenant={activeTenant}
+                  selectedStoreName={selectedStoreName}
+                  onSelectStoreName={setSelectedStoreName}
+                />
+              )}
 
-            {aba === 'vision' && (
-              <EdgeVisionSensor
-                zones={
-                  activeTenant
-                    ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
-                    : CAPIM_DOURADO_ZONES
-                }
-                selectedZoneId={selectedZoneId}
-                onSelectZone={handleSelectZone}
-                snapshot={visionSnapshot}
-                onUpdateSnapshot={setVisionSnapshot}
-                onAnalyzeWithVision={handleAnalyzeWithVision}
-                activeTenant={activeTenant}
-                olharesPorZona={mergedVitrineResumo.olharesPorZona}
-                onAuditComplete={(res) =>
-                  appendAudit(
-                    'VITRINE_VISION_AUDIT',
-                    `Raio-X Multimodal (${activeTenant?.storeName ?? selectedTelemetry.zone.shortName}): Nota ${res.score}/100 [${res.source}]`,
-                    res.source === 'BLOCKED' ? 'WARNING' : 'SUCCESS'
-                  )
-                }
-              />
-            )}
+              {aba === 'vision' && (
+                <EdgeVisionSensor
+                  zones={
+                    activeTenant
+                      ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
+                      : CAPIM_DOURADO_ZONES
+                  }
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={handleSelectZone}
+                  snapshot={visionSnapshot}
+                  onUpdateSnapshot={setVisionSnapshot}
+                  onAnalyzeWithVision={handleAnalyzeWithVision}
+                  activeTenant={activeTenant}
+                  olharesPorZona={mergedVitrineResumo.olharesPorZona}
+                  onAuditComplete={(res) =>
+                    appendAudit(
+                      'VITRINE_VISION_AUDIT',
+                      `Raio-X Multimodal (${activeTenant?.storeName ?? selectedTelemetry.zone.shortName}): Nota ${res.score}/100 [${res.source}]`,
+                      res.source === 'BLOCKED' ? 'WARNING' : 'SUCCESS'
+                    )
+                  }
+                />
+              )}
 
-            {aba === 'counter' && (
-              <CounterQuickLog
-                zones={
-                  activeTenant
-                    ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
-                    : CAPIM_DOURADO_ZONES
-                }
-                selectedZoneId={selectedZoneId}
-                onSelectZone={handleSelectZone}
-                lostSales={scopedLostSales}
-                lockedStoreName={activeTenant?.storeName}
-                activeTenant={activeTenant}
-                onLogLostSale={handleLogLostSale}
-                onUndoLostSale={handleUndoLostSale}
-                onLogCompletedSale={handleLogCompletedSale}
-                onQuickFlashFromVoice={handleQuickFlashFromVoice}
-                completedSalesCount={completedSalesByZone[selectedZoneId] ?? 0}
-                lojaFixa={lojaFixa}
-              />
-            )}
+              {aba === 'counter' && (
+                <CounterQuickLog
+                  zones={
+                    activeTenant
+                      ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
+                      : CAPIM_DOURADO_ZONES
+                  }
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={handleSelectZone}
+                  lostSales={scopedLostSales}
+                  lockedStoreName={activeTenant?.storeName}
+                  activeTenant={activeTenant}
+                  onLogLostSale={handleLogLostSale}
+                  onUndoLostSale={handleUndoLostSale}
+                  onLogCompletedSale={handleLogCompletedSale}
+                  onQuickFlashFromVoice={handleQuickFlashFromVoice}
+                  completedSalesCount={completedSalesByZone[selectedZoneId] ?? 0}
+                  lojaFixa={lojaFixa}
+                />
+              )}
 
-            {aba === 'concierge' && (
-              <ConsumerConcierge
-                zones={CAPIM_DOURADO_ZONES}
-                selectedZoneId={selectedZoneId}
-                onSelectZone={handleSelectZone}
-                campaigns={campaigns}
-                signals={signals}
-                activeTenant={activeTenant}
-                onSubmitConsumerSignal={handleSubmitConsumerSignal}
-                onNavigateToStore={abas.includes('map') ? handleNavigateToStore : undefined}
-              />
-            )}
+              {aba === 'concierge' && (
+                <ConsumerConcierge
+                  zones={CAPIM_DOURADO_ZONES}
+                  selectedZoneId={selectedZoneId}
+                  onSelectZone={handleSelectZone}
+                  campaigns={campaigns}
+                  signals={signals}
+                  activeTenant={activeTenant}
+                  onSubmitConsumerSignal={handleSubmitConsumerSignal}
+                  onNavigateToStore={abas.includes('map') ? handleNavigateToStore : undefined}
+                />
+              )}
 
-            {aba === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
+              {aba === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
 
-            {aba === 'lojistas' && <LojistasAdmin />}
+              {aba === 'lojistas' && <LojistasAdmin />}
+            </Suspense>
           </div>
         </main>
       </div>

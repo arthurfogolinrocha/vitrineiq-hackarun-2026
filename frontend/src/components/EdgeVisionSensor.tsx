@@ -16,6 +16,7 @@ import {
   UserCheck,
   UserMinus,
   VideoOff,
+  X,
 } from 'lucide-react';
 import {
   ShoppingZone,
@@ -122,8 +123,15 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
           videoEl.play().catch(() => {});
         }
       })
-      .catch(() => {
-        setWebcamError('Permissão de webcam não concedida; mantendo o simulador ativo.');
+      .catch((err: unknown) => {
+        const errName = err instanceof Error ? err.name : '';
+        if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+          setWebcamError('Nenhuma câmera física encontrada neste dispositivo; mantendo o simulador ativo.');
+        } else if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+          setWebcamError('Permissão de webcam não concedida; mantendo o simulador ativo.');
+        } else {
+          setWebcamError('Não foi possível acessar a webcam agora; mantendo o simulador ativo.');
+        }
         setWebcamActive(false);
       });
 
@@ -649,7 +657,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     <div className="space-y-6 panel-enter">
       <video ref={videoRef} muted playsInline className="hidden" />
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-5">
         {activeTenant && (
           <div
             role="status"
@@ -681,22 +689,26 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-              <Camera className="w-5 h-5 text-emerald-600" aria-hidden="true" />
-              Câmera na Vitrine — {activeTenant ? activeTenant.storeName : 'Entrada, Saída & Fluxo'}
+              <Camera className="w-5 h-5 text-emerald-600 shrink-0" aria-hidden="true" />
+              <span>Câmera na Vitrine — {activeTenant ? activeTenant.storeName : 'Entrada, Saída & Fluxo'}</span>
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-600 mt-0.5">
               Conecte a webcam para alimentar o Painel do Lojista ao vivo sem gravar vídeo nem reconhecer rostos: a imagem fica no aparelho e só as contagens vão para a API.
             </p>
           </div>
 
           {/* Controles Limpos e Óbvios */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => setWebcamActive((w) => !w)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition ${
+              aria-pressed={webcamActive}
+              onClick={() => {
+                setWebcamError(null);
+                setWebcamActive((w) => !w);
+              }}
+              className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                 webcamActive
                   ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-sm'
@@ -718,8 +730,9 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
             {webcamActive && (
               <button
                 type="button"
+                aria-pressed={privacyBlur}
                 onClick={() => setPrivacyBlur((b) => !b)}
-                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5"
+                className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 {privacyBlur ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
                 <span>{privacyBlur ? 'Desfoque LGPD: ON' : 'Desfoque LGPD: OFF'}</span>
@@ -728,8 +741,10 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
             <button
               type="button"
+              aria-pressed={isPaused}
+              aria-label={isPaused ? 'Retomar contagem do sensor de vitrine' : 'Pausar contagem do sensor de vitrine'}
               onClick={() => setIsPaused((p) => !p)}
-              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200 flex items-center gap-1.5"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200 flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               {isPaused ? (
                 <>
@@ -746,8 +761,9 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
             <button
               type="button"
+              aria-label="Zerar contadores do sensor de vitrine"
               onClick={handleResetCounters}
-              className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-600 text-xs font-semibold border border-slate-200 flex items-center gap-1.5"
+              className="min-h-[44px] px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Zerar</span>
@@ -756,8 +772,23 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         </div>
 
         {webcamError && (
-          <div role="status" className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
-            {webcamError}
+          <div
+            role="alert"
+            aria-live="polite"
+            className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-center justify-between gap-2"
+          >
+            <div className="flex items-start gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{webcamError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWebcamError(null)}
+              aria-label="Fechar aviso de câmera"
+              className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg hover:bg-amber-100 text-amber-900 shrink-0 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
           </div>
         )}
 
@@ -777,7 +808,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
                 value={effectiveZoneId}
                 disabled={Boolean(activeTenant)}
                 onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-medium disabled:opacity-80 disabled:cursor-not-allowed disabled:bg-amber-50/70 disabled:border-amber-300"
+                className="w-full sm:w-auto max-w-full min-h-[44px] bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-medium disabled:opacity-80 disabled:cursor-not-allowed disabled:bg-amber-50/70 disabled:border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 {activeTenant ? (
                   <option value={activeTenant.zoneId}>
@@ -802,9 +833,9 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               />
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600">
               <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                <ShieldCheck className="w-4 h-4 shrink-0" aria-hidden="true" />
                 Processamento em RAM (&lt;5ms): nenhuma imagem é gravada.
               </span>
               <span>Azul = Passante • Amarelo = Parou na Vitrine • Verde = Entrou</span>
@@ -813,17 +844,17 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
           <div className="xl:col-span-4 space-y-3">
             <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-              <span className="text-[11px] text-slate-500 uppercase font-bold">
+              <span className="text-[11px] text-slate-600 uppercase font-bold">
                 Passaram na Frente (Corredor)
               </span>
               <div className="text-2xl font-black text-blue-600 mt-1">{snapshot.passersBy}</div>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-600">
                 {Math.max(0, snapshot.passersBy - snapshot.entries)} passaram sem entrar
               </span>
             </SpotlightCard>
 
             <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-              <span className="text-[11px] text-slate-500 uppercase font-bold">
+              <span className="text-[11px] text-slate-600 uppercase font-bold">
                 Pararam na Vitrine (&gt;3s)
               </span>
               <div className="text-2xl font-black text-amber-600 mt-1">{snapshot.vitrineStops}</div>
@@ -834,14 +865,14 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
             <SpotlightCard className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-500 uppercase font-bold">
+                <span className="text-[11px] text-slate-600 uppercase font-bold">
                   Entradas × Saídas na Loja
                 </span>
                 <UserCheck className="w-4 h-4 text-emerald-600" aria-hidden="true" />
               </div>
               <div className="text-2xl font-black text-emerald-600 mt-1">
                 {snapshot.entries}{' '}
-                <span className="text-sm font-semibold text-slate-500">entradas</span> •{' '}
+                <span className="text-sm font-semibold text-slate-600">entradas</span> •{' '}
                 <span className="text-lg text-slate-700">{snapshot.exits} saídas</span>
               </div>
               <span className="text-[11px] text-emerald-700 font-semibold">
@@ -853,7 +884,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               type="button"
               onClick={handleRunMultimodalAudit}
               disabled={isAuditing}
-              className="w-full py-3 px-4 rounded-2xl bg-[#0B0D12] hover:bg-slate-900 text-[#F5C76B] border border-[#E2A83B]/50 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-60"
+              aria-busy={isAuditing}
+              className="w-full min-h-[44px] py-3 px-4 rounded-2xl bg-[#0B0D12] hover:bg-slate-900 text-[#F5C76B] border border-[#E2A83B]/50 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <Scan className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>
@@ -866,7 +898,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
             <button
               type="button"
               onClick={() => onAnalyzeWithVision({ ...snapshot, zoneId: effectiveZoneId })}
-              className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
+              className="w-full min-h-[44px] py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
               <span>Diagnosticar Fuga da Vitrine com IA</span>
@@ -884,16 +916,18 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         {auditNotice && (
           <div
             role="status"
-            className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium"
+            aria-live="polite"
+            className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium flex items-start gap-2"
           >
-            {auditNotice}
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{auditNotice}</span>
           </div>
         )}
 
         {auditResult && (
           <section
             aria-label="Resultado do Raio-X Multimodal da Vitrine"
-            className="bento-card-obsidian rounded-3xl p-6 text-white space-y-5"
+            className="bento-card-obsidian rounded-3xl p-4 sm:p-6 text-white space-y-5"
           >
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
               <div className="space-y-1">

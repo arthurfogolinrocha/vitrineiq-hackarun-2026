@@ -164,14 +164,11 @@ function resolveCampaignOrigin(origin: string): THREE.Vector3 | null {
 }
 
 function disposeMaterial(mat: THREE.Material) {
-  const rec = mat as THREE.Material & {
-    map?: THREE.Texture | null;
-    emissiveMap?: THREE.Texture | null;
-    alphaMap?: THREE.Texture | null;
-  };
-  rec.map?.dispose();
-  rec.emissiveMap?.dispose();
-  rec.alphaMap?.dispose();
+  for (const value of Object.values(mat)) {
+    if (value instanceof THREE.Texture) {
+      value.dispose();
+    }
+  }
   mat.dispose();
 }
 
@@ -181,7 +178,9 @@ function disposeObjectResources(root: THREE.Object3D) {
       geometry?: THREE.BufferGeometry;
       material?: THREE.Material | THREE.Material[];
     };
-    meshLike.geometry?.dispose();
+    if (meshLike.geometry instanceof THREE.BufferGeometry) {
+      meshLike.geometry.dispose();
+    }
     if (Array.isArray(meshLike.material)) {
       meshLike.material.forEach(disposeMaterial);
     } else if (meshLike.material) {
@@ -795,21 +794,25 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       const badgeText = entry.def.isVacant
         ? 'ESPAÇO VAGO • EXPANSÃO'
         : `${entry.def.sublabel ?? `IQ ${score}`} • IQ ${score}`;
-      const prevMat = entry.sprite.material as THREE.SpriteMaterial;
-      const nextTex = createSignTexture(
-        entry.def.name,
-        badgeText,
-        entry.def.accent,
-        entry.def.tier,
-        entry.def.isVacant,
-        isStorePicked,
-        visualTheme
-      );
-      if (prevMat.map) prevMat.map.dispose();
-      prevMat.map = nextTex;
-      // Mantém luminância linear abaixo de 0.84 para o UnrealBloomPass não estourar os letreiros
-      prevMat.color.setRGB(0.84, 0.84, 0.84);
-      prevMat.needsUpdate = true;
+      const signKey = `${badgeText}|${isStorePicked ? '1' : '0'}|${visualTheme}`;
+      if (entry.sprite.userData.signKey !== signKey) {
+        const prevMat = entry.sprite.material as THREE.SpriteMaterial;
+        const nextTex = createSignTexture(
+          entry.def.name,
+          badgeText,
+          entry.def.accent,
+          entry.def.tier,
+          entry.def.isVacant,
+          isStorePicked,
+          visualTheme
+        );
+        if (prevMat.map) prevMat.map.dispose();
+        prevMat.map = nextTex;
+        // Mantém luminância linear abaixo de 0.84 para o UnrealBloomPass não estourar os letreiros
+        prevMat.color.setRGB(0.84, 0.84, 0.84);
+        prevMat.needsUpdate = true;
+        entry.sprite.userData.signKey = signKey;
+      }
     }
 
     // 4. Quiosques dos Corredores (F22 e F23)
@@ -841,20 +844,24 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         k.mat.emissive.set('#000000');
         k.mat.emissiveIntensity = 0;
       }
-      const kSpriteMat = k.sprite.material as THREE.SpriteMaterial;
-      const kNextTex = createSignTexture(
-        k.def.name,
-        'Quiosque L1',
-        k.def.accent,
-        'satellite',
-        false,
-        isKioskPicked,
-        visualTheme
-      );
-      if (kSpriteMat.map) kSpriteMat.map.dispose();
-      kSpriteMat.map = kNextTex;
-      kSpriteMat.color.setRGB(0.84, 0.84, 0.84);
-      kSpriteMat.needsUpdate = true;
+      const kSignKey = `${isKioskPicked ? '1' : '0'}|${visualTheme}`;
+      if (k.sprite.userData.signKey !== kSignKey) {
+        const kSpriteMat = k.sprite.material as THREE.SpriteMaterial;
+        const kNextTex = createSignTexture(
+          k.def.name,
+          'Quiosque L1',
+          k.def.accent,
+          'satellite',
+          false,
+          isKioskPicked,
+          visualTheme
+        );
+        if (kSpriteMat.map) kSpriteMat.map.dispose();
+        kSpriteMat.map = kNextTex;
+        kSpriteMat.color.setRGB(0.84, 0.84, 0.84);
+        kSpriteMat.needsUpdate = true;
+        k.sprite.userData.signKey = kSignKey;
+      }
     }
 
     // 5. Rotas
@@ -1087,8 +1094,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 520;
+    const initialDpr = Math.min(window.devicePixelRatio || 1, 1.5);
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(initialDpr);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.94;
     renderer.shadowMap.enabled = true;
@@ -1127,7 +1135,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     let composerFailed = false;
     try {
       composer = new EffectComposer(renderer);
-      composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      composer.setPixelRatio(initialDpr);
       composer.setSize(width, height);
       const renderPass = new RenderPass(scene, camera);
       bloomPass = new UnrealBloomPass(
@@ -2334,9 +2342,12 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       if (!container) return;
       const w = container.clientWidth || 800;
       const h = container.clientHeight || 520;
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      renderer.setPixelRatio(dpr);
       renderer.setSize(w, h);
+      composer?.setPixelRatio(dpr);
       composer?.setSize(w, h);
       bloomPass?.setSize(w, h);
     };
@@ -2344,9 +2355,35 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     ro.observe(container);
 
     let animId = 0;
+    let isDisposed = false;
+    let isLoopRunning = false;
+    let isTabVisible =
+      typeof document === 'undefined' ? true : document.visibilityState === 'visible';
+    let isInViewport = true;
     const startMs = performance.now();
 
+    const shouldRunLoop = () => !isDisposed && isTabVisible && isInViewport;
+
+    const stopLoop = () => {
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = 0;
+      }
+      isLoopRunning = false;
+    };
+
+    const startLoop = () => {
+      if (isLoopRunning || !shouldRunLoop()) return;
+      isLoopRunning = true;
+      animId = requestAnimationFrame(animate);
+    };
+
     const animate = () => {
+      if (!shouldRunLoop()) {
+        isLoopRunning = false;
+        animId = 0;
+        return;
+      }
       animId = requestAnimationFrame(animate);
       const elapsed = (performance.now() - startMs) * 0.001;
 
@@ -2502,10 +2539,41 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       }
     };
 
-    animate();
+    const onVisibilityChange = () => {
+      isTabVisible = document.visibilityState === 'visible';
+      if (shouldRunLoop()) {
+        startLoop();
+      } else {
+        stopLoop();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    let io: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      io = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (!entry) return;
+          isInViewport = entry.isIntersecting || entry.intersectionRatio > 0;
+          if (shouldRunLoop()) {
+            startLoop();
+          } else {
+            stopLoop();
+          }
+        },
+        { threshold: 0 }
+      );
+      io.observe(container);
+    }
+
+    startLoop();
 
     return () => {
-      cancelAnimationFrame(animId);
+      isDisposed = true;
+      stopLoop();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      io?.disconnect();
       ro.disconnect();
       domEl.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
@@ -2515,20 +2583,49 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       window.removeEventListener('keyup', onKeyUp);
       controls.dispose();
       disposeObjectResources(scene);
+      if (scene.environment instanceof THREE.Texture) {
+        scene.environment.dispose();
+        scene.environment = null;
+      }
+      if (scene.background instanceof THREE.Texture) {
+        scene.background.dispose();
+        scene.background = null;
+      }
       scene.clear();
       bloomPass?.dispose();
       outputPass?.dispose();
       composer?.dispose();
       envRT?.dispose();
       pmremGenerator?.dispose();
+      actionsRef.current = null;
       sceneRefs.current.renderer = null;
       sceneRefs.current.scene = null;
+      sceneRefs.current.hemiLight = null;
+      sceneRefs.current.dirLight = null;
       sceneRefs.current.bloomPass = null;
+      sceneRefs.current.l1DeckMat = null;
+      sceneRefs.current.subsoloCover = null;
+      sceneRefs.current.groundMat = null;
+      sceneRefs.current.ovalPlazaMat = null;
+      sceneRefs.current.l2FoodSlabMat = null;
+      sceneRefs.current.l2ExtraDeckMats = [];
+      sceneRefs.current.obsidianGridGroup = null;
+      sceneRefs.current.beaconGroup = null;
+      sceneRefs.current.beaconHalo = null;
+      sceneRefs.current.beaconCone = null;
+      sceneRefs.current.l2Materials = [];
+      sceneRefs.current.l2Objects = [];
+      sceneRefs.current.subsoloObjects = [];
+      sceneRefs.current.storeEntries = [];
+      sceneRefs.current.kioskEntries = [];
+      sceneRefs.current.routeGroups = { moda: [], mercado: [], gastronomia: [] };
       sceneRefs.current.allianceGroup = null;
       sceneRefs.current.alliancePulses = [];
       sceneRefs.current.heatmapGeo = null;
       sceneRefs.current.heatmapMat = null;
       sceneRefs.current.heatmapMeta = [];
+      sceneRefs.current.flyTarget = null;
+      renderer.renderLists?.dispose();
       renderer.dispose();
     };
   }, []);
@@ -2679,8 +2776,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             )}
             <button
               type="button"
+              aria-pressed={viewMode === 'orbit'}
               onClick={() => handleToggleViewMode('orbit')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 viewMode === 'orbit'
                   ? 'bg-[#E2A83B] text-[#0B0D12] shadow-sm'
                   : 'text-stone-200 hover:bg-white/10'
@@ -2691,8 +2789,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             </button>
             <button
               type="button"
+              aria-pressed={viewMode === 'walk'}
               onClick={() => handleToggleViewMode('walk')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 viewMode === 'walk'
                   ? 'bg-amber-400 text-[#0B0D12] shadow-sm'
                   : 'text-stone-200 hover:bg-white/10'
@@ -2703,6 +2802,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             </button>
             <button
               type="button"
+              aria-pressed={tourActive}
               onClick={() => {
                 if (tourActive) {
                   setTourActive(false);
@@ -2711,7 +2811,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
                   setTourActive(true);
                 }
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 tourActive
                   ? 'bg-[#E2A83B] text-[#0B0D12] shadow-sm'
                   : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30'
@@ -2774,9 +2874,10 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         <div className={`flex flex-wrap items-center gap-1.5 pointer-events-auto p-1.5 rounded-xl ${hudGlassClass}`}>
           <button
             type="button"
+            aria-pressed={isObsidianTheme}
             onClick={() => setVisualTheme((prev) => (prev === 'obsidian' ? 'day' : 'obsidian'))}
             aria-label="Alternar modo visual Obsidian ou Dia"
-            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border ${
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
               isObsidianTheme
                 ? 'bg-[#E2A83B]/20 text-[#E2A83B] border-[#E2A83B]/45 hover:bg-[#E2A83B]/30'
                 : 'bg-white/15 text-amber-200 border-white/20 hover:bg-white/25'
@@ -2791,6 +2892,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           </button>
           <button
             type="button"
+            aria-pressed={showSubsoloXray}
             onClick={() => {
               const next = !showSubsoloXray;
               setTourActive(false);
@@ -2799,7 +2901,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               onFloorChange(next ? 'SS1' : 'L1');
               actionsRef.current?.resetOrbit(next ? 'SS1' : 'L1', next);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
               showSubsoloXray
                 ? 'bg-sky-500 text-[#0B0D12] border-sky-400 shadow-sm'
                 : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-400/30'
@@ -2978,8 +3080,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               <button
                 key={seg.id}
                 type="button"
+                aria-pressed={activeSegment === seg.id}
                 onClick={() => setActiveSegment(seg.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 transition border ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 transition border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                   activeSegment === seg.id
                     ? 'bg-[#E2A83B] text-[#0B0D12] border-[#E2A83B]'
                     : 'bg-white/5 text-stone-200 border-white/15 hover:bg-white/15'
