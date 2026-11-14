@@ -190,3 +190,9 @@ def test_concierge_prioriza_segmento_escolhido():
     ).json()
     assert busca["couponCode"] == "TECH20"
 
+
+def test_db_usa_tmp_na_vercel_sem_database_url(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+    assert db._url() == "sqlite:////tmp/vitrineiq.db"
+
