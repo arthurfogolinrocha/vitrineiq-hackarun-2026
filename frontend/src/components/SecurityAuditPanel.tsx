@@ -6,13 +6,16 @@ import {
   Copy,
   Cpu,
   Download,
+  FileCode2,
   Filter,
   Gauge,
   KeyRound,
   Lock,
+  RefreshCw,
   Search,
   ShieldAlert,
   ShieldCheck,
+  Type,
   Users,
 } from 'lucide-react';
 import { SystemAuditLog } from '../types';
@@ -96,6 +99,42 @@ const SECURITY_CONTROLS: SecurityControlCard[] = [
       'Ingestão de /api/vitrine/eventos e /api/vitrine/alertas autenticada por token dedicado via hmac.compare_digest (obrigatório em produção).',
     icon: Camera,
     tone: 'text-slate-700 bg-slate-100 border-slate-300',
+  },
+  {
+    id: 'csp-strict-script-src',
+    title: 'CSP Estrita sem unsafe-inline',
+    badge: 'script-src self',
+    description:
+      "Content-Security-Policy proíbe 'unsafe-inline' em script-src e o CI valida ausência de scripts inline no dist/index.html gerado.",
+    icon: FileCode2,
+    tone: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  },
+  {
+    id: 'self-hosted-fonts',
+    title: 'Fontes Self-Hosted sem CDN Externa',
+    badge: 'Zero CDN',
+    description:
+      'Inter, Plus Jakarta Sans e JetBrains Mono empacotadas localmente via @fontsource-variable/*, eliminando dependências externas de Google Fonts.',
+    icon: Type,
+    tone: 'text-sky-700 bg-sky-50 border-sky-200',
+  },
+  {
+    id: 'estado-etag-304',
+    title: 'ETag / 304 Not Modified no Estado',
+    badge: 'ETag + 304',
+    description:
+      'GET /api/estado emite ETag sobre o snapshot do ciclo e responde HTTP 304 Not Modified quando If-None-Match coincide no polling.',
+    icon: RefreshCw,
+    tone: 'text-cyan-700 bg-cyan-50 border-cyan-200',
+  },
+  {
+    id: 'rotacao-senha-lojista',
+    title: 'Rotação de Senha do Lojista',
+    badge: 'PATCH /auth/senha',
+    description:
+      'Lojista autenticado rotaciona a própria senha via PATCH /api/auth/senha com conferência da senha atual e re-hash PBKDF2-HMAC-SHA256.',
+    icon: KeyRound,
+    tone: 'text-amber-800 bg-amber-50 border-amber-200',
   },
 ];
 
@@ -202,7 +241,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-extrabold shrink-0">
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden={true} />
-            7/7 Controles Ativos
+            {SECURITY_CONTROLS.length}/{SECURITY_CONTROLS.length} Controles Ativos
           </span>
         </div>
 

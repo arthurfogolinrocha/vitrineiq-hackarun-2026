@@ -198,6 +198,26 @@ def eu(usuario: Annotated[dict[str, Any], Depends(exigir_login)]) -> dict[str, A
     return {k: usuario.get(k) for k in CAMPOS_USUARIO}
 
 
+class SenhaIn(BaseModel):
+    senhaAtual: str = Field(max_length=128)
+    novaSenha: str = Field(min_length=8, max_length=128)
+
+
+@router.patch("/auth/senha")
+def alterar_senha(body: SenhaIn, usuario: Annotated[dict[str, Any], Depends(exigir_login)]) -> dict[str, Any]:
+    """Permite que o lojista autenticado altere sua própria senha (gera novo salt PBKDF2)."""
+    if usuario["papel"] == "admin":
+        raise HTTPException(400, "A senha do administrador é gerenciada pelas variáveis de ambiente.")
+    conta = db.buscar("lojista", int(usuario["sub"]))
+    if conta is None:
+        raise HTTPException(401, "Faça login para continuar.")
+    if not senha_confere(body.senhaAtual, conta["senhaHash"]):
+        raise HTTPException(401, "Senha atual incorreta.")
+    dados = {k: v for k, v in conta.items() if k not in ("id", "timestamp", "criadoEm")}
+    db.atualizar("lojista", int(conta["id"]), {**dados, "senhaHash": hash_senha(body.novaSenha)})
+    return {"ok": True, "mensagem": "Senha atualizada com sucesso."}
+
+
 # ---------- Contas de lojista (admin) ----------
 
 class LojistaIn(BaseModel):

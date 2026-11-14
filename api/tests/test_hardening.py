@@ -9,7 +9,7 @@ from sqlalchemy import text
 from app import auth, db
 from app.main import app
 from app.security import mascarar_dados_pessoais, sanitize_input
-from conftest import ADMIN
+from conftest import ADMIN, SENHA_LOJISTA
 
 client = TestClient(app)
 ALA = "ala-lazer-cinema"
@@ -176,3 +176,140 @@ def test_sanitize_input_remove_controle_script_event_handler_e_javascript_uri():
     assert "onerror=" not in limpo_handler.lower()
     assert "onclick=" not in limpo_handler.lower()
     assert "&lt;img" in limpo_handler and "&gt;" in limpo_handler
+
+
+def test_estado_etag_e_304_not_modified_e_invalidacao(lojista):
+    _, headers_lojista = lojista("loja-etag", zone_id=ALA, loja="Loja ETag")
+
+    res1 = client.get("/api/estado", headers=headers_lojista)
+    assert res1.status_code == 200
+    etag1 = res1.headers.get("ETag")
+    assert etag1 and etag1.startswith('W/"')
+    assert res1.headers.get("Cache-Control") == "private, no-cache"
+
+    # Sem mudanças nos dados (apenas o relógio "agora" avança), devolve 304 Not Modified via header
+    # ou HTTP 200 compacto {"unchanged": True} via ?etag= (seguro contra strip de CORS em 304 na Vercel)
+    res_304 = client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag1})
+    assert res_304.status_code == 304
+    assert res_304.content == b""
+    assert res_304.headers.get("ETag") == etag1
+    assert res_304.headers.get("Cache-Control") == "private, no-cache"
+
+    res_compact = client.get("/api/estado", params={"etag": etag1}, headers=headers_lojista)
+    assert res_compact.status_code == 200
+    assert res_compact.json() == {"unchanged": True, "etag": etag1}
+    assert res_compact.headers.get("ETag") == etag1
+
+    # Novo registro no balcão invalida o ETag imediatamente
+    res_balcao = client.post(
+        "/api/balcao",
+        headers=headers_lojista,
+        json={"zoneId": ALA, "storeName": "Loja ETag", "tipo": "venda"},
+    )
+    assert res_balcao.status_code == 201
+
+    res2 = client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag1})
+    assert res2.status_code == 200
+    etag2 = res2.headers.get("ETag")
+    assert etag2 and etag2 != etag1
+    assert res2.json()["completedSalesByZone"] == {ALA: 1}
+
+    assert client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag2}).status_code == 304
+
+    # Nova campanha também invalida o ETag imediatamente
+    res_camp = client.post(
+        "/api/campanhas",
+        headers=headers_lojista,
+        json={
+            "zoneId": ALA,
+            "storeName": "Loja ETag",
+            "title": "Oferta Relâmpago",
+            "discountBadge": "15% OFF",
+            "couponCode": "ETAG15",
+        },
+    )
+    assert res_camp.status_code == 201
+
+    res3 = client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag2})
+    assert res3.status_code == 200
+    etag3 = res3.headers.get("ETag")
+    assert etag3 and etag3 != etag2
+    assert [c["couponCode"] for c in res3.json()["campaigns"]] == ["ETAG15"]
+
+    assert client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag3}).status_code == 304
+
+
+def test_cors_expoe_etag_e_aceita_if_none_match_na_vercel(admin):
+    origem_vercel = "https://vitrineiq-capim-dourado.vercel.app"
+    preflight = client.options(
+        "/api/estado",
+        headers={
+            "Origin": origem_vercel,
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization, if-none-match",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers.get("access-control-allow-origin") == origem_vercel
+    allowed_headers = {h.strip().lower() for h in preflight.headers.get("access-control-allow-headers", "").split(",")}
+    assert {"authorization", "if-none-match"} <= allowed_headers
+
+    res = client.get("/api/estado", headers={**admin, "Origin": origem_vercel})
+    assert res.status_code == 200
+    assert res.headers.get("access-control-allow-origin") == origem_vercel
+    exposed = {h.strip().lower() for h in res.headers.get("access-control-expose-headers", "").split(",")}
+    assert "etag" in exposed
+
+
+def test_rotacao_de_senha_lojista_e_bloqueio_para_admin(admin, lojista):
+    assert client.patch(
+        "/api/auth/senha",
+        json={"senhaAtual": SENHA_LOJISTA, "novaSenha": "nova-senha-123"},
+    ).status_code == 401
+
+    res_admin = client.patch(
+        "/api/auth/senha",
+        headers=admin,
+        json={"senhaAtual": ADMIN["senha"], "novaSenha": "nova-senha-admin"},
+    )
+    assert res_admin.status_code == 400
+    assert res_admin.json()["detail"] == "A senha do administrador é gerenciada pelas variáveis de ambiente."
+
+    item, headers_lojista = lojista("loja-rotacao", zone_id=ALA, loja="Loja Rotação")
+    rid = int(item["id"])
+    hash_antigo = db.buscar("lojista", rid)["senhaHash"]
+
+    # Senha atual incorreta -> 401 e hash intacto
+    res_errada = client.patch(
+        "/api/auth/senha",
+        headers=headers_lojista,
+        json={"senhaAtual": "senha-errada-aqui", "novaSenha": "nova-senha-123"},
+    )
+    assert res_errada.status_code == 401
+    assert db.buscar("lojista", rid)["senhaHash"] == hash_antigo
+
+    # Nova senha curta (< 8) -> 422
+    assert client.patch(
+        "/api/auth/senha",
+        headers=headers_lojista,
+        json={"senhaAtual": SENHA_LOJISTA, "novaSenha": "curta"},
+    ).status_code == 422
+
+    # Rotação válida -> 200, novo salt PBKDF2, senha antiga falha e nova funciona
+    nova_senha = "nova-senha-segura-2026"
+    res_ok = client.patch(
+        "/api/auth/senha",
+        headers=headers_lojista,
+        json={"senhaAtual": SENHA_LOJISTA, "novaSenha": nova_senha},
+    )
+    assert res_ok.status_code == 200
+    assert "no-store" in res_ok.headers.get("Cache-Control", "")
+
+    conta_atualizada = db.buscar("lojista", rid)
+    assert conta_atualizada["senhaHash"] != hash_antigo
+    assert conta_atualizada["senhaHash"].startswith("pbkdf2_sha256$")
+
+    assert client.post("/api/auth/login", json={"usuario": "loja-rotacao", "senha": SENHA_LOJISTA}).status_code == 401
+    res_novo_login = client.post("/api/auth/login", json={"usuario": "loja-rotacao", "senha": nova_senha})
+    assert res_novo_login.status_code == 200
+    assert res_novo_login.json()["usuario"]["nome"] == "loja-rotacao"

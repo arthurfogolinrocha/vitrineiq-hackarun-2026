@@ -31,7 +31,7 @@
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans Variable', 'Inter Variable', 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
   background-color: #F6F2EA;
   background-image:
     radial-gradient(900px circle at 12% -10%, rgba(226, 168, 59, 0.10), transparent 55%),
@@ -40,7 +40,7 @@ body {
 }
 
 .kpi-metric {
-  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  font-family: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1, 'zero' 1;
   letter-spacing: -0.02em;

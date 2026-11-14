@@ -7,15 +7,16 @@ Os campos seguem os nomes dos tipos do front (camelCase).
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import os
-from collections import Counter
+from collections import Counter, defaultdict, deque
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal, Optional, get_args
 
-from collections import defaultdict, deque
-
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, StringConstraints
 
 from . import db
@@ -390,12 +391,31 @@ def vitrine_crowd_drop(ala: ZoneId) -> dict[str, Any]:
 
 # ---------- Estado completo para o painel ----------
 
+def _etag_estado(dados: dict[str, Any]) -> str:
+    """Calcula ETag fraco determinístico sobre os dados do painel (exclui o relógio 'agora')."""
+    serializado = json.dumps(dados, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f'W/"{hashlib.sha256(serializado).hexdigest()[:16]}"'
+
+
+def _if_none_match_bate(cabecalho: Optional[str], etag: str) -> bool:
+    if not cabecalho:
+        return False
+    return any(tag.strip() in (etag, "*") for tag in cabecalho.split(","))
+
+
 @router.get("/estado")
-def estado(u: Usuario, loja: Optional[str] = None, ala: Optional[ZoneId] = None) -> dict[str, Any]:
+def estado(
+    request: Request,
+    u: Usuario,
+    loja: Optional[str] = None,
+    ala: Optional[ZoneId] = None,
+    etag: Optional[str] = None,
+) -> Response:
     """Tudo o que o front precisa para desenhar o ciclo, numa chamada só (polling de 3 s).
 
     Lojista vê vendas, perdas e campanhas só da loja dele e câmera e Concierge só da ala dele, pelo token
     (os filtros da URL são ignorados). O admin vê tudo e pode filtrar por `loja` (nome) e `ala`.
+    Suporta validação condicional via ETag / If-None-Match (304 Not Modified).
     """
     if u["papel"] == "lojista":
         ala = u["zoneId"]
@@ -422,7 +442,7 @@ def estado(u: Usuario, loja: Optional[str] = None, ala: Optional[ZoneId] = None)
         z: compute_crowd_drop([r for r in vitrine_regs if r["zona"] == z], z)
         for z in zonas_crowd
     }
-    return {
+    dados = {
         "porHora": perfil_por_hora(vitrine_regs, balcao, buscas_hoje),
         "lostSales": [r for r in balcao if r["tipo"] == "perdida"],
         "completedSalesByZone": dict(vendas),
@@ -431,5 +451,11 @@ def estado(u: Usuario, loja: Optional[str] = None, ala: Optional[ZoneId] = None)
         "vitrine": vitrine,
         "crowdDrop": crowd_drop,
         "alertas": alertas,
-        "agora": db.agora().isoformat(),
     }
+    etag_atual = _etag_estado(dados)
+    headers = {"ETag": etag_atual, "Cache-Control": "private, no-cache"}
+    if _if_none_match_bate(request.headers.get("if-none-match"), etag_atual):
+        return Response(status_code=304, headers=headers)
+    if _if_none_match_bate(etag, etag_atual):
+        return JSONResponse(content={"unchanged": True, "etag": etag_atual}, headers=headers)
+    return JSONResponse(content={**dados, "agora": db.agora().isoformat()}, headers=headers)

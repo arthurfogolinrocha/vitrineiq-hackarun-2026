@@ -55,18 +55,22 @@ _default_origins = (
     "https://vitrineiq-capim-dourado.vercel.app"
 )
 allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+_default_origin_regex = r"^https://vitrineiq-capim-dourado-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$"
+_raw_origin_regex = os.getenv("ALLOWED_ORIGIN_REGEX")
+# Previews da Vercel (<projeto>-<hash>-<escopo>.vercel.app) e locais ficam compatíveis por padrão.
+# Em produção estrita, defina ALLOWED_ORIGIN_REGEX="" para aceitar só ALLOWED_ORIGINS
+# (como https://vitrineiq-capim-dourado.vercel.app) ou fixe o escopo do time na Vercel.
+allowed_origin_regex = (
+    (_raw_origin_regex.strip() or None) if _raw_origin_regex is not None else _default_origin_regex
+)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    # Previews da Vercel: <projeto>-<hash>-<escopo>.vercel.app. Risco residual: qualquer conta da Vercel pode
-    # criar um projeto cujo nome comece com "vitrineiq-capim-dourado-" e casar com a regex. Quando o escopo do
-    # time for conhecido, fixe-o em ALLOWED_ORIGIN_REGEX; vazia desliga a regex.
-    allow_origin_regex=os.getenv(
-        "ALLOWED_ORIGIN_REGEX", r"^https://vitrineiq-capim-dourado-[a-z0-9]+-[a-z0-9-]+\.vercel\.app$"
-    ) or None,
+    allow_origin_regex=allowed_origin_regex,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "If-None-Match"],
+    expose_headers=["ETag"],
 )
 
 
