@@ -62,6 +62,30 @@ cp .env.example .env                             # opcional: GEMINI_API_KEY no s
 uvicorn app.main:app --reload --port 8000
 ```
 
+### Rodar com Docker
+
+Pré-requisito: Docker (no Windows e no macOS, o Docker Desktop aberto). Sobe o banco (Postgres), a API e o front:
+
+```bash
+cp .env.example .env    # troque ADMIN_SENHA; GEMINI_API_KEY é opcional
+docker compose up --build
+```
+
+* Front: http://localhost:8080 (o nginx repassa `/api/*` para a API, então não há CORS nem URL para configurar). Porta ocupada? Mude `FRONTEND_PORT` no `.env`.
+* API: http://localhost:8000/api/health (e a documentação em http://localhost:8000/docs).
+* Os dados ficam no volume `pgdata` e sobrevivem a `docker compose down`; `docker compose down -v` apaga tudo.
+* Celular na mesma rede Wi-Fi: abra `http://<IP-do-computador>:8080/?tela=concierge&ala=<ala>` (o QR do pôster aponta para a versão publicada na Vercel, não para o container).
+* Para apontar o front para outra API, construa com `docker compose build --build-arg VITE_API_URL=https://sua-api frontend`.
+
+**Câmera da vitrine (`computer-vision/`) fica fora do compose:** webcam dentro de container não funciona no Docker Desktop do Windows e do macOS (não há repasse de USB/DirectShow), e a imagem com o YOLO passaria de alguns GB. Ela roda no host com `uv` e manda as contagens para a API do container:
+
+```powershell
+cd computer-vision
+$env:VITRINE_CAMERA = '1'; $env:VITRINE_API_URL = 'http://localhost:8000'; uv run vitrine-camera
+```
+
+Sem webcam, use um vídeo gravado com `VITRINE_VIDEO` (detalhes em [`computer-vision/README.md`](./computer-vision/README.md)). Se `VITRINE_TOKEN` estiver no `.env`, defina o mesmo valor na câmera.
+
 ### Testes Automatizados & Build
 ```bash
 # Roda testes unitários TypeScript (Vitest) + Python (pytest)
