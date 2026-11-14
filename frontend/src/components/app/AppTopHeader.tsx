@@ -2,7 +2,7 @@ import React from 'react';
 import { Dices, LogOut } from 'lucide-react';
 import { AccessRole, StoreTenant } from '../../types';
 import { Papel, Sessao } from '../../services/api';
-import { ActiveTab } from '../../utils/acesso';
+import { ActiveTab, ehContaDeLoja, PERFIL_LABEL } from '../../utils/acesso';
 import { StoreTenantSwitcher } from '../StoreTenantSwitcher';
 import { NavItem, TAB_META } from './appNavigation';
 
@@ -85,7 +85,7 @@ export const AppTopHeader: React.FC<AppTopHeaderProps> = ({
 
         {/* Atalhos Rápidos + visão da conta */}
         <div className="flex flex-wrap items-center gap-2">
-          {!kioskTab && papel !== 'lojista' && (
+          {!kioskTab && !ehContaDeLoja(papel) && (
             <StoreTenantSwitcher
               accessRole={accessRole}
               activeStoreId={activeStoreId}
@@ -118,12 +118,11 @@ export const AppTopHeader: React.FC<AppTopHeaderProps> = ({
           </span>
           {!conciergePublico && (sessao || demo) && (
             <span className="flex items-center gap-2">
-              {sessao && (
-                <span className="text-[11px] text-stone-600 text-right leading-tight">
-                  <strong className="block text-[#111318]">{sessao.usuario.nome}</strong>
-                  {papel === 'admin' ? 'Admin' : `Lojista${lojaFixa ? ` · ${lojaFixa}` : ''}`}
-                </span>
-              )}
+              <span className="text-[11px] text-stone-600 text-right leading-tight">
+                <strong className="block text-[#111318]">{sessao ? sessao.usuario.nome : 'Demonstração'}</strong>
+                {PERFIL_LABEL[papel ?? 'visitante']}
+                {lojaFixa ? ` · ${lojaFixa}` : ''}
+              </span>
               <button
                 type="button"
                 onClick={onLogout}

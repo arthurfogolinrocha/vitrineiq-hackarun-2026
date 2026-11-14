@@ -7,7 +7,7 @@ import {
   Sessao,
   tratar401,
 } from '../services/api';
-import { abasPermitidas } from '../utils/acesso';
+import { abasPermitidas, ehContaDeLoja } from '../utils/acesso';
 import { USER_STORIES_ROLETA } from '../data/userStoriesData';
 
 function storageFalso(): Storage {
@@ -91,12 +91,18 @@ describe('Sessão de login (localStorage)', () => {
 });
 
 describe('abasPermitidas (quem vê o quê)', () => {
-  it('admin vê todas as abas, inclusive Lojistas, e não há mais Stories', () => {
-    expect(abasPermitidas('admin')).toEqual(['cockpit', 'map', 'vision', 'counter', 'concierge', 'audit', 'lojistas']);
+  it('admin do shopping vê a visão geral, o mapa, a auditoria e as contas', () => {
+    expect(abasPermitidas('admin')).toEqual(['cockpit', 'map', 'audit', 'lojistas']);
   });
 
-  it('lojista vê só Painel e Balcão', () => {
-    expect(abasPermitidas('lojista')).toEqual(['cockpit', 'counter']);
+  it('lojista vê Painel, Balcão, Câmera e a prévia do Concierge da loja dele', () => {
+    expect(abasPermitidas('lojista')).toEqual(['cockpit', 'counter', 'vision', 'concierge']);
+  });
+
+  it('vendedor vê só o Balcão', () => {
+    expect(abasPermitidas('vendedor')).toEqual(['counter']);
+    expect(ehContaDeLoja('vendedor')).toBe(true);
+    expect(ehContaDeLoja('admin')).toBe(false);
   });
 
   it('sem login, só o Concierge do visitante', () => {
@@ -105,8 +111,8 @@ describe('abasPermitidas (quem vê o quê)', () => {
 });
 
 describe('Stories (Roleta)', () => {
-  it('mapeia US-01 a US-05 com prioridades MoSCoW e destinos válidos para admin', () => {
-    const allowed = abasPermitidas('admin');
+  it('mapeia US-01 a US-05 com prioridades MoSCoW e destinos que algum perfil acessa', () => {
+    const allowed = (['visitante', 'vendedor', 'lojista', 'admin'] as const).flatMap((p) => abasPermitidas(p));
     expect(USER_STORIES_ROLETA.map((story) => story.id)).toEqual(['US-01', 'US-02', 'US-03', 'US-04', 'US-05']);
     for (const story of USER_STORIES_ROLETA) {
       expect(allowed).toContain(story.targetTab);

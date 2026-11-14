@@ -65,7 +65,7 @@ def test_rotas_protegidas_sem_token_dao_401():
 
 def test_admin_cria_lista_e_apaga_lojista_sem_expor_hash(admin, lojista):
     item, h = lojista("loja-a")
-    assert set(item) == {"id", "usuario", "lojaNome", "zoneId", "criadoEm"}
+    assert set(item) == {"id", "usuario", "lojaNome", "zoneId", "criadoEm", "papel", "lojaId"}
     dup = client.post("/api/admin/lojistas", headers=admin,
                       json={"usuario": "loja-a", "senha": "outra-senha", "lojaNome": "Outra", "zoneId": ALA})
     assert dup.status_code == 409

@@ -24,7 +24,7 @@ import {
   VitrineAlerta,
 } from './services/api';
 import { readUrlView } from './utils/urlView';
-import { abasPermitidas, ActiveTab } from './utils/acesso';
+import { abasPermitidas, ActiveTab, ehContaDeLoja, Perfil } from './utils/acesso';
 import { LoginScreen } from './components/LoginScreen';
 import { StoriesRoletaModal } from './components/StoriesRoletaModal';
 import { useAuditLogs } from './hooks/useAuditLogs';
@@ -49,11 +49,13 @@ export function App() {
   // O QR do visitante é público: nunca usa sessão nem /api/estado.
   const conciergePublico = kioskTab === 'concierge';
   const [sessao, setSessao] = useState<Sessao | null>(() => (conciergePublico ? null : lerSessao()));
-  const [demo, setDemo] = useState(false);
+  // Demonstração sem login: um perfil por vez (visitante, vendedor, lojista ou admin).
+  const [demoPerfil, setDemoPerfil] = useState<Perfil | null>(null);
+  const demo = demoPerfil !== null;
   const [avisoLogin, setAvisoLogin] = useState<string | null>(null);
   const papel = sessao?.usuario.papel ?? null;
-  const zonaFixa = papel === 'lojista' ? sessao?.usuario.zoneId ?? null : null;
-  const lojaFixa = papel === 'lojista' ? sessao?.usuario.lojaNome ?? null : null;
+  const zonaFixa = ehContaDeLoja(papel) ? sessao?.usuario.zoneId ?? null : null;
+  const lojaFixa = ehContaDeLoja(papel) ? sessao?.usuario.lojaNome ?? null : null;
 
   // Lojista: a loja vem da conta (token). Admin e demo podem "ver como loja" pelo seletor, só como filtro.
   const [accessRole, setAccessRole] = useState<AccessRole>('admin');
@@ -125,24 +127,27 @@ export function App() {
     resetarWorkspace();
     salvarSessao(nova);
     setSessao(nova);
-    setDemo(false);
+    setDemoPerfil(null);
     setAvisoLogin(null);
   };
 
   const sair = (aviso: string | null = null) => {
     salvarSessao(null);
     setSessao(null);
-    setDemo(false);
+    setDemoPerfil(null);
     resetarWorkspace();
     setAvisoLogin(aviso);
   };
 
-  const entrarDemo = () => {
+  const entrarDemo = (perfil: Perfil) => {
     sync.setLostSales(INITIAL_LOST_SALES);
     sync.setCampaigns(INITIAL_FLASH_CAMPAIGNS);
     sync.setSignals([SINAL_DEMO]);
     setAvisoLogin(null);
-    setDemo(true);
+    // Lojista e vendedor da demo ficam numa loja fictícia do catálogo; o admin vê o shopping todo.
+    setAccessRole(perfil === 'admin' ? 'admin' : 'store');
+    setActiveTab(abasPermitidas(perfil)[0]);
+    setDemoPerfil(perfil);
   };
 
   // Qualquer 401 numa rota autenticada derruba a sessão. Ao abrir, confere o token salvo.
@@ -348,8 +353,10 @@ export function App() {
   const abas: ActiveTab[] = kioskTab
     ? [kioskTab]
     : demo
-      ? abasPermitidas('admin').filter((a) => a !== 'lojistas')
+      ? abasPermitidas(demoPerfil).filter((a) => a !== 'lojistas') // Contas exigem a API
       : abasPermitidas(papel);
+  // Papel mostrado no menu e no cabeçalho: o da conta ou o escolhido na demonstração.
+  const papelVisivel = papel ?? (demoPerfil === 'visitante' ? null : demoPerfil);
   const aba = abas.includes(activeTab) ? activeTab : abas[0];
   const getTabNumber = (id: ActiveTab) => String(abas.indexOf(id) + 1).padStart(2, '0');
   const navItems = buildNavItems(abas);
@@ -376,7 +383,7 @@ export function App() {
     <div className="min-h-screen bg-[#F6F2EA] text-[#0B0D12] flex flex-col lg:flex-row overflow-x-clip">
       <AppSidebar
         kioskTab={kioskTab}
-        papel={papel}
+        papel={papelVisivel}
         accessRole={accessRole}
         activeStoreId={activeStoreId}
         activeTenant={activeTenant}
@@ -396,8 +403,8 @@ export function App() {
           activeTab={aba}
           totalTabs={abas.length}
           getTabNumber={getTabNumber}
-          papel={papel}
-          lojaFixa={lojaFixa}
+          papel={papelVisivel}
+          lojaFixa={lojaFixa ?? (demo && ehContaDeLoja(papelVisivel) ? activeTenant?.storeName ?? null : null)}
           accessRole={accessRole}
           activeStoreId={activeStoreId}
           activeTenant={activeTenant}

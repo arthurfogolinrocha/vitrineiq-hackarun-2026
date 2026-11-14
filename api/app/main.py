@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
 from .ai_agent import audit_storefront_image, generate_plan
-from .auth import exigir_login, limitar_por_ip
+from .auth import exigir_gestor, limitar_por_ip
 from .auth import router as auth_router
 from .ciclo import router as ciclo_router
 from .contexto import get_live_context
@@ -145,7 +145,7 @@ def score(body: ScoreRequest) -> ScoreResponse:
     )
 
 
-@app.post("/api/ia/plano", response_model=PlanResponse, dependencies=[Depends(exigir_login), Depends(limitar_ia)])
+@app.post("/api/ia/plano", response_model=PlanResponse, dependencies=[Depends(exigir_gestor), Depends(limitar_ia)])
 def ia_plano(body: PlanRequest) -> PlanResponse:
     start = time.perf_counter()
     prompt = sanitize_input(body.prompt)
@@ -173,7 +173,7 @@ def ia_plano(body: PlanRequest) -> PlanResponse:
 @app.post(
     "/api/ia/auditar-vitrine",
     response_model=VitrineAuditResponse,
-    dependencies=[Depends(exigir_login), Depends(limitar_ia)],
+    dependencies=[Depends(exigir_gestor), Depends(limitar_ia)],
 )
 def ia_auditar_vitrine(body: VitrineAuditRequest) -> VitrineAuditResponse:
     """Raio-X Multimodal da Vitrine (sem persistência nem log da imagem - LGPD)."""

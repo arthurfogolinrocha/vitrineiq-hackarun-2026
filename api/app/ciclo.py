@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, StringConstraints
 
 from . import db
-from .auth import exigir_login, limitar_por_ip
+from .auth import exigir_gestor, exigir_login, limitar_por_ip
 from .engine import ZoneId
 from .security import mascarar_dados_pessoais, sanitize_input
 
@@ -33,6 +33,7 @@ ZONAS_VITRINE = ("esquerda", "centro", "direita")
 ALERTA_RECENTE_S = 60  # alertas mais antigos que isso não aparecem no painel
 
 Usuario = Annotated[dict[str, Any], Depends(exigir_login)]
+Gestor = Annotated[dict[str, Any], Depends(exigir_gestor)]  # admin ou lojista; vendedor fica de fora
 
 
 def _da_loja(u: dict[str, Any], registro: dict[str, Any]) -> bool:
@@ -42,7 +43,7 @@ def _da_loja(u: dict[str, Any], registro: dict[str, Any]) -> bool:
 
 def _loja_e_ala(u: dict[str, Any], zone_id: str, store_name: str) -> tuple[str, str]:
     """Lojista: loja e ala vêm do token (ignora o body). Admin: o que veio no body."""
-    return (u["zoneId"], u["lojaNome"]) if u["papel"] == "lojista" else (zone_id, store_name)
+    return (u["zoneId"], u["lojaNome"]) if u["papel"] != "admin" else (zone_id, store_name)
 
 
 # ---------- Balcão ----------
@@ -100,7 +101,7 @@ def _campanha(c: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.post("/campanhas", status_code=201)
-def publicar_campanha(body: CampanhaIn, u: Usuario) -> dict[str, Any]:
+def publicar_campanha(body: CampanhaIn, u: Gestor) -> dict[str, Any]:
     zona, loja = _loja_e_ala(u, body.zoneId, body.storeName)
     dados = {k: sanitize_input(v) if isinstance(v, str) else v
              for k, v in {**body.model_dump(), "zoneId": zona, "storeName": loja}.items()}
@@ -108,7 +109,7 @@ def publicar_campanha(body: CampanhaIn, u: Usuario) -> dict[str, Any]:
 
 
 @router.patch("/campanhas/{rid}")
-def alterar_campanha(rid: int, body: CampanhaPatch, u: Usuario) -> dict[str, Any]:
+def alterar_campanha(rid: int, body: CampanhaPatch, u: Gestor) -> dict[str, Any]:
     c = db.buscar("campanha", rid)
     if c is None or not _da_loja(u, c):
         raise HTTPException(404, "Campanha não encontrada.")
@@ -118,7 +119,7 @@ def alterar_campanha(rid: int, body: CampanhaPatch, u: Usuario) -> dict[str, Any
 
 
 @router.delete("/campanhas/{rid}", status_code=204, response_model=None)
-def remover_campanha(rid: int, u: Usuario) -> Response:
+def remover_campanha(rid: int, u: Gestor) -> Response:
     c = db.buscar("campanha", rid)
     if c is None or not _da_loja(u, c):
         raise HTTPException(404, "Campanha não encontrada.")
@@ -368,7 +369,7 @@ def compute_crowd_drop(regs: list[dict[str, Any]], zone_id: str) -> dict[str, An
 
 
 @router.get("/vitrine/resumo")
-def vitrine_resumo(ala: ZoneId, u: Usuario) -> dict[str, Any]:
+def vitrine_resumo(ala: ZoneId, u: Gestor) -> dict[str, Any]:
     if u["papel"] == "lojista":
         ala = u["zoneId"]  # lojista só vê a câmera da ala dele
     return resumo_vitrine(db.listar("vitrine", 5000, _hoje(), zona=ala))
@@ -408,7 +409,7 @@ def estado(
     (os filtros da URL são ignorados). O admin vê tudo e pode filtrar por `loja` (nome) e `ala`.
     Suporta validação condicional via ETag / If-None-Match (304 Not Modified).
     """
-    if u["papel"] == "lojista":
+    if u["papel"] != "admin":
         ala = u["zoneId"]
 
     balcao = db.listar("balcao", 500, zona=ala)
@@ -417,7 +418,7 @@ def estado(
     buscas_hoje = db.listar("busca", 500, _hoje(), zona=ala)
     vitrine_regs = db.listar("vitrine", 5000, _hoje(), zona=ala)
     alertas = db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S), zona=ala)
-    if u["papel"] == "lojista":
+    if u["papel"] != "admin":
         balcao = [r for r in balcao if _da_loja(u, r)]
         campanhas = [c for c in campanhas if _da_loja(u, c)]
     elif loja and loja.strip():
