@@ -11,8 +11,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
-import { slide } from '@remotion/transitions/slide';
+import { perspectiveFly } from './transitions/perspectiveFlyTransition';
 import { CapimMall3D } from './scenes3d/CapimMall3D';
 import { BrandWatermark, SubtitlePill } from './components/UiOverlays';
 import {
@@ -34,45 +33,82 @@ export interface TimingItem {
 }
 
 const TIMINGS = timingsRaw as TimingItem[];
-const framesOf = (id: string, fallback: number, pad = 64) =>
+const framesOf = (id: string, fallback: number, pad = 48) =>
   (TIMINGS.find((t) => t.id === id)?.frames ?? fallback) + pad;
 
 export const MKT_SCENES = {
-  m01_hook: framesOf('m01_hook', 301, 56),
-  m02_dor: framesOf('m02_dor', 372, 56),
-  m03_revelacao: framesOf('m03_revelacao', 412, 60),
-  m04_cockpit_3d: framesOf('m04_cockpit_3d', 448, 70),
-  m05_crowddrop: framesOf('m05_crowddrop', 440, 68),
-  m06_raiox_lgpd: framesOf('m06_raiox_lgpd', 420, 64),
-  m07_balcao_qr: framesOf('m07_balcao_qr', 420, 68),
-  m08_cta: framesOf('m08_cta', 390, 96),
+  m01_hook: framesOf('m01_hook', 397, 48),
+  m02_dor: framesOf('m02_dor', 446, 46),
+  m03_revelacao: framesOf('m03_revelacao', 493, 48),
+  m04_cockpit_3d: framesOf('m04_cockpit_3d', 735, 50),
+  m05_crowddrop: framesOf('m05_crowddrop', 559, 48),
+  m06_raiox_lgpd: framesOf('m06_raiox_lgpd', 569, 48),
+  m07_balcao_qr: framesOf('m07_balcao_qr', 795, 50),
+  m08_cta: framesOf('m08_cta', 491, 68),
 };
 
-export const MKT_TRANSITION = 14;
+export const MKT_TRANSITION = 16;
+const MKT_DURATIONS = [
+  MKT_SCENES.m01_hook,
+  MKT_SCENES.m02_dor,
+  MKT_SCENES.m03_revelacao,
+  MKT_SCENES.m04_cockpit_3d,
+  MKT_SCENES.m05_crowddrop,
+  MKT_SCENES.m06_raiox_lgpd,
+  MKT_SCENES.m07_balcao_qr,
+  MKT_SCENES.m08_cta,
+];
 export const MKT_TOTAL_FRAMES =
-  Object.values(MKT_SCENES).reduce((acc, v) => acc + v, 0) - 7 * MKT_TRANSITION;
+  MKT_DURATIONS.reduce((acc, v) => acc + v, 0) - 7 * MKT_TRANSITION;
 
-/** Cena 1 — Cold Open Pattern Interrupt (0–3s prende imediatamente) */
+function computeMusicDuckVolume(
+  f: number,
+  durations: number[],
+  transitionFrames: number,
+  totalFrames: number
+): number {
+  let cursor = 0;
+  let speechActive = 0;
+  for (const dur of durations) {
+    const voiceStart = cursor + 22;
+    const voiceEnd = cursor + dur - 18;
+    const rampIn = interpolate(f, [voiceStart - 10, voiceStart + 4], [0, 1], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    const rampOut = interpolate(f, [voiceEnd - 6, voiceEnd + 10], [1, 0], {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    });
+    speechActive = Math.max(speechActive, Math.min(rampIn, rampOut));
+    cursor += dur - transitionFrames;
+  }
+  const bed = interpolate(speechActive, [0, 1], [0.23, 0.085]);
+  const fadeOut = interpolate(f, [totalFrames - 72, totalFrames], [1, 0], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  return bed * fadeOut;
+}
+
+/** Cena 1 — Cold Open Pattern Interrupt + Corredor 3D iluminado */
 const Scene1Hook: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const passers = Math.round(
-    interpolate(frame, [2, 68], [0, 123], {
+    interpolate(frame, [6, 74], [0, 123], {
       easing: Easing.bezier(0.16, 1, 0.3, 1),
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
     })
   );
-  const flashOp = interpolate(frame, [0, 12, 32], [0.55, 0.14, 0], { extrapolateRight: 'clamp' });
-  const punchScale = spring({ frame: Math.max(0, frame - 42), fps, config: { damping: 14, stiffness: 190 } });
+  const flashOp = interpolate(frame, [0, 12, 30], [0.42, 0.12, 0], { extrapolateRight: 'clamp' });
+  const punchScale = spring({ frame: Math.max(0, frame - 46), fps, config: { damping: 14, stiffness: 190 } });
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
-      <Sequence from={40}>
-        <Audio src={staticFile('sfx/whip.wav')} volume={0.62} />
-      </Sequence>
-      <Sequence from={14}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.55} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m01_hook.wav')} volume={1} />
       </Sequence>
 
@@ -80,7 +116,7 @@ const Scene1Hook: React.FC = () => {
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 48%, rgba(244,63,94,0.16) 0%, rgba(6,7,11,0.78) 62%, rgba(6,7,11,0.95) 100%)',
+            'radial-gradient(circle at 50% 48%, rgba(244,63,94,0.10) 0%, rgba(6,7,11,0.52) 64%, rgba(6,7,11,0.88) 100%)',
         }}
       />
       <AbsoluteFill style={{ backgroundColor: '#F43F5E', opacity: flashOp, pointerEvents: 'none' }} />
@@ -101,11 +137,11 @@ const Scene1Hook: React.FC = () => {
             style={{
               fontFamily: FONTS.display,
               fontWeight: 800,
-              fontSize: 158,
+              fontSize: 160,
               lineHeight: 0.9,
               letterSpacing: '-0.055em',
               color: PALETTE.rose,
-              textShadow: '0 0 60px rgba(244,63,94,0.55)',
+              textShadow: '0 0 60px rgba(244,63,94,0.65)',
             }}
           >
             {passers}
@@ -117,6 +153,7 @@ const Scene1Hook: React.FC = () => {
               fontSize: 54,
               color: '#F8FAFC',
               letterSpacing: '-0.03em',
+              textShadow: '0 8px 30px rgba(0,0,0,0.8)',
             }}
           >
             passaram na porta.
@@ -133,14 +170,14 @@ const Scene1Hook: React.FC = () => {
             words={['ZERO', 'dados.', 'Dinheiro', 'evaporando.']}
             pillWord="ZERO"
             pillColor={PALETTE.rose}
-            startFrame={42}
+            startFrame={46}
             fontSize={62}
           />
         </div>
       </AbsoluteFill>
 
       <SubtitlePill
-        badge="R$ 3.186 / HORA"
+        badge="R$ 3.315 / HORA"
         accent={PALETTE.rose}
         caption="Cada vitrine sem leitura perde compradores silenciosamente todo dia."
       />
@@ -170,8 +207,8 @@ const Scene2Contrast: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.6} />
-      <Sequence from={12}>
+      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.45} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m02_dor.wav')} volume={1} />
       </Sequence>
       <StudioGridBackdrop accent={PALETTE.rose} />
@@ -187,10 +224,10 @@ const Scene2Contrast: React.FC = () => {
       >
         <TopKeynotePill label="O ABISMO DA LOJA FÍSICA" color={PALETTE.gold} />
         <KineticPillHeadline
-          words={['No', 'site', 'você', 'mede', 'tudo.', 'Na', 'loja,', 'opera', 'no', 'ESCURO.']}
+          words={['No', 'digital', 'você', 'mede', 'tudo.', 'Na', 'loja,', 'opera', 'no', 'ESCURO.']}
           pillWord="ESCURO"
           pillColor={PALETTE.rose}
-          startFrame={4}
+          startFrame={6}
           fontSize={58}
         />
 
@@ -211,7 +248,7 @@ const Scene2Contrast: React.FC = () => {
                 style={{
                   flex: 1,
                   opacity: op,
-                  transform: `translateY(${ty}px) perspective(1200px) rotateY(${idx === 0 ? 4 : -4}deg)`,
+                  transform: `translateY(${ty}px) perspective(1200px) rotateY(${idx === 0 ? 5 : -5}deg)`,
                   background: 'linear-gradient(155deg, rgba(19,23,35,0.92) 0%, rgba(9,11,17,0.9) 100%)',
                   border: `1.5px solid ${c.accent}66`,
                   borderRadius: 26,
@@ -240,16 +277,13 @@ const Scene2Contrast: React.FC = () => {
   );
 };
 
-/** Cena 3 — A Virada Apple-Style: Gêmeo Digital 3D do Capim Dourado acende */
+/** Cena 3 — A Virada Apple-Style: Gêmeo Digital 3D do Capim Dourado luminoso com arcos + placas 3D */
 const Scene3Revelacao: React.FC = () => {
   const frame = useCurrentFrame();
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.8} />
-      <Sequence from={70}>
-        <Audio src={staticFile('sfx/ding.wav')} volume={0.55} />
-      </Sequence>
-      <Sequence from={10}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.55} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m03_revelacao.wav')} volume={1} />
       </Sequence>
 
@@ -257,7 +291,7 @@ const Scene3Revelacao: React.FC = () => {
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 46%, rgba(8,9,13,0.18) 0%, rgba(8,9,13,0.88) 82%)',
+            'radial-gradient(circle at 50% 48%, rgba(8,9,13,0.06) 0%, rgba(8,9,13,0.52) 72%, rgba(8,9,13,0.82) 100%)',
         }}
       />
       <BrandWatermark />
@@ -267,7 +301,7 @@ const Scene3Revelacao: React.FC = () => {
           style={{
             padding: '10px 26px',
             borderRadius: 999,
-            background: 'rgba(8,9,13,0.88)',
+            background: 'rgba(8,9,13,0.86)',
             border: `1.5px solid ${PALETTE.gold}`,
             fontFamily: FONTS.mono,
             fontSize: 15,
@@ -282,88 +316,112 @@ const Scene3Revelacao: React.FC = () => {
           words={['VitrineIQ:', 'o', 'GOOGLE ANALYTICS', 'do', 'varejo', 'físico.']}
           pillWord="GOOGLE ANALYTICS"
           pillColor={PALETTE.gold}
-          startFrame={16}
+          startFrame={10}
           fontSize={68}
         />
       </AbsoluteFill>
 
       <SubtitlePill
         badge="TEMPO REAL"
-        caption="Cada corredor, vitrine e balcão medido ao vivo no Capim Dourado."
+        caption="Cada corredor, vitrine e balcão medido ao vivo no Capim Dourado Shopping."
       />
     </AbsoluteFill>
   );
 };
 
-/** Cena 4 — MacBook 3D Real UI: Painel Executivo + Horário de Pico + Shopping 3D Real */
+/** Cena 4 — MacBook 3D Real UI + Subsolo 356 Vagas + Z-Layer Explosion Cards */
 const Scene4CockpitAnd3D: React.FC = () => {
   const frame = useCurrentFrame();
-  const showMap = frame >= 245;
+  const showMap = frame >= 360;
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('sfx/switch.wav')} volume={0.65} />
-      <Sequence from={92}>
-        <Audio src={staticFile('sfx/mouse-click.wav')} volume={0.75} />
-      </Sequence>
-      <Sequence from={242}>
-        <Audio src={staticFile('sfx/whip.wav')} volume={0.65} />
-      </Sequence>
-      <Sequence from={10}>
+      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.45} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m04_cockpit_3d.wav')} volume={1} />
       </Sequence>
       <StudioGridBackdrop accent={PALETTE.gold} />
 
-      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
-        <TopKeynotePill label={showMap ? 'GÊMEO DIGITAL 3D • PISOS L1 & L2' : 'PAINEL EXECUTIVO & CLIMA'} />
-        <div style={{ marginTop: 12 }}>
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 26 }}>
+        <TopKeynotePill
+          label={showMap ? 'GÊMEO DIGITAL 3D • L1, L2 & SUBSOLO 356' : 'PAINEL EXECUTIVO & CLIMA'}
+          color={showMap ? PALETTE.cyan : PALETTE.gold}
+        />
+        <div style={{ marginTop: 10 }}>
           <KineticPillHeadline
+            key={showMap ? 'map3d' : 'cockpit'}
             words={
               showMap
-                ? ['Explore', 'os', '2', 'PISOS', 'em', '3D', 'ao', 'vivo.']
+                ? ['Explore', 'L1,', 'Praça L2', 'e', 'SUBSOLO 356', 'em', '3D.']
                 : ['IQ', 'Score,', 'clima', 'e', 'PICO', 'por', 'hora.']
             }
-            pillWord={showMap ? 'PISOS' : 'PICO'}
-            startFrame={4}
+            pillWord={showMap ? 'SUBSOLO 356' : 'PICO'}
+            pillColor={showMap ? PALETTE.cyan : PALETTE.gold}
+            startFrame={0}
             fontSize={48}
           />
         </div>
 
-        <div style={{ marginTop: 26, position: 'relative' }}>
+        <div style={{ marginTop: 22, position: 'relative' }}>
           <MacBook3DStage
             capturePath="captures/ui_01_cockpit.png"
-            secondaryCapturePath="captures/ui_04_map3d_l2.png"
-            switchAtFrame={245}
+            secondaryCapturePath="captures/ui_04b_map3d_subsolo.png"
+            switchAtFrame={360}
             rotateY={showMap ? 5 : -5}
             zoomFrom={1}
-            zoomTo={showMap ? 1.2 : 1.32}
-            zoomStartFrame={showMap ? 255 : 40}
-            zoomEndFrame={showMap ? 380 : 175}
-            focusX={showMap ? 48 : 58}
-            focusY={showMap ? 58 : 34}
+            zoomTo={1.18}
+            zoomStartFrame={showMap ? 375 : 48}
+            zoomEndFrame={showMap ? 560 : 250}
+            focusX={showMap ? 48 : 54}
+            focusY={showMap ? 54 : 36}
             cursorWaypoints={[
-              { frame: 10, x: 20, y: 20 },
-              { frame: 92, x: 30, y: 44, click: true },
-              { frame: 235, x: 11, y: 31, click: true },
+              { frame: 24, x: 24, y: 26 },
+              { frame: 130, x: 32, y: 44, click: true },
+              { frame: 350, x: 11, y: 31, click: true },
             ]}
-            widthPx={980}
+            explosionCards={
+              showMap
+                ? [
+                    {
+                      badge: 'SUBSOLO RAIO-X',
+                      value: '356 Vagas',
+                      sub: 'SS1 + SS2 e Esteiras Super Big',
+                      accent: PALETTE.emerald,
+                      side: 'left',
+                      top: 390,
+                      delay: 375,
+                    },
+                  ]
+                : [
+                    {
+                      badge: 'JANELA ATIVA',
+                      value: 'IQ Score 75',
+                      sub: 'Clima 24°C + 12 filmes Cinemark',
+                      accent: PALETTE.goldBright,
+                      side: 'right',
+                      top: 380,
+                      delay: 64,
+                    },
+                  ]
+            }
+            widthPx={1040}
           />
         </div>
       </AbsoluteFill>
 
       <FloatingTelemetryPill
-        kicker="IQ SCORE ATIVO"
-        value="74 / 100"
-        accent={PALETTE.gold}
-        delay={18}
-        style={{ position: 'absolute', left: 54, top: 380 }}
+        kicker="DINHEIRO NA MESA"
+        value="R$ 3.315 / h"
+        accent={PALETTE.emerald}
+        delay={24}
+        style={{ position: 'absolute', left: 48, top: 390 }}
       />
       <FloatingTelemetryPill
-        kicker="DINHEIRO NA MESA"
-        value="R$ 3.186 / h"
-        accent={PALETTE.emerald}
-        delay={32}
-        style={{ position: 'absolute', right: 54, top: 470 }}
+        kicker="MAPA ESPACIAL"
+        value="38.800 m² • 3D"
+        accent={PALETTE.cyan}
+        delay={42}
+        style={{ position: 'absolute', right: 48, top: 470 }}
       />
     </AbsoluteFill>
   );
@@ -375,11 +433,8 @@ const Scene5CrowdDrop: React.FC = () => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
-      <Sequence from={115}>
-        <Audio src={staticFile('sfx/ding.wav')} volume={0.7} />
-      </Sequence>
-      <Sequence from={10}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.55} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m05_crowddrop.wav')} volume={1} />
       </Sequence>
 
@@ -392,7 +447,7 @@ const Scene5CrowdDrop: React.FC = () => {
       <AbsoluteFill
         style={{
           background:
-            'linear-gradient(90deg, rgba(6,7,11,0.92) 0%, rgba(6,7,11,0.55) 50%, rgba(6,7,11,0.78) 100%)',
+            'linear-gradient(90deg, rgba(6,7,11,0.82) 0%, rgba(6,7,11,0.34) 50%, rgba(6,7,11,0.58) 100%)',
         }}
       />
       <BrandWatermark />
@@ -400,7 +455,7 @@ const Scene5CrowdDrop: React.FC = () => {
       <div
         style={{
           position: 'absolute',
-          left: 64,
+          left: 60,
           top: 170,
           width: 660,
           display: 'flex',
@@ -422,22 +477,33 @@ const Scene5CrowdDrop: React.FC = () => {
         </p>
       </div>
 
-      <div style={{ position: 'absolute', right: 56, top: 195 }}>
+      <div style={{ position: 'absolute', right: 54, top: 185 }}>
         <MacBook3DStage
           capturePath="captures/ui_02_crowddrop.png"
           rotateY={-10}
           rotateX={3}
-          zoomFrom={1.04}
-          zoomTo={1.2}
-          zoomStartFrame={20}
-          zoomEndFrame={180}
+          zoomFrom={1.02}
+          zoomTo={1.16}
+          zoomStartFrame={24}
+          zoomEndFrame={210}
           focusX={52}
           focusY={42}
           cursorWaypoints={[
-            { frame: 30, x: 48, y: 70 },
-            { frame: 115, x: 69, y: 61, click: true },
+            { frame: 32, x: 48, y: 70 },
+            { frame: 130, x: 69, y: 61, click: true },
           ]}
-          widthPx={860}
+          explosionCards={[
+            {
+              badge: 'GATILHO COLETIVO',
+              value: '30% OFF NO TELÃO',
+              sub: 'Ativado por 5+ pessoas na vitrine',
+              accent: PALETTE.goldBright,
+              side: 'left',
+              top: 400,
+              delay: 52,
+            },
+          ]}
+          widthPx={900}
         />
       </div>
 
@@ -449,14 +515,15 @@ const Scene5CrowdDrop: React.FC = () => {
   );
 };
 
-/** Cena 6 — Raio-X Gemini + Sensor Webcam LGPD Zero-PII */
+/** Cena 6 — Sensor Webcam LGPD Zero-PII -> Raio-X Multimodal Gemini Vision */
 const Scene6RaioXLGPD: React.FC = () => {
   const frame = useCurrentFrame();
+  const showRaiox = frame >= 270;
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('sfx/shutter-modern.wav')} volume={0.7} />
-      <Sequence from={10}>
+      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.45} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m06_raiox_lgpd.wav')} volume={1} />
       </Sequence>
 
@@ -464,36 +531,61 @@ const Scene6RaioXLGPD: React.FC = () => {
       <AbsoluteFill
         style={{
           background:
-            'linear-gradient(180deg, rgba(6,7,11,0.88) 0%, rgba(6,7,11,0.52) 48%, rgba(6,7,11,0.92) 100%)',
+            'linear-gradient(180deg, rgba(6,7,11,0.82) 0%, rgba(6,7,11,0.38) 48%, rgba(6,7,11,0.86) 100%)',
         }}
       />
 
-      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
-        <TopKeynotePill label="EDGE COMPUTER VISION • 100% LGPD" color={PALETTE.cyan} />
-        <div style={{ marginTop: 12 }}>
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 26 }}>
+        <TopKeynotePill
+          label={showRaiox ? 'RAIO-X MULTIMODAL • GEMINI VISION' : 'EDGE COMPUTER VISION • 100% LGPD'}
+          color={showRaiox ? PALETTE.goldBright : PALETTE.cyan}
+        />
+        <div style={{ marginTop: 10 }}>
           <KineticPillHeadline
-            words={['Webcam', 'comum.', 'ZERO', 'rostos', 'gravados.']}
-            pillWord="ZERO"
-            pillColor={PALETTE.emerald}
-            startFrame={4}
+            key={showRaiox ? 'raiox' : 'sensor'}
+            words={
+              showRaiox
+                ? ['Raio-X', 'detecta', '3 DEFEITOS', 'em', 'segundos.']
+                : ['Webcam', 'comum.', 'ZERO', 'rostos', 'gravados.']
+            }
+            pillWord={showRaiox ? '3 DEFEITOS' : 'ZERO'}
+            pillColor={showRaiox ? PALETTE.gold : PALETTE.emerald}
+            startFrame={0}
             fontSize={52}
           />
         </div>
-        <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: 22 }}>
           <MacBook3DStage
             capturePath="captures/ui_05_sensor_lgpd.png"
+            secondaryCapturePath="captures/ui_11_raiox.png"
+            switchAtFrame={270}
             rotateY={5}
             zoomFrom={1}
-            zoomTo={1.24}
-            zoomStartFrame={28}
-            zoomEndFrame={165}
-            focusX={48}
-            focusY={50}
+            zoomTo={1.18}
+            zoomStartFrame={showRaiox ? 285 : 32}
+            zoomEndFrame={showRaiox ? 480 : 210}
+            focusX={52}
+            focusY={52}
             cursorWaypoints={[
-              { frame: 20, x: 38, y: 50 },
-              { frame: 130, x: 82, y: 78, click: true },
+              { frame: 24, x: 38, y: 50 },
+              { frame: 180, x: 82, y: 71, click: true },
             ]}
-            widthPx={940}
+            explosionCards={
+              showRaiox
+                ? [
+                    {
+                      badge: 'DIAGNÓSTICO IA',
+                      value: 'Nota 42 / 100',
+                      sub: 'Frame descartado da RAM após leitura',
+                      accent: PALETTE.goldBright,
+                      side: 'right',
+                      top: 380,
+                      delay: 286,
+                    },
+                  ]
+                : []
+            }
+            widthPx={1010}
           />
         </div>
       </AbsoluteFill>
@@ -503,35 +595,32 @@ const Scene6RaioXLGPD: React.FC = () => {
         value="< 5 ms em RAM"
         accent={PALETTE.cyan}
         delay={18}
-        style={{ position: 'absolute', left: 54, top: 410 }}
+        style={{ position: 'absolute', left: 48, top: 410 }}
       />
       <FloatingTelemetryPill
         kicker="RAIO-X GEMINI"
-        value="Auditoria em 3s"
+        value="Auditoria + Quick Win"
         accent={PALETTE.emerald}
         delay={34}
-        style={{ position: 'absolute', right: 54, top: 480 }}
+        style={{ position: 'absolute', right: 48, top: 480 }}
       />
     </AbsoluteFill>
   );
 };
 
-/** Cena 7 — Balcão Voz 4s + Concierge QR no iPhone 3D Titanium */
+/** Cena 7 — Balcão Voz 4s + Concierge QR no iPhone 3D Titanium (Dynamic Island segura) */
 const Scene7BalcaoAndQR: React.FC = () => {
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('sfx/page-turn.wav')} volume={0.65} />
-      <Sequence from={110}>
-        <Audio src={staticFile('sfx/mouse-click.wav')} volume={0.75} />
-      </Sequence>
-      <Sequence from={10}>
+      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.45} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m07_balcao_qr.wav')} volume={1} />
       </Sequence>
       <StudioGridBackdrop accent={PALETTE.emerald} />
 
-      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 26 }}>
         <TopKeynotePill label="BALCÃO VOZ 4S • CONCIERGE QR SEM CPF" color={PALETTE.emerald} />
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 10 }}>
           <KineticPillHeadline
             words={['Venda', 'perdida', 'em', '4s.', 'Cupom', 'no', 'QR', 'sem', 'app.']}
             pillWord="4s"
@@ -543,29 +632,40 @@ const Scene7BalcaoAndQR: React.FC = () => {
 
         <div
           style={{
-            marginTop: 28,
+            marginTop: 24,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 48,
+            gap: 44,
             width: '100%',
-            padding: '0 80px',
+            padding: '0 70px',
           }}
         >
           <MacBook3DStage
             capturePath="captures/ui_06_balcao_voz.png"
             rotateY={7}
             zoomFrom={1}
-            zoomTo={1.24}
-            zoomStartFrame={20}
-            zoomEndFrame={150}
+            zoomTo={1.18}
+            zoomStartFrame={24}
+            zoomEndFrame={210}
             focusX={40}
             focusY={34}
             cursorWaypoints={[
-              { frame: 20, x: 55, y: 45 },
-              { frame: 110, x: 31, y: 31, click: true },
+              { frame: 28, x: 55, y: 45 },
+              { frame: 130, x: 31, y: 31, click: true },
             ]}
-            widthPx={940}
+            explosionCards={[
+              {
+                badge: 'MODO BALCÃO',
+                value: 'Voz 4s + Offline',
+                sub: 'Motivo real gravado antes do cliente sair',
+                accent: PALETTE.emerald,
+                side: 'left',
+                top: 390,
+                delay: 64,
+              },
+            ]}
+            widthPx={980}
           />
           <IPhone3DStage capturePath="captures/ui_09_concierge_mobile.png" rotateY={-11} widthPx={310} />
         </div>
@@ -574,19 +674,17 @@ const Scene7BalcaoAndQR: React.FC = () => {
   );
 };
 
-/** Cena 8 — Clímax Leque 3D + Lockup Apple-Style */
+/** Cena 8 — Clímax Leque 3D + Lockup Apple-Style vivo até o frame final */
 const Scene8CTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const logoS = spring({ frame: Math.max(0, frame - 90), fps, config: { damping: 18, stiffness: 120 } });
+  const logoS = spring({ frame: Math.max(0, frame - 64), fps, config: { damping: 18, stiffness: 120 } });
+  const ctaPulse = 1 + 0.025 * Math.sin(frame / 18);
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
-      <Sequence from={92}>
-        <Audio src={staticFile('sfx/ding.wav')} volume={0.7} />
-      </Sequence>
-      <Sequence from={10}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.55} />
+      <Sequence from={22}>
         <Audio src={staticFile('audio_mkt/m08_cta.wav')} volume={1} />
       </Sequence>
 
@@ -594,7 +692,7 @@ const Scene8CTA: React.FC = () => {
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 45%, rgba(8,9,13,0.68) 0%, rgba(6,7,11,0.95) 85%)',
+            'radial-gradient(circle at 50% 45%, rgba(8,9,13,0.45) 0%, rgba(6,7,11,0.92) 86%)',
         }}
       />
 
@@ -671,6 +769,7 @@ const Scene8CTA: React.FC = () => {
             style={{
               padding: '12px 32px',
               borderRadius: 16,
+              transform: `scale(${ctaPulse})`,
               background: 'linear-gradient(135deg, #E2A83B 0%, #FDE68A 100%)',
               color: '#08090D',
               fontFamily: FONTS.mono,
@@ -688,21 +787,13 @@ const Scene8CTA: React.FC = () => {
 };
 
 export const MarketingVideo: React.FC = () => {
-  const { fps } = useVideoConfig();
   return (
     <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
-      {/* Trilha studio 124 BPM com ducking dinâmico sobre cada corte */}
       <Audio
         src={staticFile('sfx/music_studio_124bpm.wav')}
-        volume={(f) => {
-          const fadeOut = interpolate(f, [MKT_TOTAL_FRAMES - 100, MKT_TOTAL_FRAMES], [1, 0], {
-            extrapolateLeft: 'clamp',
-            extrapolateRight: 'clamp',
-          });
-          // Mais forte nos primeiros 2.5s (hook) e depois acomoda limpo sob a voz
-          const base = f < 140 ? 0.32 : 0.16;
-          return base * fadeOut;
-        }}
+        volume={(f) =>
+          computeMusicDuckVolume(f, MKT_DURATIONS, MKT_TRANSITION, MKT_TOTAL_FRAMES)
+        }
       />
 
       <TransitionSeries>
@@ -710,7 +801,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene1Hook />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={slide({ direction: 'from-right' })}
+          presentation={perspectiveFly({ direction: 'bank-left' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -718,7 +809,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene2Contrast />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={fade()}
+          presentation={perspectiveFly({ direction: 'forward' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -726,7 +817,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene3Revelacao />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={slide({ direction: 'from-bottom' })}
+          presentation={perspectiveFly({ direction: 'bank-right' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -734,7 +825,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene4CockpitAnd3D />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={slide({ direction: 'from-right' })}
+          presentation={perspectiveFly({ direction: 'bank-left' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -742,7 +833,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene5CrowdDrop />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={fade()}
+          presentation={perspectiveFly({ direction: 'forward' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -750,7 +841,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene6RaioXLGPD />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={slide({ direction: 'from-right' })}
+          presentation={perspectiveFly({ direction: 'bank-right' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
@@ -758,7 +849,7 @@ export const MarketingVideo: React.FC = () => {
           <Scene7BalcaoAndQR />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition
-          presentation={fade()}
+          presentation={perspectiveFly({ direction: 'forward' })}
           timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 

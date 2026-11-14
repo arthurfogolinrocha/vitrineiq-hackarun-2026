@@ -1,42 +1,42 @@
 [
   {
     "id": "m01_hook",
-    "durationSec": 5.005,
-    "frames": 301
+    "durationSec": 6.586,
+    "frames": 396
   },
   {
     "id": "m02_dor",
-    "durationSec": 6.193,
-    "frames": 372
+    "durationSec": 7.421,
+    "frames": 446
   },
   {
     "id": "m03_revelacao",
-    "durationSec": 6.861,
-    "frames": 412
+    "durationSec": 8.202,
+    "frames": 493
   },
   {
     "id": "m04_cockpit_3d",
-    "durationSec": 7.451,
-    "frames": 448
+    "durationSec": 12.232,
+    "frames": 734
   },
   {
     "id": "m05_crowddrop",
-    "durationSec": 8.678,
-    "frames": 521
+    "durationSec": 9.304,
+    "frames": 559
   },
   {
     "id": "m06_raiox_lgpd",
-    "durationSec": 8.754,
-    "frames": 526
+    "durationSec": 9.469,
+    "frames": 569
   },
   {
     "id": "m07_balcao_qr",
-    "durationSec": 8.059,
-    "frames": 484
+    "durationSec": 13.219,
+    "frames": 794
   },
   {
     "id": "m08_cta",
-    "durationSec": 7.9,
-    "frames": 475
+    "durationSec": 8.161,
+    "frames": 490
   }
 ]

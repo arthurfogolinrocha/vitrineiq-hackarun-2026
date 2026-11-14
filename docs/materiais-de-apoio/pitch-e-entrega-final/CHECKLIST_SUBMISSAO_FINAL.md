@@ -20,7 +20,7 @@
   - [ ] Toda a equipe alinhada para explicar qualquer linha de código perante a banca.
 
 - [ ] **4. Vídeo de Pitch (Critério Crítico de Eliminação):**
-  - Duração **RIGOROSAMENTE entre 1m15s (75s) e 2m00s (120s)** (`VitrineIQ_Pitch_FINAL_COM_VOZ.mp4` atualizado com `95,3s`, `1920x1080`, `60fps`, demonstrando UI real em MacBook/iPhone 3D, Gêmeo 3D L1/L2, Crowd-Drop, Raio-X Gemini, Balcão Voz 4s, Stories da Roleta, Multi-Tenant e `158` testes).
+  - Duração **RIGOROSAMENTE entre 1m15s (75s) e 2m00s (120s)** (`VitrineIQ_Pitch_FINAL_COM_VOZ.mp4` atualizado com `115,6s`, `3840x2160` 4K UHD, `60fps`, demonstrando UI real em produção no MacBook/iPhone 3D, Gêmeo 3D L1/L2 + Subsolo `356` vagas, Crowd-Drop, Raio-X Gemini, Balcão Voz 4s, Stories da Roleta, Multi-Tenant e `158` testes).
   - [ ] Vídeo hospedado no YouTube (Não Listado) com áudio e imagem nítidos.
   - [x] Demonstração do produto incluída no vídeo.
 

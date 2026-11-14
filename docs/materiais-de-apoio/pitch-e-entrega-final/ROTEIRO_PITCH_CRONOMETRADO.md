@@ -1,10 +1,10 @@
 # 🎬 Roteiro Oficial do Vídeo de Pitch — VitrineIQ (1º HackaRun 2026)
 **Duração Rigorosa Exigida pelo Regulamento: Entre 1min15s (75s) e 2min00s (120s)**  
-**Duração Alvo Oficial: ~`95s–105s` (`1m35s–1m45s`, `60fps`)** — ritmo ágil sem pausas mortas, perfeitamente dentro da regra (`75s` a `120s`)!
+**Duração Exata Verificada do Vídeo Final: `115,6s` (`1m55s`, `3840x2160` 4K UHD @ `60fps`)** — ritmo contínuo sem pausas mortas, respeitando rigorosamente a janela `75s–120s`!
 
 ---
 
-## ⏱️ Cronometragem em 8 Blocos (`00:00` – `01:40`)
+## ⏱️ Cronometragem em 8 Blocos (`00:00` – `01:55`)
 
 1. **Dor Real no Capim Dourado:** 188 lojas operando no escuro antes do caixa (quem passa, quem para na vitrine, por que desiste e horário de pico).
 2. **Painel Executivo + IQ Score + Copiloto IA:** Cruzamento de fluxo real, clima em Palmas, horário `10h–22h` e geração de planos táticos + cartazes `9:16` / WhatsApp com IA.
@@ -18,6 +18,6 @@
 ---
 
 ## 📋 Checklist Técnico para Publicação
-- [x] **Resolução:** `1920x1080` Full HD horizontal a `60 fps` (em produção também evolução para `4K` / revisões audiovisuais).
+- [x] **Resolução:** `3840x2160` (4K UHD horizontal) a `60 fps` reais (`--gl=angle` + `--scale=2`).
 - [x] **Duração exata do arquivo final `.mp4`:** entre `75s` e `120s`.
 - [ ] **Publicação:** subir a versão final aprovada no YouTube como **Não Listado** e enviar no formulário oficial da Missão 3 antes das `13h00`.

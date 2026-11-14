@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const CHROME_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const APP_URL = 'http://127.0.0.1:4173/';
+const APP_URL = process.env.CAPTURE_URL || 'https://vitrineiq-capim-dourado.vercel.app/';
 const OUT_DIR = path.resolve(process.cwd(), 'public/captures');
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -118,19 +118,74 @@ async function main() {
     });
 
     await cdp.call('Page.navigate', { url: APP_URL });
-    await sleep(2000);
+    await sleep(2500);
 
-    // 1. Login -> Modo Demonstração
-    const loggedDemo = await clickByText(cdp, 'button', 'demonstra');
-    console.log('Logged demo:', loggedDemo);
-    await sleep(2000);
+    // 1. Login real como Admin para liberar todas as 7 abas (incluindo Contas de Lojistas)
+    const loggedAdmin = await cdp.eval(`(() => {
+      const userEl = document.querySelector('#login-usuario');
+      const passEl = document.querySelector('#login-senha');
+      const formBtn = document.querySelector('form button[type="submit"]');
+      if (!userEl || !passEl || !formBtn) return false;
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(userEl, 'admin');
+      userEl.dispatchEvent(new Event('input', { bubbles: true }));
+      setter.call(passEl, 'VitrineIQ');
+      passEl.dispatchEvent(new Event('input', { bubbles: true }));
+      formBtn.click();
+      return true;
+    })()`);
+    console.log('Admin login triggered:', loggedAdmin);
+    await sleep(2600);
+    const hasLojistas = await cdp.eval(`Array.from(document.querySelectorAll('aside nav button')).some(b => (b.textContent || '').toLowerCase().includes('lojistas'))`);
+    if (!hasLojistas) {
+      const loggedDemo = await clickByText(cdp, 'button', 'demonstra');
+      console.log('Fallback demo login:', loggedDemo);
+      await sleep(2200);
+    }
+
+    await cdp.eval('window.scrollTo(0, 0)');
+    await sleep(600);
     await cdp.screenshot('ui_01_cockpit.png');
+
+    // Gráfico Horário de Pico + Ações do Cockpit
+    await cdp.eval('window.scrollTo(0, 360)');
+    await sleep(800);
+    await cdp.screenshot('ui_12_cockpit_chart.png');
+    await cdp.eval('window.scrollTo(0, 0)');
+    await sleep(500);
+
+    // Modal Gerar Cartaz (Stories 9:16) — rola até Campanhas Relâmpago ou ativa Minha Loja
+    await cdp.eval('window.scrollTo(0, 950)');
+    await sleep(600);
+    let clickedCartaz = await clickByText(cdp, 'button', 'gerar cartaz');
+    if (!clickedCartaz) {
+      await clickByText(cdp, 'aside button', 'minha loja');
+      await sleep(1000);
+      await cdp.eval('window.scrollTo(0, 950)');
+      await sleep(600);
+      clickedCartaz = await clickByText(cdp, 'button', 'gerar cartaz');
+    }
+    console.log('Cartaz clicked:', clickedCartaz);
+    if (clickedCartaz) {
+      await sleep(900);
+      await clickByText(cdp, 'button', 'stories 9:16');
+      await sleep(900);
+      await cdp.screenshot('ui_13_cartaz916.png');
+      await cdp.eval(`(() => {
+        const closeBtn = Array.from(document.querySelectorAll('button')).find(b => (b.getAttribute('aria-label') || '').toLowerCase().includes('fechar') || (b.textContent || '').toLowerCase().includes('fechar'));
+        closeBtn?.click();
+      })()`);
+      await sleep(500);
+    }
+    await clickByText(cdp, 'aside button', 'admin geral');
+    await cdp.eval('window.scrollTo(0, 0)');
+    await sleep(400);
 
     // Cockpit Vitrine Radar + Abrir Crowd-Drop modal
     const clickedCrowd = await clickByText(cdp, 'button', 'crowd-drop');
     console.log('Crowd-Drop clicked:', clickedCrowd);
     if (clickedCrowd) {
-      await sleep(1000);
+      await sleep(1100);
       await cdp.screenshot('ui_02_crowddrop.png');
       await cdp.eval(`(() => {
         const closeBtn = Array.from(document.querySelectorAll('button')).find(b => (b.getAttribute('aria-label') || '').toLowerCase().includes('fechar') || (b.textContent || '').toLowerCase().includes('fechar'));
@@ -141,52 +196,79 @@ async function main() {
 
     // 2. Shopping 3D L1
     await clickByText(cdp, 'aside nav button', 'shopping 3d');
-    await sleep(2800);
+    await sleep(3200);
     await cdp.eval('window.scrollTo(0, 120)');
     await sleep(1200);
     await cdp.screenshot('ui_03_map3d_l1.png');
 
     // 2º Piso L2
     await clickByText(cdp, 'button', '2º piso');
-    await sleep(1600);
+    await sleep(1800);
     await cdp.screenshot('ui_04_map3d_l2.png');
 
-    // 3. Sensor Vitrine + Raio-X Vitrine
+    // Subsolo 356 Vagas (ativa automaticamente Raio-X Subsolo)
+    await clickByText(cdp, 'button', 'subsolo (356');
+    await sleep(1800);
+    await cdp.screenshot('ui_04b_map3d_subsolo.png');
+
+    // 3. Sensor Vitrine + Raio-X Multimodal aberto
     await clickByText(cdp, 'aside nav button', 'sensor');
-    await sleep(1600);
+    await sleep(1800);
     await cdp.eval('window.scrollTo(0, 0)');
     await sleep(600);
     await cdp.screenshot('ui_05_sensor_lgpd.png');
 
+    const clickedRaiox = await clickByText(cdp, 'button', 'raio-x multimodal');
+    console.log('Raio-X modal clicked:', clickedRaiox);
+    if (clickedRaiox) {
+      for (let i = 0; i < 24; i++) {
+        await sleep(500);
+        const hasSec = await cdp.eval(`Boolean(document.querySelector('section[aria-label*="Raio-X Multimodal"]'))`);
+        if (hasSec) {
+          await cdp.eval(`document.querySelector('section[aria-label*="Raio-X Multimodal"]')?.scrollIntoView({ block: 'center' })`);
+          break;
+        }
+      }
+      await sleep(700);
+      await cdp.screenshot('ui_11_raiox.png');
+    }
+
     // 4. Modo Balcão + Voz 4s
     await clickByText(cdp, 'aside nav button', 'balcão');
-    await sleep(1400);
+    await sleep(1500);
     await cdp.eval('window.scrollTo(0, 0)');
-    await sleep(400);
+    await sleep(500);
     await cdp.screenshot('ui_06_balcao_voz.png');
 
     // 5. Stories (Roleta) modal no topo
-    const clickedStories = await clickByText(cdp, 'header button', 'stories');
+    const clickedStories = await clickByText(cdp, 'button', 'stories');
     console.log('Stories clicked:', clickedStories);
     if (clickedStories) {
-      await sleep(800);
+      await sleep(900);
       await cdp.screenshot('ui_07_stories_modal.png');
-      await cdp.eval(`document.querySelector('dialog button[aria-label*="Fechar"]')?.click()`);
+      await cdp.eval(`(() => {
+        const closeBtn = Array.from(document.querySelectorAll('button')).find(b => (b.getAttribute('aria-label') || '').toLowerCase().includes('fechar') || (b.textContent || '').toLowerCase().includes('fechar'));
+        closeBtn?.click();
+      })()`);
       await sleep(400);
     }
 
-    // 6. LGPD e Auditoria
+    // 6. LGPD e Auditoria + Transparência Artigo 6
     await clickByText(cdp, 'aside nav button', 'lgpd');
-    await sleep(1300);
+    await sleep(1500);
     await cdp.eval('window.scrollTo(0, 0)');
-    await sleep(400);
+    await sleep(500);
     await cdp.screenshot('ui_08_lgpd_auditoria.png');
+    await cdp.eval('window.scrollTo(0, 420)');
+    await sleep(600);
+    await cdp.screenshot('ui_14_artigo6.png');
 
-    // 7. Lojistas Multi-Tenant
-    await clickByText(cdp, 'aside nav button', 'lojistas');
-    await sleep(1200);
+    // 7. Lojistas Multi-Tenant (Real Admin tab!)
+    const clickedLojistas = await clickByText(cdp, 'aside nav button', 'lojistas');
+    console.log('Lojistas clicked:', clickedLojistas);
+    await sleep(1400);
     await cdp.eval('window.scrollTo(0, 0)');
-    await sleep(400);
+    await sleep(500);
     await cdp.screenshot('ui_10_lojistas.png');
 
     // 8. Concierge QR em viewport Mobile iPhone 390x844 @ 2x
@@ -197,7 +279,7 @@ async function main() {
       mobile: true,
     });
     await cdp.call('Page.navigate', { url: `${APP_URL}?tela=concierge` });
-    await sleep(1800);
+    await sleep(2200);
     await cdp.screenshot('ui_09_concierge_mobile.png');
   } finally {
     cdp?.close();

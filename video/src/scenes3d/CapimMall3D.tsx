@@ -5,6 +5,13 @@ import { Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from 're
 import { ThreeCanvas } from '@remotion/three';
 import { RoundedBox } from '@react-three/drei';
 import { MALL_BLOCKS, CORRIDOR_FLOW_NODES } from './mallData';
+import {
+  AnchorStoreSignage3D,
+  BezierDataStreams,
+  CapimCurvedAtriumRoof,
+  CapimEnvironmentAndPost,
+  SubsoloXRayLayer,
+} from './MallEnhancements3D';
 
 export interface Mall3DStageProps {
   cameraMode:
@@ -611,19 +618,25 @@ export const CapimMall3D: React.FC<Mall3DStageProps> = ({
       width={width}
       height={height}
       dpr={1}
-      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.18 }}
+      gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.32 }}
       camera={{ fov: 44, near: 0.1, far: 260, position: [0, 20, 42] }}
       style={{ backgroundColor: '#06070B' }}
     >
       <color attach="background" args={['#06070B']} />
-      <fog attach="fog" args={['#06070B', 42, 112]} />
+      <fog attach="fog" args={['#06070B', 56, 138]} />
 
-      <ambientLight intensity={0.48} color="#cbd5e1" />
-      <directionalLight position={[-28, 34, -24]} intensity={2.1} color="#38BDF8" />
-      <directionalLight position={[28, 24, 24]} intensity={2.4} color="#F59E0B" />
-      <pointLight position={[0, 14, 0]} intensity={24} distance={56} color="#E2A83B" />
+      <ambientLight intensity={0.78} color="#dbeafe" />
+      <directionalLight position={[-28, 34, -24]} intensity={2.3} color="#38BDF8" />
+      <directionalLight position={[28, 24, 24]} intensity={2.6} color="#F59E0B" />
+      <pointLight position={[0, 14, 0]} intensity={26} distance={58} color="#E2A83B" />
+      <pointLight position={[-22, 12, 8]} intensity={18} distance={52} color="#38BDF8" />
 
       <CameraController cameraMode={cameraMode} localFrame={localFrame} fps={fps} />
+      <CapimEnvironmentAndPost enableBloom={false} />
+      <SubsoloXRayLayer frame={frame} fps={fps} />
+      <CapimCurvedAtriumRoof frame={frame} fps={fps} />
+      <BezierDataStreams frame={frame} fps={fps} flowMood={flowMood} />
+      <AnchorStoreSignage3D frame={frame} fps={fps} />
 
       <FloorShaderPlane
         localFrame={frame}

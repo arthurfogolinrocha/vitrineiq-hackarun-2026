@@ -115,7 +115,9 @@ export const KineticPillHeadline: React.FC<{
           config: { damping: 16, stiffness: 165, mass: 0.78 },
         });
         const clean = word.replace(/[.,!?—:]/g, '');
-        const isPill = pillWord && pillWord.split(' ').includes(clean);
+        const isPill =
+          pillWord !== undefined &&
+          (pillWord === clean || pillWord.split(' ').includes(clean));
         return (
           <span
             key={`${word}-${idx}`}
@@ -151,9 +153,20 @@ export interface CursorWaypoint {
   click?: boolean;
 }
 
+export interface ExplosionCardSpec {
+  badge: string;
+  value: string;
+  sub: string;
+  accent: string;
+  side: 'left' | 'right';
+  top: number;
+  delay?: number;
+}
+
 /**
  * Moldura MacBook Pro Space Black 3D com UI real do VitrineIQ,
- * Spotlight Optical Zoom (compensado X/Y), reflexo de vidro Keynote e Cursor Animado com ripple de clique!
+ * Spotlight Optical Zoom (cursor sincronizado no mesmo plano transformado),
+ * Z-layer explosion cards e reflexo de vidro Keynote.
  */
 export const MacBook3DStage: React.FC<{
   capturePath: string;
@@ -169,6 +182,7 @@ export const MacBook3DStage: React.FC<{
   focusX?: number; // 0..100 (% na imagem para dar zoom)
   focusY?: number; // 0..100
   cursorWaypoints?: CursorWaypoint[];
+  explosionCards?: ExplosionCardSpec[];
   widthPx?: number;
 }> = ({
   capturePath,
@@ -184,6 +198,7 @@ export const MacBook3DStage: React.FC<{
   focusX = 50,
   focusY = 45,
   cursorWaypoints = [],
+  explosionCards = [],
   widthPx = 1180,
 }) => {
   const frame = useCurrentFrame();
@@ -305,64 +320,113 @@ export const MacBook3DStage: React.FC<{
         </div>
       </div>
 
-      {/* Viewport da UI real com Zoom Focal compensado */}
-      <div style={{ width: widthPx, height: heightPx, overflow: 'hidden', position: 'relative' }}>
-        <Img
-          src={staticFile(activeImg)}
+      {/* Viewport da UI real com Zoom Focal e Cursor sincronizados no mesmo plano */}
+      <div style={{ width: widthPx, height: heightPx, overflow: 'hidden', position: 'relative', background: '#08090D' }}>
+        <div
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            position: 'relative',
             transformOrigin: `${focusX}% ${focusY}%`,
             transform: `scale(${zoom})`,
           }}
-        />
-
-        {/* Cursor vetorial animado + Halo dourado + Ripple de clique */}
-        {cursorWaypoints.length > 0 && (
-          <div
+        >
+          <Img
+            src={staticFile(activeImg)}
             style={{
-              position: 'absolute',
-              left: `${cursorX}%`,
-              top: `${cursorY}%`,
-              pointerEvents: 'none',
-              zIndex: 25,
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
             }}
-          >
-            {rippleOp > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: -rippleSize / 2,
-                  top: -rippleSize / 2,
-                  width: rippleSize,
-                  height: rippleSize,
-                  borderRadius: '50%',
-                  border: `3px solid ${PALETTE.goldBright}`,
-                  background: `${PALETTE.gold}28`,
-                  opacity: rippleOp,
-                }}
-              />
-            )}
-            <svg
-              width={32}
-              height={32}
-              viewBox="0 0 28 28"
+          />
+
+          {/* Cursor vetorial animado dentro do mesmo container escalado (nunca desalinha no zoom!) */}
+          {cursorWaypoints.length > 0 && (
+            <div
               style={{
-                transform: `scale(${clickScale})`,
-                filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.6))',
+                position: 'absolute',
+                left: `${cursorX}%`,
+                top: `${cursorY}%`,
+                pointerEvents: 'none',
+                zIndex: 25,
+                transform: `scale(${1 / Math.max(1, zoom)})`,
+                transformOrigin: 'top left',
               }}
             >
-              <path
-                d="M4 2 L24 12.5 L15 15.2 L12.2 24 Z"
-                fill="#FFFFFF"
-                stroke="#0B0D12"
-                strokeWidth="2.2"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        )}
+              {rippleOp > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: -rippleSize / 2,
+                    top: -rippleSize / 2,
+                    width: rippleSize,
+                    height: rippleSize,
+                    borderRadius: '50%',
+                    border: `3px solid ${PALETTE.goldBright}`,
+                    background: `${PALETTE.gold}28`,
+                    opacity: rippleOp,
+                  }}
+                />
+              )}
+              <svg
+                width={32}
+                height={32}
+                viewBox="0 0 28 28"
+                style={{
+                  transform: `scale(${clickScale})`,
+                  filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.6))',
+                }}
+              >
+                <path
+                  d="M4 2 L24 12.5 L15 15.2 L12.2 24 Z"
+                  fill="#FFFFFF"
+                  stroke="#0B0D12"
+                  strokeWidth="2.2"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          )}
+        </div>
+
+        {/* Z-Layer Explosion Pop-out Cards flutuando sobre o vidro */}
+        {explosionCards.map((card) => {
+          const p = spring({
+            frame: Math.max(0, frame - (card.delay ?? 24)),
+            fps,
+            config: { damping: 16, stiffness: 125 },
+          });
+          return (
+            <div
+              key={card.badge}
+              style={{
+                position: 'absolute',
+                ...(card.side === 'left' ? { left: 26 } : { right: 26 }),
+                top: card.top,
+                opacity: interpolate(p, [0, 1], [0, 1]),
+                transform: `perspective(900px) translateY(${interpolate(p, [0, 1], [28, 0])}px) translateZ(60px) scale(${interpolate(p, [0, 1], [0.85, 1])})`,
+                background: 'rgba(10,12,19,0.92)',
+                backdropFilter: 'blur(14px)',
+                border: `1.5px solid ${card.accent}`,
+                borderRadius: 16,
+                padding: '12px 18px',
+                boxShadow: `0 22px 48px rgba(0,0,0,0.85), 0 0 28px ${card.accent}38`,
+                pointerEvents: 'none',
+                zIndex: 30,
+              }}
+            >
+              <div style={{ fontFamily: FONTS.mono, fontSize: 10, fontWeight: 700, color: card.accent, letterSpacing: '0.14em' }}>
+                {card.badge}
+              </div>
+              <div style={{ fontFamily: FONTS.display, fontSize: 22, fontWeight: 800, color: '#FFFFFF', marginTop: 2 }}>
+                {card.value}
+              </div>
+              <div style={{ fontFamily: FONTS.sans, fontSize: 12, color: '#CBD5E1' }}>
+                {card.sub}
+              </div>
+            </div>
+          );
+        })}
 
         {/* Reflexo diagonal de vidro Apple Keynote */}
         <div
@@ -413,13 +477,14 @@ export const IPhone3DStage: React.FC<{
       <div
         style={{
           position: 'absolute',
-          top: 19,
+          top: 17,
           left: '50%',
           transform: 'translateX(-50%)',
-          width: 86,
-          height: 22,
+          width: 82,
+          height: 20,
           borderRadius: 999,
           background: '#050608',
+          border: '1px solid rgba(255,255,255,0.08)',
           zIndex: 10,
         }}
       />
@@ -429,19 +494,23 @@ export const IPhone3DStage: React.FC<{
           height: '100%',
           borderRadius: 34,
           overflow: 'hidden',
-          background: '#FAF7F0',
+          background: '#0F172A',
+          paddingTop: 34,
+          boxSizing: 'border-box',
         }}
       >
-        <Img
-          src={staticFile(capturePath)}
-          style={{
-            width: '100%',
-            height: '122%',
-            objectFit: 'cover',
-            objectPosition: 'top center',
-            transform: `translateY(${scrollPct}%)`,
-          }}
-        />
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', background: '#FAF7F0', borderRadius: '20px 20px 0 0' }}>
+          <Img
+            src={staticFile(capturePath)}
+            style={{
+              width: '100%',
+              height: '110%',
+              objectFit: 'cover',
+              objectPosition: 'top center',
+              transform: `translateY(${Math.max(-9, scrollPct)}%)`,
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -530,13 +599,17 @@ export const CardFan3D: React.FC<{
         const p = spring({ frame: Math.max(0, frame - delay), fps, config: { damping: 18, stiffness: 120 } });
         const fanAngle = idx === 0 ? 10 : idx === 2 ? -10 : 0;
         const zBump = idx === 1 ? 30 : 0;
+        const floatY = Math.sin(frame / 26 + idx * 1.4) * 5;
+        const shineX = ((frame * 1.35 + idx * 35) % 240) - 60;
         return (
           <div
             key={c.title}
             style={{
               flex: 1,
+              position: 'relative',
+              overflow: 'hidden',
               opacity: interpolate(p, [0, 1], [0, 1]),
-              transform: `perspective(1400px) translateY(${interpolate(p, [0, 1], [50, 0])}px) translateZ(${zBump}px) rotateY(${fanAngle}deg) scale(${interpolate(p, [0, 1], [0.9, 1])})`,
+              transform: `perspective(1400px) translateY(${interpolate(p, [0, 1], [50, 0]) + floatY}px) translateZ(${zBump}px) rotateY(${fanAngle}deg) scale(${interpolate(p, [0, 1], [0.9, 1])})`,
               background: 'linear-gradient(155deg, rgba(19,23,35,0.92) 0%, rgba(9,11,17,0.88) 100%)',
               borderRadius: 24,
               border: `1.5px solid ${c.accent}77`,
@@ -544,6 +617,14 @@ export const CardFan3D: React.FC<{
               padding: '30px 28px',
             }}
           >
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                background: `linear-gradient(115deg, transparent ${shineX - 18}%, rgba(255,255,255,0.08) ${shineX}%, transparent ${shineX + 18}%)`,
+                pointerEvents: 'none',
+              }}
+            />
             <div
               style={{
                 fontFamily: FONTS.mono,

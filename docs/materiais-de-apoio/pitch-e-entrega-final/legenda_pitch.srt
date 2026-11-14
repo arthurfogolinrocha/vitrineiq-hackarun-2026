@@ -1,35 +1,31 @@
 1
-00:00:00,800 --> 00:00:07,000
-No Capim Dourado Shopping, lojistas só descobrem o que aconteceu depois que o cliente passa no caixa.
+00:00:00,367 --> 00:00:11,850
+No Capim Dourado Shopping, 188 lojas operam no escuro antes do caixa. Ninguém sabe quantos passaram, pararam na vitrine ou por que saíram sem comprar.
 
 2
-00:00:07,200 --> 00:00:14,500
-Ninguém sabe quantos passaram na frente, pararam na vitrine, por que desistiram ou o horário de pico real.
+00:00:12,183 --> 00:00:26,250
+Criamos o VitrineIQ. No Painel do Lojista, o IQ Score cruza fluxo real, clima, horário de pico até 22h e gera planos táticos e cartazes em Stories com IA.
 
 3
-00:00:15,300 --> 00:00:22,800
-Para resolver o Desafio 06, criamos o VitrineIQ: plataforma de inteligência comercial em tempo real.
+00:00:26,583 --> 00:00:39,367
+No Gêmeo Digital em 3D, navegamos pelos dois pisos, subsolo com 356 vagas, 4 portarias, Street View, espaços vagos e alianças de corredor.
 
 4
-00:00:23,000 --> 00:00:30,300
-Acompanhe o IQ Score da sua ala, o gráfico de horário de pico (10h às 22h) e todo o funil físico da porta.
+00:00:39,700 --> 00:00:53,133
+O Sensor Webcam roda na borda sem gravar rostos; o Raio-X Gemini audita a vitrine e o Crowd-Drop dispara descontos coletivos com QR Code ao vivo quando junta fluxo na porta.
 
 5
-00:00:30,800 --> 00:00:41,700
-Usando uma webcam comum com borramento LGPD em memória — sem gravar vídeo nem coletar rostos.
+00:00:53,467 --> 00:01:07,683
+No Modo Balcão, o vendedor registra a perda em 1 toque ou por voz em 4s, mesmo offline. E o visitante usa o Concierge QR Code sem aplicativo e sem CPF.
 
 6
-00:00:42,160 --> 00:00:54,260
-Gêmeo Digital 3D real: avenidas, portarias, subsolo com esteiras e subida à Praça de Alimentação no 2º Piso.
+00:01:08,017 --> 00:01:19,033
+Incorporamos nossa prática da Roleta no modal Stories, conectando as 5 User Stories às telas reais, com isolamento Multi-Tenant entre lojistas e administração.
 
 7
-00:00:54,660 --> 00:01:01,760
-Tudo conectado: registro de perda no balcão em 1 toque, buscas anônimas por QR Code e planos do Copiloto IA.
+00:01:19,367 --> 00:01:38,717
+Por trás, backend Python com FastAPI, espelho TypeScript, CSP estrita, ETag, hash SHA-256, 158 testes e nota 9.8 na auditoria, em conformidade com o Artigo 6 da LGPD.
 
 8
-00:01:02,200 --> 00:01:13,100
-Em produção na Vercel com backend Python FastAPI, 46 testes automatizados e uso ético conforme o Artigo 6.
-
-9
-00:01:13,560 --> 00:01:28,460
-O Google Analytics do varejo físico — pronto para transformar fluxo em vendas no Capim Dourado Shopping!
+00:01:39,050 --> 00:01:55,133
+VitrineIQ: o Google Analytics do varejo físico, ao vivo na Vercel. Time Nido King: Arthur Fogolin, Jessé, Matheus Carvalho (@MCPS9) e Leonardo Capistrano. 1º HackaRun UniCatólica!

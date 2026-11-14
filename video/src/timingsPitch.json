@@ -1,42 +1,42 @@
 [
   {
     "id": "p01_dor",
-    "durationSec": 8.905,
-    "frames": 535
+    "durationSec": 11.476,
+    "frames": 689
   },
   {
     "id": "p02_cockpit",
-    "durationSec": 10.105,
-    "frames": 607
+    "durationSec": 14.061,
+    "frames": 844
   },
   {
     "id": "p03_map3d",
-    "durationSec": 9.797,
-    "frames": 588
+    "durationSec": 12.774,
+    "frames": 767
   },
   {
     "id": "p04_visao_crowddrop",
-    "durationSec": 9.708,
-    "frames": 583
+    "durationSec": 13.421,
+    "frames": 806
   },
   {
     "id": "p05_balcao_concierge",
-    "durationSec": 9.07,
-    "frames": 545
+    "durationSec": 14.211,
+    "frames": 853
   },
   {
     "id": "p06_stories_multitenant",
-    "durationSec": 8.593,
-    "frames": 516
+    "durationSec": 11.012,
+    "frames": 661
   },
   {
     "id": "p07_engenharia",
-    "durationSec": 11.753,
-    "frames": 706
+    "durationSec": 19.336,
+    "frames": 1161
   },
   {
     "id": "p08_fechamento",
-    "durationSec": 10.818,
-    "frames": 650
+    "durationSec": 16.079,
+    "frames": 965
   }
 ]
