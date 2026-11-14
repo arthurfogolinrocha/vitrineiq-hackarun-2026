@@ -361,9 +361,11 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                     <strong className="text-slate-900 block">&ldquo;{sig.query}&rdquo;</strong>
                     <span className="text-slate-600">{sig.matchedOffer}</span>
                   </div>
-                  <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold shrink-0">
-                    {sig.couponCode}
-                  </span>
+                  {sig.couponCode && (
+                    <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold shrink-0">
+                      {sig.couponCode}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

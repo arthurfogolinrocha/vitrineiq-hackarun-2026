@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Camera,
-  Eye,
   EyeOff,
   Pause,
   Play,
@@ -54,7 +53,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
   const [isPaused, setIsPaused] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
-  const [privacyBlur, setPrivacyBlur] = useState(true);
+  const privacyBlur = true; // RNF03: desfoque da webcam no navegador sempre ligado, sem opção de desligar
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId) || zones[0];
@@ -569,14 +568,10 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
             </button>
 
             {webcamActive && (
-              <button
-                type="button"
-                onClick={() => setPrivacyBlur((b) => !b)}
-                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5"
-              >
-                {privacyBlur ? <EyeOff className="w-3.5 h-3.5" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5" aria-hidden="true" />}
-                <span>{privacyBlur ? 'Desfoque LGPD: ON' : 'Desfoque LGPD: OFF'}</span>
-              </button>
+              <span className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5">
+                <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Desfoque LGPD sempre ligado</span>
+              </span>
             )}
 
             <button

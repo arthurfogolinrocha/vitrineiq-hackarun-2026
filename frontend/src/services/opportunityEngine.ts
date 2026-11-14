@@ -134,7 +134,7 @@ export function computeZoneTelemetry(
 }
 
 export function matchConsumerOffer(
-  query: string,
+  _query: string,
   zone: ShoppingZone,
   campaigns: FlashCampaign[]
 ): { couponCode: string; matchedOffer: string } {
@@ -147,8 +147,6 @@ export function matchConsumerOffer(
   }
 
   const anyActive = campaigns.find((c) => c.active);
-  const normalized = query.toLowerCase();
-  const suffix = Math.floor(100 + (normalized.length * 37) % 899);
 
   if (anyActive) {
     return {
@@ -158,8 +156,9 @@ export function matchConsumerOffer(
   }
 
   return {
-    couponCode: `VIQ-${zone.floor}${suffix}`,
-    matchedOffer: `Achado VitrineIQ na ${zone.shortName} (${zone.anchors.slice(0, 2).join(', ')}) — 12% OFF no balcão`,
+    couponCode: '',
+    matchedOffer: `Lojas da ${zone.shortName}: ${zone.anchors.slice(0, 2).join(', ')}`,
   };
 }
 
+  // Sem campanha no ar não há cupom nem desconto: só indica as lojas da ala.
