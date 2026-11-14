@@ -15,9 +15,8 @@
   - Suíte completa de testes automatizados verdes (`107 pytest` + `51 Vitest` = `158` testes) + CI GitHub Actions (`.github/workflows/ci.yml`).
   - Histórico de commits consistente ao longo dos dias 12, 13 e 14.
 
-- [ ] **3. Conformidade com o Artigo 6 (Declaração de IA):**
-  - [x] Documento [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) atualizado com métricas reais (`158` testes, score `9.8/10`) e citado no `README.md`.
-  - [ ] Confirmar sobrenome de Jessé (`@jesseLR-stack`, se aplicável) e curso de `Leonardo Capistrano` no [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) antes do envio final.
+- [x] **3. Conformidade com o Artigo 6 (Declaração de IA):**
+  - [x] Documento [`TEMPLATE_DECLARACAO_IA.md`](./TEMPLATE_DECLARACAO_IA.md) atualizado com os integrantes da equipe, métricas reais (`158` testes, score `9.8/10`) e citado no `README.md`.
   - [ ] Toda a equipe alinhada para explicar qualquer linha de código perante a banca.
 
 - [ ] **4. Vídeo de Pitch (Critério Crítico de Eliminação):**

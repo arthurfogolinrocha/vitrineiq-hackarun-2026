@@ -10,7 +10,7 @@
   * Arthur Fogolin Rocha (`@arthurfogolinrocha`) — Inteligência Artificial / UniCatólica *(Líder Técnico)*
   * Jessé (`@jesseLR-stack`) — UniCatólica
   * Matheus Carvalho (`@MCPS9`) — UniCatólica
-  * Leonardo Capistrano (`@LCapistrano25`) *(confirmar curso antes do envio final de sábado)*
+  * Leonardo Capistrano (`@LCapistrano25`) — UniCatólica
 * **Repositório Oficial:** `https://github.com/arthurfogolinrocha/vitrineiq-hackarun-2026`
 * **Aplicação em Produção:** `https://vitrineiq-capim-dourado.vercel.app`
 * **Backend API (FastAPI / Docs):** `https://vitrineiq-hackarun-2026-api.vercel.app/docs`
