@@ -187,12 +187,18 @@ def test_estado_etag_e_304_not_modified_e_invalidacao(lojista):
     assert etag1 and etag1.startswith('W/"')
     assert res1.headers.get("Cache-Control") == "private, no-cache"
 
-    # Sem mudanças nos dados (apenas o relógio "agora" avança), devolve 304 Not Modified
+    # Sem mudanças nos dados (apenas o relógio "agora" avança), devolve 304 Not Modified via header
+    # ou HTTP 200 compacto {"unchanged": True} via ?etag= (seguro contra strip de CORS em 304 na Vercel)
     res_304 = client.get("/api/estado", headers={**headers_lojista, "If-None-Match": etag1})
     assert res_304.status_code == 304
     assert res_304.content == b""
     assert res_304.headers.get("ETag") == etag1
     assert res_304.headers.get("Cache-Control") == "private, no-cache"
+
+    res_compact = client.get("/api/estado", params={"etag": etag1}, headers=headers_lojista)
+    assert res_compact.status_code == 200
+    assert res_compact.json() == {"unchanged": True, "etag": etag1}
+    assert res_compact.headers.get("ETag") == etag1
 
     # Novo registro no balcão invalida o ETag imediatamente
     res_balcao = client.post(

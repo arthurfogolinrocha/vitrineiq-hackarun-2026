@@ -204,6 +204,14 @@ async function executarChamada<T>(caminho: string, opts: ChamadaOpcoes<T> = {}):
       );
     }
     const data = (res.status === 204 ? undefined : await res.json()) as T;
+    if (
+      cachedData !== undefined &&
+      data &&
+      typeof data === 'object' &&
+      (data as { unchanged?: boolean }).unchanged === true
+    ) {
+      return cachedData;
+    }
     onSuccess?.(res, data);
     return data;
   } finally {
@@ -250,11 +258,11 @@ export const api = {
     const q = new URLSearchParams();
     if (filtro?.loja) q.set('loja', filtro.loja);
     if (filtro?.ala) q.set('ala', filtro.ala);
-    const qs = q.toString();
-    const cacheKey = `${token ?? 'anon'}|${qs}`;
+    const cacheKey = `${token ?? 'anon'}|${q.toString()}`;
     const cached = estadoCache.get(cacheKey);
+    if (cached) q.set('etag', cached.etag);
+    const qs = q.toString();
     return executarChamada<CicloEstado>(qs ? `/estado?${qs}` : '/estado', {
-      extraHeaders: cached ? { 'If-None-Match': cached.etag } : undefined,
       cachedData: cached?.data,
       onSuccess: (res, data) => {
         const etag = res.headers?.get?.('etag')?.trim();

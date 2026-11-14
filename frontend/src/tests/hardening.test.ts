@@ -316,7 +316,7 @@ describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () =
     vi.unstubAllGlobals();
   });
 
-  it('armazena ETag, envia If-None-Match e reaproveita payload cacheado em 304 Not Modified', async () => {
+  it('armazena ETag, envia ?etag=... e reaproveita payload cacheado em unchanged/304', async () => {
     const payloadV1 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 7 } });
     const payloadV2 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 12 } });
     const json304Spy = vi.fn(async () => {
@@ -330,6 +330,12 @@ describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () =
         status: 200,
         headers: new Headers({ ETag: '"estado-v1"' }),
         json: async () => payloadV1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ ETag: '"estado-v1"' }),
+        json: async () => ({ unchanged: true, etag: '"estado-v1"' }),
       })
       .mockResolvedValueOnce({
         ok: false,
@@ -351,12 +357,13 @@ describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () =
 
     const second = await api.estado({ ala: 'ala-sul-esporte' });
     expect(second).toEqual(payloadV1);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('etag=%22estado-v1%22');
+
+    const third = await api.estado({ ala: 'ala-sul-esporte' });
+    expect(third).toEqual(payloadV1);
     expect(json304Spy).not.toHaveBeenCalled();
 
-    const secondInit = fetchMock.mock.calls[1][1] as RequestInit;
-    expect((secondInit.headers as Record<string, string>)['If-None-Match']).toBe('"estado-v1"');
-
-    // Invalidação ao salvar sessão limpa o cache e evita enviar If-None-Match antigo
+    // Invalidação ao salvar sessão limpa o cache e evita enviar etag antigo
     const sessao: Sessao = {
       token: 'tok-abc',
       usuario: {
@@ -369,12 +376,13 @@ describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () =
     };
     salvarSessao(sessao, makeMemoryStorage());
 
-    const third = await api.estado({ ala: 'ala-sul-esporte' });
-    expect(third).toEqual(payloadV2);
+    const fourth = await api.estado({ ala: 'ala-sul-esporte' });
+    expect(fourth).toEqual(payloadV2);
 
-    const thirdInit = fetchMock.mock.calls[2][1] as RequestInit;
-    expect((thirdInit.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
-    expect((thirdInit.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc');
+    const fourthUrl = String(fetchMock.mock.calls[3][0]);
+    const fourthInit = fetchMock.mock.calls[3][1] as RequestInit;
+    expect(fourthUrl).not.toContain('etag=');
+    expect((fourthInit.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc');
   });
 
   it('invalida o cache de estado após mutação e tolera mocks sem headers', async () => {
@@ -408,8 +416,7 @@ describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () =
     const afterMutation = await api.estado();
 
     expect(afterMutation).toEqual(payloadV2);
-    const thirdInit = fetchMock.mock.calls[2][1] as RequestInit;
-    expect((thirdInit.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
+    expect(String(fetchMock.mock.calls[2][0])).not.toContain('etag=');
   });
 
   it('envia PATCH /api/auth/senha em api.trocarSenha', async () => {

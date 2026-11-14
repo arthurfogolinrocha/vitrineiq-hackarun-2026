@@ -396,6 +396,7 @@ def estado(
     u: Usuario,
     loja: Optional[str] = None,
     ala: Optional[ZoneId] = None,
+    etag: Optional[str] = None,
 ) -> Response:
     """Tudo o que o front precisa para desenhar o ciclo, numa chamada só (polling de 3 s).
 
@@ -438,8 +439,10 @@ def estado(
         "crowdDrop": crowd_drop,
         "alertas": alertas,
     }
-    etag = _etag_estado(dados)
-    headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
-    if _if_none_match_bate(request.headers.get("if-none-match"), etag):
+    etag_atual = _etag_estado(dados)
+    headers = {"ETag": etag_atual, "Cache-Control": "private, no-cache"}
+    if _if_none_match_bate(request.headers.get("if-none-match"), etag_atual):
         return Response(status_code=304, headers=headers)
+    if _if_none_match_bate(etag, etag_atual):
+        return JSONResponse(content={"unchanged": True, "etag": etag_atual}, headers=headers)
     return JSONResponse(content={**dados, "agora": db.agora().isoformat()}, headers=headers)
