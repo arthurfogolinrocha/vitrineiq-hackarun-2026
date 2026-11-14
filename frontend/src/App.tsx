@@ -385,21 +385,21 @@ export function App() {
     });
   };
 
-  // Câmera real da ala selecionada (computer-vision → API) tem prioridade sobre o simulador.
+  // Câmera real da ala selecionada (computer-vision → API). O simulador só entra na demonstração offline.
   const cameraResumo = vitrine[selectedZoneId];
-  const effectiveVision = useMemo<VisionFunnelSnapshot>(() => cameraResumo
+  const effectiveVision = useMemo<VisionFunnelSnapshot | undefined>(() => cameraResumo
     ? {
         zoneId: selectedZoneId,
         passersBy: cameraResumo.passantes,
         vitrineStops: cameraResumo.olharam,
-        entries: 0, // shortcut: a câmera ainda não conta entradas; o funil usa a estimativa até a T5
+        entries: 0, // a câmera não conta entradas: o funil mostra "não medido"
         exits: 0,
         passedWithoutEntering: cameraResumo.passantes,
         attractionRate: cameraResumo.taxaAtencao,
         sourceMode: 'webcam_live',
         lastMotionRegion: 'vitrine',
       }
-    : visionSnapshot, [cameraResumo, selectedZoneId, visionSnapshot]);
+    : demo ? visionSnapshot : undefined, [cameraResumo, selectedZoneId, visionSnapshot, demo]);
 
   const [demoCameraOverlay, setDemoCameraOverlay] = useState<{
     zoneId: ZoneId;
@@ -409,6 +409,9 @@ export function App() {
     olharesPorZona: { esquerda: number; centro: number; direita: number };
     lastPointedPart: 'esquerda' | 'centro' | 'direita' | null;
   } | null>(null);
+
+  // Alerta da câmera que o lojista transformou em campanha: o Painel abre o modal já preenchido.
+  const [campanhaAlerta, setCampanhaAlerta] = useState<VitrineAlerta | null>(null);
 
   const alertaAtivo = alertas.find(
     (a) =>
@@ -440,19 +443,28 @@ export function App() {
     const list = activeTenant
       ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
       : CAPIM_DOURADO_ZONES;
+    // Logado, o Score usa só o medido (câmera, Concierge e Balcão); as bases fictícias ficam na demonstração.
     return list.map((zone) =>
-      computeZoneTelemetry(zone, factors, signals, scopedLostSales, effectiveVision)
+      computeZoneTelemetry(
+        zone,
+        factors,
+        signals,
+        scopedLostSales,
+        effectiveVision,
+        demo ? undefined : { vitrine: vitrine[zone.id], vendasConcluidas: completedSalesByZone[zone.id] ?? 0 }
+      )
     );
-  }, [activeTenant, factors, signals, scopedLostSales, effectiveVision]);
+  }, [activeTenant, factors, signals, scopedLostSales, effectiveVision, demo, vitrine, completedSalesByZone]);
 
   const selectedTelemetry =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
 
-  const mergedVitrineResumo = useMemo<VitrineResumo>(() => {
+  const mergedVitrineResumo = useMemo<VitrineResumo | undefined>(() => {
+    if (!demo) return cameraResumo; // logado: só o que a câmera mediu, sem completar com valores padrão
     const base = cameraResumo;
-    const demo = demoCameraOverlay?.zoneId === selectedZoneId ? demoCameraOverlay : null;
-    const passantes = (base?.passantes ?? effectiveVision.passersBy) + (demo ? 4 : 0);
-    const olharam = (base?.olharam ?? effectiveVision.vitrineStops) + (demo ? demo.apontaram : 0);
+    const sim = demoCameraOverlay?.zoneId === selectedZoneId ? demoCameraOverlay : null;
+    const passantes = (base?.passantes ?? effectiveVision?.passersBy ?? 0) + (sim ? 4 : 0);
+    const olharam = (base?.olharam ?? effectiveVision?.vitrineStops ?? 0) + (sim ? sim.apontaram : 0);
     const leftBase = base?.olharesPorZona?.esquerda ?? Math.round(olharam * 0.28);
     const centerBase = base?.olharesPorZona?.centro ?? Math.round(olharam * 0.44);
     const rightBase =
@@ -464,21 +476,21 @@ export function App() {
       pararamSemOlhar: base?.pararamSemOlhar ?? Math.round(passantes * 0.14),
       atencaoMediaS: base?.atencaoMediaS ?? 6.4,
       picoSimultaneo: base?.picoSimultaneo ?? 5,
-      apontaram: (base?.apontaram ?? 2) + (demo?.apontaram ?? 0),
-      noCelular: (base?.noCelular ?? 3) + (demo?.noCelular ?? 0),
-      voltaramOlhar: (base?.voltaramOlhar ?? 2) + (demo?.voltaramOlhar ?? 0),
-      chegaramPerto: (base?.chegaramPerto ?? 6) + (demo ? 2 : 0),
+      apontaram: (base?.apontaram ?? 2) + (sim?.apontaram ?? 0),
+      noCelular: (base?.noCelular ?? 3) + (sim?.noCelular ?? 0),
+      voltaramOlhar: (base?.voltaramOlhar ?? 2) + (sim?.voltaramOlhar ?? 0),
+      chegaramPerto: (base?.chegaramPerto ?? 6) + (sim ? 2 : 0),
       horaPico: base?.horaPico ?? 19,
       porHora: base?.porHora ?? {},
       olharesPorZona: {
-        esquerda: leftBase + (demo?.olharesPorZona.esquerda ?? 0),
-        centro: centerBase + (demo?.olharesPorZona.centro ?? 0),
-        direita: rightBase + (demo?.olharesPorZona.direita ?? 0),
+        esquerda: leftBase + (sim?.olharesPorZona.esquerda ?? 0),
+        centro: centerBase + (sim?.olharesPorZona.centro ?? 0),
+        direita: rightBase + (sim?.olharesPorZona.direita ?? 0),
       },
       acoes: base?.acoes ?? [],
       atualizadoEm: base?.atualizadoEm ?? null,
     };
-  }, [cameraResumo, demoCameraOverlay, effectiveVision, selectedZoneId]);
+  }, [cameraResumo, demoCameraOverlay, effectiveVision, selectedZoneId, demo]);
 
   const handleSimulatePointGesture = (part: 'esquerda' | 'centro' | 'direita') => {
     setDemoCameraOverlay((prev) => {
@@ -527,8 +539,7 @@ export function App() {
   const handleRunCopilot = async (telemetry: ZoneLiveTelemetry) => {
     setIsAnalyzing(true);
     try {
-      const hasCam = effectiveVision.zoneId === telemetry.zone.id;
-      const camSummary = hasCam
+      const camSummary = effectiveVision && effectiveVision.zoneId === telemetry.zone.id
         ? `Webcam ao vivo na porta: ${effectiveVision.passersBy} passaram, ${effectiveVision.vitrineStops} olharam a vitrine (${effectiveVision.attractionRate}% atração).`
         : '';
 
@@ -847,7 +858,9 @@ export function App() {
               <Store className="w-3 h-3 text-[#E2A83B]" aria-hidden="true" />
               Ala Selecionada
             </span>
-            <span className="text-[#E2A83B]">IQ {selectedTelemetry.opportunityScore}</span>
+            <span className="text-[#E2A83B]">
+              {selectedTelemetry.semDados ? 'Sem dados hoje' : `IQ ${selectedTelemetry.opportunityScore}`}
+            </span>
           </div>
           <p className="text-xs font-bold text-white leading-snug truncate">
             {selectedTelemetry.zone.shortName}
@@ -855,7 +868,7 @@ export function App() {
           <div className="flex items-center justify-between text-[11px] text-stone-400">
             <span>{selectedTelemetry.zone.floor === 'L1' ? 'Térreo (L1)' : '2º Piso (L2)'}</span>
             <span className="text-emerald-400 font-semibold">
-              {selectedTelemetry.footTraffic}/h fluxo
+              {selectedTelemetry.footTraffic}{selectedTelemetry.medido ? ' passaram hoje' : '/h fluxo'}
             </span>
           </div>
         </div>
@@ -1007,6 +1020,7 @@ export function App() {
                     onClick={() => {
                       handleSelectZone(alertaAtivo.zona);
                       setActiveTab('cockpit');
+                      setCampanhaAlerta(alertaAtivo);
                       setAlertasVistos((v) => [...v, alertaAtivo.id]);
                     }}
                     className="px-3 py-1.5 rounded-xl gold-pill-metallic text-xs font-extrabold"
@@ -1042,7 +1056,9 @@ export function App() {
                     ? demoCameraOverlay.lastPointedPart
                     : (alertaAtivo?.evento === 'apontou' ? (alertaAtivo.zonaVitrine as 'esquerda' | 'centro' | 'direita' | undefined) ?? null : null)
                 }
-                onSimulatePointGesture={handleSimulatePointGesture}
+                onSimulatePointGesture={demo ? handleSimulatePointGesture : undefined}
+                campanhaAlerta={campanhaAlerta}
+                onCampanhaAlertaAberta={() => setCampanhaAlerta(null)}
                 campaigns={scopedCampaigns}
                 onLaunchCampaign={handleLaunchCampaign}
                 onToggleCampaign={handleToggleCampaign}
@@ -1116,14 +1132,6 @@ export function App() {
             {aba === 'audit' && <SecurityAuditPanel auditLogs={auditLogs} />}
 
             {aba === 'lojistas' && <LojistasAdmin />}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-export default App;
 
             {!conciergePublico && (
               <SextaFeira13
@@ -1135,3 +1143,11 @@ export default App;
                 onLaunchCampaign={handleLaunchCampaign}
               />
             )}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+export default App;

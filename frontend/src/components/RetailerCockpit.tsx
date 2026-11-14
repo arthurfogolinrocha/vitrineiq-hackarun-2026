@@ -41,7 +41,7 @@ import {
   ZoneId,
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
-import { LiveContextPayload, VitrineResumo } from '../services/api';
+import { LiveContextPayload, VitrineAlerta, VitrineResumo } from '../services/api';
 import { LOST_SALE_LABELS, SEGMENT_LABELS, findStoreByName } from '../data/shoppingData';
 import { stripMarkdown } from '../services/ai';
 import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
@@ -77,6 +77,9 @@ interface RetailerCockpitProps {
   perfilHoje?: PerfilPorHora;
   /** Lojista logado: a campanha sai sempre em nome da loja dele e a ala não muda. */
   lojaFixa?: string | null;
+  /** Alerta da câmera escolhido no banner: abre o modal de campanha já preenchido para a ala dele. */
+  campanhaAlerta?: VitrineAlerta | null;
+  onCampanhaAlertaAberta?: () => void;
 }
 
 const WEATHER_OPTIONS: { value: WeatherCondition; label: string; icon: 'sun' | 'rain' | 'mild' }[] = [
@@ -141,6 +144,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   completedSalesByZone,
   perfilHoje,
   lojaFixa,
+  campanhaAlerta,
+  onCampanhaAlertaAberta,
 }) => {
   const current =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
@@ -180,7 +185,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   const insights = temDadoReal && perfilHoje ? insightsPorHora(perfilHoje) : [];
   const [horaSelecionada, setHoraSelecionada] = useState<number | null>(null);
   const horaDetalhe = horasReais.find((x) => x.hora === horaSelecionada);
-  const pesoHora = temDadoReal ? 1 : selectedBarWeight;
+  // Logado (medido), o Score e o fluxo nunca são escalados pelo perfil estimado.
+  const pesoHora = temDadoReal || current.medido ? 1 : selectedBarWeight;
 
   // Recálculo dinâmico do fluxo horário e do Score IQ
   const effectiveFootTraffic = Math.round(current.footTraffic * pesoHora);
@@ -198,7 +204,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
   const openModal = () => {
     setValidationError(null);
-    dialogRef.current?.showModal();
+    if (!dialogRef.current?.open) dialogRef.current?.showModal(); // já aberto: só atualiza os campos
   };
   const closeModal = () => {
     setValidationError(null);
@@ -281,14 +287,17 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     isCamActiveHere && visionSnapshot && visionSnapshot.vitrineStops > 0
       ? visionSnapshot.vitrineStops
       : Math.round(current.vitrineStops * pesoHora);
-  const entriesTotal =
-    isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
+  // A câmera não conta entradas: com dado real a etapa fica "não medido"; a estimativa só vale na demonstração.
+  const entriesTotal: number | null = current.medido
+    ? null
+    : isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
       ? visionSnapshot.entries
       : Math.max(12, Math.round(stopsTotal * 0.42));
   // RN12: "compraram" vem só do botão "Venda concluída" do Modo Balcão
   const conversionsTotal = completedSalesByZone[current.zone.id] ?? 0;
   const stopRatePct = corridorTotal > 0 ? Math.min(100, Math.round((stopsTotal / corridorTotal) * 100)) : 0;
-  const entryRatePct = corridorTotal > 0 ? Math.min(100, Math.round((entriesTotal / corridorTotal) * 100)) : 0;
+  const entryRatePct =
+    entriesTotal !== null && corridorTotal > 0 ? Math.min(100, Math.round((entriesTotal / corridorTotal) * 100)) : 0;
   const convBarPct = corridorTotal > 0 ? Math.min(100, Math.round((conversionsTotal / corridorTotal) * 100)) : 0;
 
   // Fator de escala para curva horária
@@ -296,27 +305,52 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
   // Vitrine Viva + Taxímetro "Dinheiro na Mesa" (R$/h) + Micro-Heatmap 3 Terços
   const avgTicket = activeTenant?.avgTicket ?? 185;
-  const peopleNotEntered = Math.max(0, corridorTotal - entriesTotal);
+  // Medido: sem contagem de entradas, conta quem passou sem olhar a vitrine.
+  const peopleNotEntered = Math.max(0, corridorTotal - (entriesTotal ?? stopsTotal));
   const opportunityLossHour = Math.round(peopleNotEntered * 0.14 * avgTicket);
   const tercos = vitrineResumo?.olharesPorZona ?? { esquerda: 0, centro: 0, direita: 0 };
   const apontaramCount = vitrineResumo?.apontaram ?? 0;
   const noCelularCount = vitrineResumo?.noCelular ?? 0;
   const voltaramCount = vitrineResumo?.voltaramOlhar ?? 0;
   const maxTerco = Math.max(1, tercos.esquerda, tercos.centro, tercos.direita);
+  const totalTercos = tercos.esquerda + tercos.centro + tercos.direita;
+  const parteMaisOlhada =
+    totalTercos > 0
+      ? (['esquerda', 'centro', 'direita'] as const).reduce((a, b) => (tercos[b] > tercos[a] ? b : a))
+      : null;
 
-  const handleRescueVitrine = (part: 'esquerda' | 'centro' | 'direita') => {
-    const partLabel =
-      part === 'esquerda' ? 'Vitrine Esquerda' : part === 'centro' ? 'Vitrine Central' : 'Vitrine Direita';
-    const nextCode = `VITRINE${part.slice(0, 3).toUpperCase()}15`;
-    setTitle(`Resgate Ao Vivo — ${partLabel}`);
+  /** Preenche o modal com uma oferta relâmpago curta para a ala atual; o lojista só confirma. */
+  const abrirCampanhaRelampago = (part: 'esquerda' | 'centro' | 'direita' | null, minutos: number) => {
+    const onde =
+      part === 'esquerda'
+        ? 'Vitrine Esquerda'
+        : part === 'centro'
+          ? 'Vitrine Central'
+          : part === 'direita'
+            ? 'Vitrine Direita'
+            : current.zone.shortName;
+    // Cupom novo a cada abertura: dois resgates seguidos não publicam o mesmo código.
+    const codigo = `VIQ${Date.now().toString(36).slice(-5).toUpperCase()}`;
+    setTitle(`Relâmpago ao vivo — ${onde}`);
     setDiscountBadge('15% OFF');
-    setCouponCode(nextCode);
+    setCouponCode(codigo);
     setWhatsappCopy(
-      `Vimos você curtindo nossa ${partLabel} no Capim Dourado! Apresente ${nextCode} nos próximos 45 min e garanta 15% OFF exclusivo.`
+      `Só nos próximos ${minutos} min no Capim Dourado: apresente ${codigo} e garanta 15% OFF.`
     );
-    setExpiresInMinutes(45);
+    setExpiresInMinutes(minutos);
     openModal();
   };
+
+  // Banner "Cliente olhando a vitrine agora" → "Criar campanha": abre já preenchido, validade de 30 min.
+  useEffect(() => {
+    if (!campanhaAlerta) return;
+    const parte = campanhaAlerta.zonaVitrine;
+    abrirCampanhaRelampago(
+      parte === 'esquerda' || parte === 'centro' || parte === 'direita' ? parte : null,
+      30
+    );
+    onCampanhaAlertaAberta?.();
+  }, [campanhaAlerta]);
 
   return (
     <div className="space-y-5">
@@ -500,19 +534,29 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                     IQ Score
                   </span>
                   <strong className="text-3xl font-black text-white leading-none">
-                    {effectiveScore}
+                    {current.semDados ? '—' : effectiveScore}
                   </strong>
                 </div>
               </div>
-              <div className="text-left md:text-center">
+              <div className="text-left md:text-center" aria-live="polite">
                 <span className="text-xs font-bold text-[#E2A83B] block">
-                  {effectiveScore >= 75
+                  {current.semDados
+                    ? 'Sem dados ainda hoje'
+                    : effectiveScore >= 75
                     ? 'Janela de Ouro Ativa'
                     : effectiveScore >= 45
                     ? 'Demanda Moderada'
                     : 'Momento de Atração'}
                 </span>
-                <span className="text-[11px] text-stone-400">Índice em tempo real (0–100)</span>
+                <span className="text-[11px] text-stone-400">
+                  {!current.medido
+                    ? 'Demonstração: dados fictícios'
+                    : current.semDados
+                      ? (vitrineResumo?.agora ?? 0) > 0
+                        ? `${vitrineResumo?.agora} na frente da vitrine agora: conta quando sair da imagem`
+                        : 'Aguardando câmera, Balcão ou Concierge'
+                      : 'Medido hoje: câmera, Concierge e Balcão (0–100)'}
+                </span>
               </div>
             </div>
           </div>
@@ -526,7 +570,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               </span>
               <strong className="text-xl font-extrabold text-white mt-1 block kpi-metric">
                 {effectiveFootTraffic}
-                <span className="text-xs font-normal text-stone-400">/h</span>
+                <span className="text-xs font-normal text-stone-400">{current.medido ? ' hoje' : '/h'}</span>
               </strong>
             </div>
             <div className="bg-white/5 rounded-2xl p-3">
@@ -544,7 +588,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 Conversão Ala
               </span>
               <strong className="text-xl font-extrabold text-emerald-400 mt-1 block kpi-metric">
-                {current.conversionRate}%
+                {current.medido && current.vitrineStops === 0 ? '—' : `${current.conversionRate}%`}
               </strong>
             </div>
             <div className="bg-white/5 rounded-2xl p-3">
@@ -576,7 +620,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               </h3>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-stone-100 text-[10px] font-bold text-stone-700">
-              {isCamActiveHere ? 'Sensor Webcam' : 'Projeção da Ala'}
+              {isCamActiveHere ? 'Sensor Webcam' : current.medido ? 'Sem câmera hoje' : 'Projeção da Ala'}
             </span>
           </div>
 
@@ -588,7 +632,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                   <Users className="w-3.5 h-3.5 text-stone-500" aria-hidden="true" />
                   1. Passaram na Frente
                 </span>
-                <span>{corridorTotal} pessoas (100%)</span>
+                <span>{corridorTotal} pessoas{corridorTotal > 0 ? ' (100%)' : ''}</span>
               </div>
               <div className="h-3 rounded-full bg-stone-100 overflow-hidden">
                 <div className="h-full bg-[#111318] rounded-full w-full" />
@@ -616,13 +660,13 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <div className="flex justify-between text-xs font-bold text-[#111318] mb-1">
                 <span>3. Entraram na Loja</span>
                 <span className="text-blue-700">
-                  {entriesTotal} ({entryRatePct}%)
+                  {entriesTotal === null ? 'não medido' : `${entriesTotal} (${entryRatePct}%)`}
                 </span>
               </div>
               <div className="h-3 rounded-full bg-stone-100 overflow-hidden">
                 <div
                   className="h-full bg-blue-600 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.max(8, entryRatePct)}%` }}
+                  style={{ width: `${entriesTotal === null ? 0 : Math.max(8, entryRatePct)}%` }}
                 />
               </div>
             </div>
@@ -646,12 +690,113 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
           <div className="rounded-2xl bg-[#FAF8F5] border border-stone-200 p-3.5 text-xs text-stone-700">
             <strong className="text-[#111318] block mb-0.5">Leitura para o Lojista:</strong>
-            {corridorTotal - entriesTotal > 0
-              ? `${corridorTotal - entriesTotal} pessoas passaram na frente sem entrar. Use uma oferta relâmpago ou QR na vitrine para capturar essa demanda.`
-              : 'Ótima taxa de atração na porta nesta janela horária.'}
+            {current.medido && corridorTotal === 0
+              ? 'A câmera desta ala ainda não registrou passantes hoje.'
+              : peopleNotEntered > 0
+                ? `${peopleNotEntered} pessoas passaram na frente sem ${current.medido ? 'olhar a vitrine' : 'entrar'}. Use uma oferta relâmpago ou QR na vitrine para capturar essa demanda.`
+                : 'Ótima taxa de atração na porta nesta janela horária.'}
           </div>
         </section>
       </div>
+
+      {/* CARD VITRINE (issue #30): o que a câmera mediu hoje e o que fazer */}
+      <section
+        aria-labelledby="card-vitrine-titulo"
+        className="bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#B45309] flex items-center gap-1.5">
+              <Eye className="w-3.5 h-3.5" aria-hidden="true" />
+              Vitrine
+            </span>
+            <h3 id="card-vitrine-titulo" className="text-base font-extrabold text-[#111318] mt-0.5">
+              Câmera da vitrine hoje ({current.zone.shortName})
+            </h3>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {current.medido && vitrineResumo && (
+              <span
+                role="status"
+                className="text-[11px] font-bold px-2 py-1 rounded-lg bg-[#111318] text-white inline-flex items-center gap-1.5"
+                title="Quem está na frente agora entra em Passaram quando sair da imagem"
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${(vitrineResumo.agora ?? 0) > 0 ? 'bg-emerald-400 motion-safe:animate-pulse' : 'bg-stone-500'}`}
+                  aria-hidden="true"
+                />
+                Agora na frente: {vitrineResumo.agora ?? 0}
+              </span>
+            )}
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-lg ${
+                current.medido ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+              }`}
+            >
+              {current.medido ? 'Medido pela câmera (só contagens)' : 'Demonstração: dados fictícios'}
+            </span>
+          </div>
+        </div>
+
+        {vitrineResumo ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <dl className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { rotulo: 'Passaram', valor: String(vitrineResumo.passantes), detalhe: 'na frente da vitrine' },
+                {
+                  rotulo: 'Olharam',
+                  valor: `${vitrineResumo.taxaAtencao}%`,
+                  detalhe: `${vitrineResumo.olharam} pessoas`,
+                },
+                {
+                  rotulo: 'Pico',
+                  valor:
+                    vitrineResumo.horaPico === null
+                      ? '—'
+                      : `${vitrineResumo.horaPico}h–${vitrineResumo.horaPico + 1}h`,
+                  detalhe: `até ${vitrineResumo.picoSimultaneo} ao mesmo tempo`,
+                },
+                {
+                  rotulo: 'Parte mais olhada',
+                  valor: parteMaisOlhada ?? '—',
+                  detalhe: parteMaisOlhada
+                    ? `${Math.round((tercos[parteMaisOlhada] * 100) / totalTercos)}% dos olhares`
+                    : 'sem olhares por parte',
+                },
+              ].map((item) => (
+                <div key={item.rotulo} className="rounded-2xl bg-[#FAF8F5] border border-stone-200 p-3">
+                  <dt className="text-[11px] font-bold text-stone-500">{item.rotulo}</dt>
+                  <dd className="text-xl font-extrabold text-[#111318] kpi-metric capitalize">{item.valor}</dd>
+                  <dd className="text-[11px] text-stone-500">{item.detalhe}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="lg:col-span-5 rounded-2xl bg-[#FAF8F5] border border-stone-200 p-3.5">
+              <strong className="text-xs text-[#111318] block mb-1.5">O que fazer</strong>
+              {vitrineResumo.acoes.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {vitrineResumo.acoes.map((acao) => (
+                    <li key={acao} className="text-xs text-stone-700 flex gap-2">
+                      <span className="text-[#B45309] font-bold" aria-hidden="true">→</span>
+                      {acao}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-stone-500">
+                  {current.medido
+                    ? 'Ainda sem movimento suficiente para sugerir uma ação.'
+                    : 'Na demonstração offline não há sugestões: elas vêm da câmera real.'}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p role="status" className="text-xs font-semibold text-stone-600 bg-[#FAF8F5] border border-dashed border-stone-300 rounded-2xl p-4">
+            Câmera desta ala ainda sem dados hoje. Quando ela enviar as contagens, este card mostra quem passou, quem olhou, o pico e o que fazer.
+          </p>
+        )}
+      </section>
 
       {/* DIFERENCIAL: VITRINE VIVA + TAXÍMETRO DINHEIRO NA MESA (R$/h) + MICRO-HEATMAP 3 TERÇOS */}
       <SpotlightCard
@@ -669,10 +814,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <strong className="text-3xl sm:text-4xl font-black text-white kpi-metric">
                 R$ {opportunityLossHour.toLocaleString('pt-BR')}
               </strong>
-              <span className="text-xs font-bold text-[#F5C76B]">/ hora</span>
+              <span className="text-xs font-bold text-[#F5C76B]">{current.medido ? 'hoje (estimativa)' : '/ hora'}</span>
             </div>
             <p className="text-xs text-stone-300 leading-relaxed">
-              {peopleNotEntered} passantes saíram sem entrar agora (ticket médio R$ {avgTicket}). Aponte a câmera YOLO na vitrine para capturar quem aponta para os produtos.
+              {current.medido
+                ? `${peopleNotEntered} pessoas passaram sem olhar a vitrine hoje. Estimativa: 14% delas comprariam, com ticket médio de R$ ${avgTicket}.`
+                : `${peopleNotEntered} passantes saíram sem entrar agora (ticket médio R$ ${avgTicket}). Aponte a câmera YOLO na vitrine para capturar quem aponta para os produtos.`}
             </p>
             <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
               <span className="px-2.5 py-1 rounded-full bg-white/10 text-[#F5C76B] border border-[#E2A83B]/30 font-bold flex items-center gap-1">
@@ -763,7 +910,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             )}
             <button
               type="button"
-              onClick={() => handleRescueVitrine(lastPointedPart ?? 'centro')}
+              onClick={() => abrirCampanhaRelampago(lastPointedPart ?? 'centro', 45)}
               className="w-full py-2.5 px-3.5 rounded-xl gold-pill-metallic text-xs flex items-center justify-center gap-2 transition"
             >
               <Zap className="w-4 h-4" aria-hidden="true" />
@@ -784,7 +931,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 User Story #01 • Horário de Pico do Segmento
               </span>
               <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
-                {temDadoReal
+                {temDadoReal || current.medido
                   ? `Movimento real por hora, hoje (${current.zone.shortName})`
                   : `Fluxo Estimado de Clientes ao Longo do Dia (${current.zone.shortName})`}
               </h3>
@@ -794,7 +941,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 temDadoReal ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
               }`}
             >
-              {temDadoReal ? 'Medido: câmera, Balcão e Concierge' : 'Estimativa: sem dados reais desta ala hoje'}
+              {temDadoReal
+                ? 'Medido: câmera, Balcão e Concierge'
+                : current.medido
+                  ? 'Sem dados reais desta ala hoje'
+                  : 'Estimativa: sem dados reais desta ala hoje'}
             </span>
           </div>
 
@@ -866,6 +1017,10 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 </ul>
               )}
             </div>
+          ) : current.medido ? (
+            <p className="text-xs font-semibold text-stone-600 bg-[#FAF8F5] border border-dashed border-stone-300 rounded-2xl p-4">
+              Nenhum movimento registrado hoje nesta ala. O gráfico aparece quando a câmera, o Balcão ou o Concierge registrarem algo.
+            </p>
           ) : (
           <div className="pt-2">
             <div className="h-44 flex items-end justify-between gap-1.5 sm:gap-2 px-1 border-b border-stone-200 pb-2">
@@ -1197,7 +1352,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           <div className="pt-2 border-t border-stone-100 space-y-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
-              O que os Clientes Mais Buscam no Totem/QR desta Ala ({current.zone.hotSearches.length} buscas ativas • {current.qrSearchCount} sinais)
+              {current.medido
+                ? `Buscas no Concierge desta ala: ${current.qrSearchCount} • termos típicos do segmento (referência)`
+                : `O que os Clientes Mais Buscam no Totem/QR desta Ala (${current.zone.hotSearches.length} buscas ativas • ${current.qrSearchCount} sinais)`}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {current.zone.hotSearches.map((term) => (

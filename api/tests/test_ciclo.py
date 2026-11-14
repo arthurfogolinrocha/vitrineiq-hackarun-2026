@@ -1,5 +1,7 @@
 """Ciclo completo pela API: Balcão → Concierge → campanha → cupom, e câmera → resumo da vitrine."""
 
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -200,3 +202,21 @@ def test_logo_proxy_bloqueia_ssrf_e_esquema_inseguro():
     assert client.get("/api/logo-proxy", params={"url": "http://127.0.0.1/secret.png"}).status_code == 400
     assert client.get("/api/logo-proxy", params={"url": "https://evil.example.com/a.png"}).status_code == 400
 
+
+
+def test_estado_conta_so_registros_de_hoje():
+    db.inserir("balcao", ALA, {"zoneId": ALA, "storeName": "Loja", "tipo": "perdida", "reason": "preco", "lojaId": None})
+    db.inserir("busca", ALA, {"zoneId": ALA, "query": "tênis", "budget": "80_200"})
+    with db.engine().begin() as con:  # empurra os dois registros para ontem
+        con.exec_driver_sql("UPDATE registros SET criado_em = '2000-01-01T10:00:00-03:00'")
+    estado = client.get("/api/estado").json()
+    assert estado["lostSales"] == [] and estado["signals"] == []
+
+
+def test_resumo_mostra_quem_esta_na_frente_agora():
+    agora = db.agora().replace(tzinfo=None, microsecond=0)
+    for fim, pico in ((agora - timedelta(minutes=5), 4), (agora, 2)):
+        client.post("/api/vitrine/eventos", json={**EVENTO, "inicio": (fim - timedelta(seconds=10)).isoformat(),
+                                                  "fim": fim.isoformat(), "passantes": 0, "olharam": 0,
+                                                  "pico_simultaneo": pico})
+    assert client.get("/api/estado").json()["vitrine"][ALA]["agora"] == 2
