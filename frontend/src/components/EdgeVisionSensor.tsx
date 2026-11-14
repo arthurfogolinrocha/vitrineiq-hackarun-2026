@@ -587,6 +587,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         offscreen.height = 360;
         const offCtx = offscreen.getContext('2d');
         if (offCtx) {
+          // LGPD: o frame vai para a IA na nuvem, então sai com o mesmo desfoque do preview (sem rosto nítido).
+          offCtx.filter = 'blur(7px) brightness(0.8)';
           offCtx.drawImage(videoEl, 0, 0, 640, 360);
           frameDataUrl = offscreen.toDataURL('image/jpeg', 0.7);
         }
@@ -888,6 +890,9 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
                   : 'Raio-X Multimodal da Vitrine (Gemini Vision)'}
               </span>
             </button>
+            <p className="text-[11px] text-slate-500 -mt-1">
+              Envia 1 frame já desfocado (sem rosto nítido) para a Gemini; nada é gravado.
+            </p>
 
             <button
               type="button"
