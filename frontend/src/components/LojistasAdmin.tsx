@@ -29,6 +29,8 @@ export const LojistasAdmin: React.FC = () => {
   const [senha, setSenha] = useState('');
   const [lojaNome, setLojaNome] = useState('');
   const [zoneId, setZoneId] = useState<ZoneId>(CAPIM_DOURADO_ZONES[0].id);
+  const [tipo, setTipo] = useState<'lojista' | 'vendedor'>('lojista');
+  const [lojaDoVendedor, setLojaDoVendedor] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -56,8 +58,18 @@ export const LojistasAdmin: React.FC = () => {
     setEnviando(true);
     setErro(null);
     try {
-      await api.criarLojista({ usuario: usuario.trim(), senha, lojaNome: lojaNome.trim(), zoneId });
-      setAviso(`Conta "${usuario.trim()}" criada para ${lojaNome.trim()}.`);
+      if (tipo === 'vendedor') {
+        const loja = lojasPrincipais.find((l) => String(l.id) === lojaDoVendedor);
+        if (!loja) {
+          setErro('Escolha a loja do vendedor.');
+          return;
+        }
+        await api.criarVendedor(loja.id, { usuario: usuario.trim(), senha });
+        setAviso(`Vendedor "${usuario.trim()}" criado para ${loja.lojaNome}. Ele só acessa o Modo Balcão.`);
+      } else {
+        await api.criarLojista({ usuario: usuario.trim(), senha, lojaNome: lojaNome.trim(), zoneId });
+        setAviso(`Conta "${usuario.trim()}" criada para ${lojaNome.trim()}.`);
+      }
       setUsuario('');
       setSenha('');
       setLojaNome('');
@@ -68,6 +80,8 @@ export const LojistasAdmin: React.FC = () => {
       setEnviando(false);
     }
   };
+
+  const lojasPrincipais = lojistas.filter((l) => (l.papel ?? 'lojista') === 'lojista');
 
   const handleRemover = async (l: Lojista) => {
     if (!window.confirm(`Remover a conta "${l.usuario}" (${l.lojaNome})? O lojista perde o acesso.`)) return;
@@ -90,8 +104,20 @@ export const LojistasAdmin: React.FC = () => {
       >
         <h2 className="text-sm font-extrabold text-[#111318] flex items-center gap-2">
           <UserPlus className="w-4 h-4 text-[#B45309]" aria-hidden="true" />
-          Nova conta de lojista
+          Nova conta
         </h2>
+        <div>
+          <label htmlFor="conta-tipo" className="block font-bold text-stone-700 mb-1">Tipo de conta</label>
+          <select
+            id="conta-tipo"
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as 'lojista' | 'vendedor')}
+            className={campo}
+          >
+            <option value="lojista">Lojista (painel, campanhas e câmera da loja)</option>
+            <option value="vendedor">Vendedor (só o Modo Balcão de uma loja)</option>
+          </select>
+        </div>
         <div>
           <label htmlFor="lojista-usuario" className="block font-bold text-stone-700 mb-1">Usuário</label>
           <input
@@ -127,6 +153,24 @@ export const LojistasAdmin: React.FC = () => {
           />
           <span id="lojista-senha-dica" className="block text-[11px] text-stone-500 mt-1">Mínimo de 8 caracteres.</span>
         </div>
+        {tipo === 'vendedor' ? (
+          <div>
+            <label htmlFor="vendedor-loja" className="block font-bold text-stone-700 mb-1">Loja do vendedor</label>
+            <select
+              id="vendedor-loja"
+              required
+              value={lojaDoVendedor}
+              onChange={(e) => setLojaDoVendedor(e.target.value)}
+              className={campo}
+            >
+              <option value="">Escolha um lojista cadastrado</option>
+              {lojasPrincipais.map((l) => (
+                <option key={l.id} value={String(l.id)}>{l.lojaNome} ({l.usuario})</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+        <>
         <div>
           <label htmlFor="lojista-loja" className="block font-bold text-stone-700 mb-1">Nome da loja</label>
           <input
@@ -152,6 +196,8 @@ export const LojistasAdmin: React.FC = () => {
             ))}
           </select>
         </div>
+        </>
+        )}
 
         {erro && (
           <p role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold">
@@ -167,14 +213,14 @@ export const LojistasAdmin: React.FC = () => {
           disabled={enviando}
           className="w-full min-h-[44px] rounded-xl bg-[#111318] hover:bg-stone-800 disabled:opacity-60 text-white font-extrabold"
         >
-          {enviando ? 'Cadastrando…' : 'Cadastrar lojista'}
+          {enviando ? 'Cadastrando…' : tipo === 'vendedor' ? 'Cadastrar vendedor' : 'Cadastrar lojista'}
         </button>
       </form>
 
       <section className="lg:col-span-2 bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-3">
         <h2 className="text-sm font-extrabold text-[#111318] flex items-center gap-2">
           <Users className="w-4 h-4 text-[#B45309]" aria-hidden="true" />
-          Lojistas cadastrados ({lojistas.length})
+          Contas cadastradas ({lojistas.length})
         </h2>
         {carregando ? (
           <p className="text-xs text-stone-500">Carregando…</p>
@@ -188,7 +234,12 @@ export const LojistasAdmin: React.FC = () => {
                 className="p-3.5 rounded-xl bg-[#FAF8F5] border border-stone-200 flex items-center justify-between gap-3"
               >
                 <div className="min-w-0">
-                  <strong className="text-[#111318] block truncate">{l.lojaNome}</strong>
+                  <strong className="text-[#111318] block truncate">
+                    {l.lojaNome}{' '}
+                    <span className="ml-1 px-1.5 py-0.5 rounded-md bg-stone-200 text-[10px] font-bold uppercase text-stone-700">
+                      {l.papel === 'vendedor' ? 'Vendedor' : 'Lojista'}
+                    </span>
+                  </strong>
                   <span className="text-stone-600">
                     {l.usuario} · {CAPIM_DOURADO_ZONES.find((z) => z.id === l.zoneId)?.shortName ?? l.zoneId} · desde{' '}
                     {formatarData(l.criadoEm)}

@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { LogIn } from 'lucide-react';
+import { Building2, LogIn, QrCode, Store } from 'lucide-react';
 import { api, ApiErro, Sessao } from '../services/api';
+import { Perfil, PERFIL_LABEL } from '../utils/acesso';
+
+type Porta = 'loja' | 'admin';
+
+const PORTAS: { id: Porta; label: string; dica: string; icon: React.ReactNode }[] = [
+  { id: 'loja', label: 'Sou da loja', dica: 'Lojista ou vendedor do balcão', icon: <Store className="w-4 h-4" aria-hidden="true" /> },
+  { id: 'admin', label: 'Administração', dica: 'Equipe do shopping', icon: <Building2 className="w-4 h-4" aria-hidden="true" /> },
+];
+
+const PERFIS_DEMO: Perfil[] = ['visitante', 'vendedor', 'lojista', 'admin'];
 
 interface LoginScreenProps {
   onEntrar: (sessao: Sessao) => void;
-  onDemo: () => void;
+  onDemo: (perfil: Perfil) => void;
   /** Aviso vindo de fora, ex.: "Sessão expirada". */
   aviso?: string | null;
   /** Texto curto do que abre depois do login (ex.: Modo Balcão no quiosque). */
@@ -17,6 +27,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onEntrar, onDemo, avis
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [apiFora, setApiFora] = useState(false);
+  const [porta, setPorta] = useState<Porta>('loja');
 
   useEffect(() => {
     api.saude().then(
@@ -56,8 +67,40 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onEntrar, onDemo, avis
           </div>
           <div>
             <h1 className="text-lg font-extrabold tracking-tight">Entrar no VitrineIQ</h1>
-            <p className="text-xs text-stone-500">{destino ?? 'Painel do lojista e administração'}</p>
+            <p className="text-xs text-stone-500">{destino ?? 'Escolha como você usa o VitrineIQ'}</p>
           </div>
+        </div>
+
+        {/* Visitante não faz login: o Concierge abre direto pelo QR */}
+        <a
+          href="?tela=concierge"
+          className="w-full min-h-[48px] rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-[#7A4B0A] text-xs font-bold flex items-center gap-3 px-3.5 transition"
+        >
+          <QrCode className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span className="text-left">
+            Sou visitante
+            <span className="block font-medium text-[11px]">Abrir o Concierge QR, sem login</span>
+          </span>
+        </a>
+
+        <div role="tablist" aria-label="Tipo de acesso" className="grid grid-cols-2 gap-2">
+          {PORTAS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={porta === p.id}
+              onClick={() => setPorta(p.id)}
+              className={`min-h-[56px] rounded-xl border px-3 py-2 text-left text-xs font-bold transition ${
+                porta === p.id
+                  ? 'bg-[#111318] border-[#111318] text-white'
+                  : 'bg-white border-stone-300 text-[#111318] hover:bg-stone-100'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">{p.icon}{p.label}</span>
+              <span className={`block font-medium text-[11px] ${porta === p.id ? 'text-stone-300' : 'text-stone-500'}`}>{p.dica}</span>
+            </button>
+          ))}
         </div>
 
         {aviso && (
@@ -113,7 +156,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onEntrar, onDemo, avis
             className="w-full min-h-[48px] rounded-xl bg-[#111318] hover:bg-stone-800 disabled:opacity-60 text-white font-extrabold text-sm flex items-center justify-center gap-2 transition"
           >
             <LogIn className="w-4 h-4 text-[#E2A83B]" aria-hidden="true" />
-            <span>{enviando ? 'Entrando…' : 'Entrar'}</span>
+            <span>{enviando ? 'Entrando…' : porta === 'admin' ? 'Entrar na administração' : 'Entrar na loja'}</span>
           </button>
         </form>
 
@@ -121,15 +164,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onEntrar, onDemo, avis
           <p className="text-stone-500">
             {apiFora
               ? 'A API não está respondendo. Você pode ver uma demonstração com dados fictícios; nada é enviado.'
-              : 'Prefere testar o painel sem criar conta agora? Use a visão de demonstração com dados simulados.'}
+              : 'Sem conta? Veja a demonstração com dados fictícios, escolhendo um perfil.'}
           </p>
-          <button
-            type="button"
-            onClick={onDemo}
-            className="w-full min-h-[44px] rounded-xl bg-white hover:bg-stone-100 border border-stone-300 text-[#111318] font-bold transition"
-          >
-            {apiFora ? 'Ver demonstração offline' : 'Explorar Modo Demonstração (Sem Login)'}
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            {PERFIS_DEMO.map((perfil) => (
+              <button
+                key={perfil}
+                type="button"
+                onClick={() => onDemo(perfil)}
+                className="min-h-[44px] rounded-xl bg-white hover:bg-stone-100 border border-stone-300 text-[#111318] font-bold transition"
+              >
+                Ver como {PERFIL_LABEL[perfil]}
+              </button>
+            ))}
+          </div>
         </div>
       </main>
     </div>

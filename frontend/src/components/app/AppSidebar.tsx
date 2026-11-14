@@ -3,7 +3,7 @@ import { Dices, Store } from 'lucide-react';
 import { AccessRole, StoreTenant } from '../../types';
 import { Papel } from '../../services/api';
 import { ZoneLiveTelemetry } from '../../services/opportunityEngine';
-import { ActiveTab } from '../../utils/acesso';
+import { ActiveTab, ehContaDeLoja } from '../../utils/acesso';
 import { StoreAvatar } from '../StoreAvatar';
 import { StoreTenantSwitcher } from '../StoreTenantSwitcher';
 import { NavItem, TAB_META } from './appNavigation';
@@ -62,7 +62,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </div>
 
         {/* Seletor Multi-Tenant: admin/demo podem ver como uma loja (o lojista já vem fixo pelo login) */}
-        {papel !== 'lojista' && (
+        {!ehContaDeLoja(papel) && (
           <StoreTenantSwitcher
             accessRole={accessRole}
             activeStoreId={activeStoreId}

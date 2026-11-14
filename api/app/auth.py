@@ -30,6 +30,7 @@ VALIDADE_S = 12 * 3600
 ITERACOES = 200_000
 LIMITE_LOGIN_POR_MINUTO = 10
 CAMPOS_USUARIO = ("nome", "papel", "lojaId", "lojaNome", "zoneId")
+PAPEIS_DE_LOJA = ("lojista", "vendedor")
 
 # Sem AUTH_SECRET fora da Vercel: segredo por processo (os tokens caem ao reiniciar).
 _SEGREDO_LOCAL = secrets.token_bytes(32)
@@ -141,14 +142,16 @@ def exigir_login(authorization: Optional[str] = Header(default=None)) -> dict[st
         pass
     if not isinstance(payload, dict) or payload.get("exp", 0) < time.time():
         raise HTTPException(401, "Faça login para continuar.")
-    # Conta de lojista apagada pelo admin perde o acesso na hora, mesmo com token ainda válido.
+    # Conta de loja apagada pelo admin perde o acesso na hora, mesmo com token ainda válido.
     # Confere também o usuário: se o banco for zerado, o mesmo id pode virar outra conta.
-    if payload.get("papel") == "lojista":
+    if payload.get("papel") in PAPEIS_DE_LOJA:
         try:
             conta = db.buscar("lojista", int(payload["sub"]))
-        except (TypeError, ValueError):
-            conta = None
-        if conta is None or not hmac.compare_digest(conta["usuario"], str(payload.get("nome") or "")):
+            # Vendedor perde o acesso junto com a conta do lojista da loja dele.
+            loja_ok = payload["papel"] == "lojista" or db.buscar("lojista", int(payload["lojaId"])) is not None
+        except (TypeError, ValueError, KeyError):
+            conta, loja_ok = None, False
+        if conta is None or not loja_ok or not hmac.compare_digest(conta["usuario"], str(payload.get("nome") or "")):
             raise HTTPException(401, "Faça login para continuar.")
     return payload
 
@@ -156,6 +159,13 @@ def exigir_login(authorization: Optional[str] = Header(default=None)) -> dict[st
 def exigir_admin(usuario: Annotated[dict[str, Any], Depends(exigir_login)]) -> dict[str, Any]:
     if usuario["papel"] != "admin":
         raise HTTPException(403, "Só o administrador pode fazer isso.")
+    return usuario
+
+
+def exigir_gestor(usuario: Annotated[dict[str, Any], Depends(exigir_login)]) -> dict[str, Any]:
+    """Admin ou lojista. O vendedor só registra no Balcão: campanhas, IA e câmera ficam de fora."""
+    if usuario["papel"] not in ("admin", "lojista"):
+        raise HTTPException(403, "O vendedor só tem acesso ao Modo Balcão.")
     return usuario
 
 
@@ -183,8 +193,9 @@ def login(body: LoginIn, request: Request) -> dict[str, Any]:
         # shortcut: varre as contas em memória; com milhares de lojistas, criar índice/tabela própria
         conta = next((c for c in db.listar("lojista", 10_000) if c["usuario"] == nome), None)
         if senha_confere(body.senha, conta["senhaHash"] if conta else _HASH_FALSO) and conta:
-            usuario = {"sub": conta["id"], "papel": "lojista", "nome": conta["usuario"], "lojaId": conta["id"],
-                       "lojaNome": conta["lojaNome"], "zoneId": conta["zoneId"]}
+            # Vendedor usa o lojaId do lojista da loja: os registros dele aparecem no painel do lojista.
+            usuario = {"sub": conta["id"], "papel": conta.get("papel", "lojista"), "nome": conta["usuario"],
+                       "lojaId": conta.get("lojaId", conta["id"]), "lojaNome": conta["lojaNome"], "zoneId": conta["zoneId"]}
     if usuario is None:
         _registrar_falha_login(ip)
         raise HTTPException(401, "Usuário ou senha inválidos.")
@@ -228,9 +239,21 @@ class LojistaIn(BaseModel):
     zoneId: ZoneId
 
 
+class VendedorIn(BaseModel):
+    usuario: Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=40,
+                                              pattern=r"^[A-Za-z0-9._-]+$")]
+    senha: str = Field(min_length=8, max_length=128)
+
+
 def _lojista(c: dict[str, Any]) -> dict[str, Any]:
     return {"id": c["id"], "usuario": c["usuario"], "lojaNome": c["lojaNome"], "zoneId": c["zoneId"],
-            "criadoEm": c["criadoEm"]}
+            "criadoEm": c["criadoEm"], "papel": c.get("papel", "lojista"), "lojaId": c.get("lojaId", c["id"])}
+
+
+def _usuario_livre(usuario: str) -> None:
+    if usuario == (os.getenv("ADMIN_USUARIO") or "").lower() or \
+            any(c["usuario"] == usuario for c in db.listar("lojista", 10_000)):
+        raise HTTPException(409, "Esse usuário já existe.")
 
 
 @router.get("/admin/lojistas", dependencies=[Depends(exigir_admin)])
@@ -240,12 +263,22 @@ def listar_lojistas() -> list[dict[str, Any]]:
 
 @router.post("/admin/lojistas", status_code=201, dependencies=[Depends(exigir_admin)])
 def criar_lojista(body: LojistaIn) -> dict[str, Any]:
-    if body.usuario == (os.getenv("ADMIN_USUARIO") or "").lower() or \
-            any(c["usuario"] == body.usuario for c in db.listar("lojista", 10_000)):
-        raise HTTPException(409, "Esse usuário já existe.")
+    _usuario_livre(body.usuario)
     dados = {"usuario": body.usuario, "lojaNome": sanitize_input(body.lojaNome), "zoneId": body.zoneId,
              "senhaHash": hash_senha(body.senha)}
     return _lojista(db.inserir("lojista", body.zoneId, dados))
+
+
+@router.post("/admin/lojistas/{rid}/vendedores", status_code=201, dependencies=[Depends(exigir_admin)])
+def criar_vendedor(rid: int, body: VendedorIn) -> dict[str, Any]:
+    """Conta de vendedor ligada à loja do lojista `rid`: só acessa o Modo Balcão dessa loja."""
+    loja = db.buscar("lojista", rid)
+    if loja is None or loja.get("papel", "lojista") != "lojista":
+        raise HTTPException(404, "Lojista não encontrado.")
+    _usuario_livre(body.usuario)
+    dados = {"usuario": body.usuario, "lojaNome": loja["lojaNome"], "zoneId": loja["zoneId"],
+             "senhaHash": hash_senha(body.senha), "papel": "vendedor", "lojaId": loja["id"]}
+    return _lojista(db.inserir("lojista", loja["zoneId"], dados))
 
 
 @router.delete("/admin/lojistas/{rid}", status_code=204, response_model=None, dependencies=[Depends(exigir_admin)])

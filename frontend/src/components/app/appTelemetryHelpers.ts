@@ -30,7 +30,7 @@ export function resolveActiveTenant(
   accessRole: AccessRole,
   activeStoreId: string
 ): StoreTenant | null {
-  if (papel === 'lojista' && lojaFixa && zonaFixa) {
+  if ((papel === 'lojista' || papel === 'vendedor') && lojaFixa && zonaFixa) {
     const doCatalogo = CAPIM_DOURADO_STORES.find(
       (s) => s.storeName.toLowerCase() === lojaFixa.toLowerCase()
     );

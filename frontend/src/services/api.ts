@@ -22,7 +22,7 @@ export function resolveApiUrl(): string {
   return (metaEnv?.VITE_API_URL || DEFAULT_API_URL).replace(/\/$/, '');
 }
 
-export type Papel = 'admin' | 'lojista';
+export type Papel = 'admin' | 'lojista' | 'vendedor';
 
 /** Quem está logado, como `POST /api/auth/login` e `GET /api/auth/eu` devolvem. */
 export interface Usuario {
@@ -44,6 +44,9 @@ export interface Lojista {
   lojaNome: string;
   zoneId: ZoneId;
   criadoEm: string;
+  /** Conta de vendedor fica ligada à loja (lojaId) do lojista. */
+  papel?: 'lojista' | 'vendedor';
+  lojaId?: string | number;
 }
 
 /** Erro HTTP da API com a mensagem (`detail`) já pronta para mostrar. */
@@ -64,7 +67,7 @@ const estadoCache = new Map<string, { etag: string; data: CicloEstado }>();
 export function lerSessao(storage?: Storage): Sessao | null {
   try {
     const s = JSON.parse((storage ?? localStorage).getItem(CHAVE_SESSAO) ?? 'null') as Sessao | null;
-    if (!s?.token || (s.usuario?.papel !== 'admin' && s.usuario?.papel !== 'lojista')) return null;
+    if (!s?.token || !['admin', 'lojista', 'vendedor'].includes(s.usuario?.papel)) return null;
     token = s.token;
     return s;
   } catch {
@@ -251,6 +254,8 @@ export const api = {
   lojistas: () => chamar<Lojista[]>('/admin/lojistas'),
   criarLojista: (dados: { usuario: string; senha: string; lojaNome: string; zoneId: ZoneId }) =>
     chamar<Lojista>('/admin/lojistas', 'POST', dados),
+  criarVendedor: (lojaId: Lojista['id'], dados: { usuario: string; senha: string }) =>
+    chamar<Lojista>(`/admin/lojistas/${encodeURIComponent(String(lojaId))}/vendedores`, 'POST', dados),
   removerLojista: (id: Lojista['id']) => chamar(`/admin/lojistas/${encodeURIComponent(String(id))}`, 'DELETE'),
   campanhasAtivas: (zoneId: ZoneId) =>
     chamar<FlashCampaign[]>(`/campanhas/ativas?ala=${encodeURIComponent(zoneId)}`),
