@@ -36,19 +36,51 @@ _SEGREDO_LOCAL = secrets.token_bytes(32)
 _tentativas_login: defaultdict[str, deque[float]] = defaultdict(deque)
 
 
+def _ip_cliente(request: Request) -> str:
+    # Na Vercel o proxy reescreve X-Forwarded-For com o IP real; fora dela o cliente pode forjá-lo.
+    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return ip or (request.client.host if request.client else "desconhecido")
+
+
+def _limpar_janela(fila: deque[float], agora: float, janela_s: int = 60) -> None:
+    while fila and agora - fila[0] >= janela_s:
+        fila.popleft()
+
+
 def limitar_por_ip(request: Request, chamadas: defaultdict[str, deque[float]], limite: int, mensagem: str) -> None:
     """No máximo `limite` chamadas por minuto por IP; acima disso, 429."""
     # shortcut: limite por instância da Vercel, não global; usar Redis/Upstash se precisar de limite global
-    # Na Vercel o proxy reescreve X-Forwarded-For com o IP real; fora dela o cliente pode forjá-lo.
-    ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-    ip = ip or (request.client.host if request.client else "desconhecido")
+    ip = _ip_cliente(request)
     agora = time.monotonic()
     fila = chamadas[ip]
-    while fila and agora - fila[0] >= 60:
-        fila.popleft()
+    _limpar_janela(fila, agora)
     if len(fila) >= limite:
         raise HTTPException(429, mensagem)
     fila.append(agora)
+
+
+def _verificar_bloqueio_login(ip: str) -> None:
+    """Bloqueia IP após atingir o limite de falhas inválidas de login na janela de 60s."""
+    agora = time.monotonic()
+    fila = _tentativas_login[ip]
+    _limpar_janela(fila, agora)
+    if len(fila) >= LIMITE_LOGIN_POR_MINUTO:
+        raise HTTPException(
+            429,
+            "Muitas tentativas de login inválidas. Aguarde um minuto e tente de novo.",
+            headers={"Retry-After": "60"},
+        )
+
+
+def _registrar_falha_login(ip: str) -> None:
+    agora = time.monotonic()
+    fila = _tentativas_login[ip]
+    _limpar_janela(fila, agora)
+    fila.append(agora)
+
+
+def _limpar_falhas_login(ip: str) -> None:
+    _tentativas_login.pop(ip, None)
 
 
 def _segredo() -> bytes:
@@ -84,9 +116,12 @@ def hash_senha(senha: str, sal: Optional[bytes] = None) -> str:
 
 
 def senha_confere(senha: str, guardado: str) -> bool:
-    _, iteracoes, sal, dk = guardado.split("$")
-    calculado = hashlib.pbkdf2_hmac("sha256", senha.encode(), _de_b64(sal), int(iteracoes))
-    return hmac.compare_digest(calculado, _de_b64(dk))
+    try:
+        _, iteracoes, sal, dk = guardado.split("$")
+        calculado = hashlib.pbkdf2_hmac("sha256", senha.encode(), _de_b64(sal), int(iteracoes))
+        return hmac.compare_digest(calculado, _de_b64(dk))
+    except (ValueError, TypeError):
+        return False
 
 
 # Usado quando o usuário não existe, para a resposta levar o mesmo tempo (não revela quais usuários existem).
@@ -108,9 +143,13 @@ def exigir_login(authorization: Optional[str] = Header(default=None)) -> dict[st
         raise HTTPException(401, "Faça login para continuar.")
     # Conta de lojista apagada pelo admin perde o acesso na hora, mesmo com token ainda válido.
     # Confere também o usuário: se o banco for zerado, o mesmo id pode virar outra conta.
-    conta = db.buscar("lojista", int(payload["sub"])) if payload.get("papel") == "lojista" else None
-    if payload.get("papel") == "lojista" and (conta is None or conta["usuario"] != payload.get("nome")):
-        raise HTTPException(401, "Faça login para continuar.")
+    if payload.get("papel") == "lojista":
+        try:
+            conta = db.buscar("lojista", int(payload["sub"]))
+        except (TypeError, ValueError):
+            conta = None
+        if conta is None or not hmac.compare_digest(conta["usuario"], str(payload.get("nome") or "")):
+            raise HTTPException(401, "Faça login para continuar.")
     return payload
 
 
@@ -129,15 +168,17 @@ class LoginIn(BaseModel):
 
 @router.post("/auth/login")
 def login(body: LoginIn, request: Request) -> dict[str, Any]:
-    limitar_por_ip(request, _tentativas_login, LIMITE_LOGIN_POR_MINUTO,
-                   "Muitas tentativas de login. Aguarde um minuto e tente de novo.")
+    ip = _ip_cliente(request)
+    _verificar_bloqueio_login(ip)
     _segredo()  # 503 antes de conferir senha, se faltar configuração
     admin_u, admin_s = os.getenv("ADMIN_USUARIO"), os.getenv("ADMIN_SENHA")
     usuario: Optional[dict[str, Any]] = None
-    if admin_u and admin_s and hmac.compare_digest(body.usuario.encode(), admin_u.encode()) \
-            and hmac.compare_digest(body.senha.encode(), admin_s.encode()):
-        usuario = {"sub": "admin", "papel": "admin", "nome": admin_u, "lojaId": None, "lojaNome": None, "zoneId": None}
-    else:
+    if admin_u and admin_s:
+        u_ok = hmac.compare_digest(body.usuario.encode(), admin_u.encode())
+        s_ok = hmac.compare_digest(body.senha.encode(), admin_s.encode())
+        if u_ok and s_ok:
+            usuario = {"sub": "admin", "papel": "admin", "nome": admin_u, "lojaId": None, "lojaNome": None, "zoneId": None}
+    if usuario is None:
         nome = body.usuario.strip().lower()
         # shortcut: varre as contas em memória; com milhares de lojistas, criar índice/tabela própria
         conta = next((c for c in db.listar("lojista", 10_000) if c["usuario"] == nome), None)
@@ -145,7 +186,9 @@ def login(body: LoginIn, request: Request) -> dict[str, Any]:
             usuario = {"sub": conta["id"], "papel": "lojista", "nome": conta["usuario"], "lojaId": conta["id"],
                        "lojaNome": conta["lojaNome"], "zoneId": conta["zoneId"]}
     if usuario is None:
+        _registrar_falha_login(ip)
         raise HTTPException(401, "Usuário ou senha inválidos.")
+    _limpar_falhas_login(ip)
     token = assinar({**usuario, "exp": int(time.time()) + VALIDADE_S})
     return {"token": token, "usuario": {k: usuario[k] for k in CAMPOS_USUARIO}}
 

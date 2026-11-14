@@ -69,6 +69,20 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+
+@app.middleware("http")
+async def adicionar_headers_seguranca(request: Request, call_next):
+    """Aplica cabeçalhos HTTP defensivos e bloqueia cache em rotas de autenticação e administração."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(self), camera=(self)")
+    if request.url.path.startswith("/api/auth/") or request.url.path.startswith("/api/admin/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
 app.include_router(ciclo_router)
 app.include_router(auth_router)
 

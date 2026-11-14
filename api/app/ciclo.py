@@ -129,7 +129,7 @@ def remover_campanha(rid: int, u: Usuario) -> Response:
 def campanhas_ativas(ala: Optional[ZoneId] = None) -> list[dict[str, Any]]:
     # Rota pública: sem lojaId, que é o id da conta do lojista.
     return [{k: v for k, v in _campanha(c).items() if k != "lojaId"}
-            for c in db.listar("campanha") if c["active"] and (ala is None or c["zoneId"] == ala)]
+            for c in db.listar("campanha", zona=ala) if c["active"] and (ala is None or c["zoneId"] == ala)]
 
 
 # ---------- Concierge QR ----------
@@ -379,12 +379,12 @@ def compute_crowd_drop(regs: list[dict[str, Any]], zone_id: str) -> dict[str, An
 def vitrine_resumo(ala: ZoneId, u: Usuario) -> dict[str, Any]:
     if u["papel"] == "lojista":
         ala = u["zoneId"]  # lojista só vê a câmera da ala dele
-    return resumo_vitrine([r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala])
+    return resumo_vitrine(db.listar("vitrine", 5000, _hoje(), zona=ala))
 
 
 @router.get("/vitrine/crowd-drop")
 def vitrine_crowd_drop(ala: ZoneId) -> dict[str, Any]:
-    regs = [r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala]
+    regs = db.listar("vitrine", 5000, _hoje(), zona=ala)
     return compute_crowd_drop(regs, ala)
 
 
@@ -397,28 +397,22 @@ def estado(u: Usuario, loja: Optional[str] = None, ala: Optional[ZoneId] = None)
     Lojista vê vendas, perdas e campanhas só da loja dele e câmera e Concierge só da ala dele, pelo token
     (os filtros da URL são ignorados). O admin vê tudo e pode filtrar por `loja` (nome) e `ala`.
     """
-    balcao = db.listar("balcao", 500, _hoje())  # o painel mostra o dia; ontem não pesa no Score de hoje
-    campanhas = db.listar("campanha", 100)
-    signals = db.listar("busca", 100, _hoje())
-    buscas_hoje = db.listar("busca", 500, _hoje())
-    vitrine_regs = db.listar("vitrine", 5000, _hoje())
-    alertas = db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S))
     if u["papel"] == "lojista":
-        # shortcut: filtra depois do LIMIT; com muitas lojas, filtrar por lojaId/ala no SQL
         ala = u["zoneId"]
+
+    balcao = db.listar("balcao", 500, _hoje(), zona=ala)  # o painel mostra o dia; ontem não pesa no Score
+    campanhas = db.listar("campanha", 100, zona=ala)
+    signals = db.listar("busca", 100, _hoje(), zona=ala)
+    buscas_hoje = db.listar("busca", 500, _hoje(), zona=ala)
+    vitrine_regs = db.listar("vitrine", 5000, _hoje(), zona=ala)
+    alertas = db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S), zona=ala)
+    if u["papel"] == "lojista":
         balcao = [r for r in balcao if _da_loja(u, r)]
         campanhas = [c for c in campanhas if _da_loja(u, c)]
     elif loja and loja.strip():
         loja_norm = loja.strip().lower()
         balcao = [r for r in balcao if (r.get("storeName") or "").strip().lower() == loja_norm]
         campanhas = [c for c in campanhas if (c.get("storeName") or "").strip().lower() == loja_norm]
-    if ala:
-        balcao = [r for r in balcao if r.get("zoneId") == ala]
-        campanhas = [c for c in campanhas if c.get("zoneId") == ala]
-        signals = [b for b in signals if b.get("zoneId") == ala]
-        buscas_hoje = [b for b in buscas_hoje if b.get("zoneId") == ala]
-        vitrine_regs = [v for v in vitrine_regs if v.get("zona") == ala]
-        alertas = [a for a in alertas if a.get("zona") == ala]
 
     vendas: Counter[str] = Counter(r["zoneId"] for r in balcao if r["tipo"] == "venda")
     vitrine = {z: resumo_vitrine([r for r in vitrine_regs if r["zona"] == z])

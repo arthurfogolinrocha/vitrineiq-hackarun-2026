@@ -116,6 +116,8 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
   const [queryTouched, setQueryTouched] = useState(false);
   const [latestReward, setLatestReward] = useState<ConsumerSignal | null>(null);
   const [liveStatus, setLiveStatus] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAdminDemo, setShowAdminDemo] = useState(false);
 
   useEffect(() => {
@@ -166,26 +168,37 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setQueryTouched(true);
+    setSubmitError(null);
     if (query.trim().length < 3) {
       setLiveStatus('Erro: informe o que você procura com pelo menos 3 caracteres.');
       return;
     }
+    if (isSubmitting) return;
     const targetZoneId = focusActiveTenant && activeTenant ? activeTenant.zoneId : selectedZoneId;
-    const created = await onSubmitConsumerSignal(
-      targetZoneId,
-      query.trim(),
-      budget,
-      segmentFilter === 'todos' ? undefined : segmentFilter,
-      selectedOriginZone
-    );
-    setLatestReward(created);
-    setLiveStatus(
-      created.couponCode
-        ? `Oferta encontrada: ${created.matchedOffer}. Cupom ${created.couponCode} liberado.`
-        : 'Busca registrada. Nenhuma oferta ativa agora; avisaremos aqui quando uma loja publicar.'
-    );
-    setQuery('');
-    setQueryTouched(false);
+    setIsSubmitting(true);
+    try {
+      const created = await onSubmitConsumerSignal(
+        targetZoneId,
+        query.trim(),
+        budget,
+        segmentFilter === 'todos' ? undefined : segmentFilter,
+        selectedOriginZone
+      );
+      setLatestReward(created);
+      setLiveStatus(
+        created.couponCode
+          ? `Oferta encontrada: ${created.matchedOffer}. Cupom ${created.couponCode} liberado.`
+          : 'Busca registrada. Nenhuma oferta ativa agora; avisaremos aqui quando uma loja publicar.'
+      );
+      setQuery('');
+      setQueryTouched(false);
+    } catch {
+      const msg = 'Não foi possível buscar ofertas agora. Verifique sua conexão e tente novamente.';
+      setSubmitError(msg);
+      setLiveStatus(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const rewardStoreInfo = latestReward
@@ -213,13 +226,13 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
       </div>
 
       {/* Simulador Mobile-First Limpo (Ponta do Consumidor) */}
-      <section className="lg:col-span-5 bento-card-cream rounded-3xl p-6 space-y-5 max-w-md mx-auto w-full border-[#E2A83B]/35">
-        <div className="flex items-center justify-between border-b border-stone-200/80 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-[#0B0D12] border border-[#E2A83B]/40 text-[#F5C76B]">
+      <section className="lg:col-span-5 bento-card-cream rounded-3xl p-4 sm:p-6 space-y-5 max-w-md mx-auto w-full border-[#E2A83B]/35">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200/80 pb-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-[#0B0D12] border border-[#E2A83B]/40 text-[#F5C76B] shrink-0">
               <QrCode className="w-5 h-5" aria-hidden="true" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-sm font-extrabold text-[#0B0D12]">Concierge QR — Capim Dourado</h2>
               <span className="text-[11px] text-emerald-700 font-semibold">
                 Sem baixar app • Zero cadastro
@@ -255,8 +268,9 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Escopo das ofertas do Concierge">
               <button
                 type="button"
+                aria-pressed={focusActiveTenant}
                 onClick={() => setFocusActiveTenant(true)}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition ${
+                className={`min-h-[44px] px-2.5 py-2 rounded-xl text-[11px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   focusActiveTenant
                     ? 'gold-pill-metallic'
                     : 'bg-white/10 text-stone-200 hover:bg-white/20'
@@ -266,8 +280,9 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               </button>
               <button
                 type="button"
+                aria-pressed={!focusActiveTenant}
                 onClick={() => setFocusActiveTenant(false)}
-                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition ${
+                className={`min-h-[44px] px-2.5 py-2 rounded-xl text-[11px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   !focusActiveTenant
                     ? 'gold-pill-metallic'
                     : 'bg-white/10 text-stone-200 hover:bg-white/20'
@@ -291,20 +306,21 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                   <button
                     key={pin.label}
                     type="button"
+                    aria-pressed={isSelected}
                     onClick={() => {
                       setSelectedOriginZone(pin.zoneId);
                       if (!focusActiveTenant) {
                         onSelectZone(pin.zoneId);
                       }
                     }}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 border transition ${
+                    className={`min-h-[40px] px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                       isSelected
                         ? 'bg-[#0B0D12] text-[#F5C76B] border-[#E2A83B]'
                         : 'bg-[#FAF8F5] text-stone-700 border-stone-300 hover:border-[#7A4B0A]'
                     }`}
                   >
-                    <MapPin className="w-3 h-3" aria-hidden="true" />
-                    {pin.label}
+                    <MapPin className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    <span>{pin.label}</span>
                   </button>
                 );
               })}
@@ -317,7 +333,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                 setSelectedOriginZone(next);
                 onSelectZone(next);
               }}
-              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium"
+              className="w-full min-h-[44px] bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
@@ -336,7 +352,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               id="qr-segment"
               value={segmentFilter}
               onChange={(e) => setSegmentFilter(e.target.value as SegmentCategory)}
-              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-[#0B0D12] font-semibold"
+              className="w-full min-h-[44px] bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2 text-[#0B0D12] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               {Object.entries(SEGMENT_LABELS).map(([id, label]) => (
                 <option key={id} value={id}>
@@ -350,7 +366,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             <label htmlFor="qr-query" className="block font-bold text-stone-700 mb-1">
               O que você procura ou achou das lojas hoje?
             </label>
-            <span id="qr-query-hint" className="block text-[11px] text-stone-500 mb-1.5">
+            <span id="qr-query-hint" className="block text-[11px] text-stone-600 mb-1.5">
               Mínimo de 3 caracteres. Sua busca libera cupons na hora (não pedimos nome nem contato; não escreva dados pessoais).
             </span>
             <input
@@ -362,17 +378,20 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               aria-invalid={isQueryInvalid ? 'true' : 'false'}
               data-error="qr-query-error"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                if (submitError) setSubmitError(null);
+              }}
               onBlur={() => setQueryTouched(true)}
               onInvalid={() => setQueryTouched(true)}
               placeholder="Ex: Presente até R$ 150 ou camisa tamanho M"
-              className={`w-full bg-[#FAF8F5] border rounded-xl px-3.5 py-2.5 text-[#0B0D12] placeholder-stone-400 ${
+              className={`w-full min-h-[44px] bg-[#FAF8F5] border rounded-xl px-3.5 py-2.5 text-[#0B0D12] placeholder-stone-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                 isQueryInvalid ? 'user-invalid-fallback border-rose-500' : 'border-stone-300'
               }`}
             />
             <div
               id="qr-query-error"
-              className={`error-msg text-[11px] text-rose-600 font-semibold mt-1 ${
+              className={`error-msg text-[11px] text-rose-700 font-semibold mt-1 ${
                 isQueryInvalid ? 'block' : 'hidden'
               }`}
             >
@@ -388,8 +407,9 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                 onClick={() => {
                   setQuery(chip);
                   setQueryTouched(false);
+                  setSubmitError(null);
                 }}
-                className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] text-stone-700 font-medium transition"
+                className="min-h-[40px] px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] text-stone-800 font-medium text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 {chip}
               </button>
@@ -404,7 +424,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               id="qr-budget"
               value={budget}
               onChange={(e) => setBudget(e.target.value as ConsumerSignal['budget'])}
-              className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium"
+              className="w-full min-h-[44px] bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-[#0B0D12] font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
             >
               <option value="ate_80">Até R$ 80</option>
               <option value="80_200">Entre R$ 80 e R$ 200</option>
@@ -412,12 +432,23 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             </select>
           </div>
 
+          {submitError && (
+            <p
+              role="alert"
+              className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold"
+            >
+              {submitError}
+            </p>
+          )}
+
           <button
             type="submit"
-            className="w-full py-3 rounded-xl gold-pill-metallic text-xs flex items-center justify-center gap-2 transition"
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+            className="w-full min-h-[44px] py-3 rounded-xl gold-pill-metallic text-xs font-extrabold flex items-center justify-center gap-2 transition disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             <Send className="w-4 h-4" aria-hidden="true" />
-            <span>Buscar oferta</span>
+            <span>{isSubmitting ? 'Buscando ofertas...' : 'Buscar oferta'}</span>
           </button>
         </form>
 
@@ -457,7 +488,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                         )}
                       </div>
                     )}
-                    <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <StoreAvatar
                           storeName={c.storeName}
@@ -466,7 +497,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                         />
                         <div className="min-w-0">
                           <strong className="text-slate-900 block truncate">{c.storeName}</strong>
-                          <span className="text-slate-700 font-medium block">
+                          <span className="text-slate-700 font-medium block break-words">
                             {c.title} ({c.discountBadge})
                           </span>
                         </div>
@@ -534,7 +565,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                   const targetFloor = targetZone?.floor || 'L1';
                   onNavigateToStore(store, targetFloor);
                 }}
-                className="w-full mt-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
+                className="w-full min-h-[44px] mt-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               >
                 <Navigation className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Como Chegar / Ver no Mapa 3D</span>
@@ -543,12 +574,13 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           </div>
         )}
 
-        <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-[11px]">
-          <span className="text-slate-500">Fluxo público do totem</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 text-[11px]">
+          <span className="text-slate-600">Fluxo público do totem</span>
           <button
             type="button"
+            aria-expanded={showAdminDemo}
             onClick={() => setShowAdminDemo(!showAdminDemo)}
-            className="font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 transition"
+            className="min-h-[44px] px-2.5 py-1.5 rounded-lg font-bold text-amber-800 hover:text-amber-950 hover:bg-amber-50 flex items-center gap-1 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             <SlidersHorizontal className="w-3 h-3" aria-hidden="true" />
             <span>{showAdminDemo ? 'Ocultar Painel Admin' : 'Modo Demonstração Admin'}</span>
@@ -559,7 +591,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
       {/* Explicação ao vivo do ciclo + feed de sinais recebidos (Visão Administrativa) */}
       {showAdminDemo ? (
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
             <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-amber-600" aria-hidden="true" />
               Duas Pontas Conectadas (Cliente + Lojista)
@@ -574,7 +606,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             </div>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3">
+          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
               <Gift className="w-4 h-4 text-blue-600" aria-hidden="true" />
               Últimas Buscas &amp; Cupons Liberados ({campaigns.filter((c) => c.active).length} cupons ativos)
@@ -585,7 +617,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                 return (
                   <li
                     key={sig.id}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3"
+                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <StoreAvatar
@@ -621,14 +653,15 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           </div>
           <div className="max-w-sm space-y-1">
             <h3 className="text-sm font-extrabold text-slate-800">Visualização Pública do Totem / QR</h3>
-            <p className="text-xs text-slate-500 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed">
               No totem do shopping, os controles de governança e os sinais de outros usuários ficam ocultos por padrão para preservar a privacidade e o foco do cliente.
             </p>
           </div>
           <button
             type="button"
+            aria-expanded={showAdminDemo}
             onClick={() => setShowAdminDemo(true)}
-            className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 shadow-xs flex items-center gap-1.5 transition"
+            className="min-h-[44px] px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 shadow-xs flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
           >
             <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />
             <span>Ativar Modo Demonstração Administrativa (2 Pontas)</span>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Box,
@@ -14,8 +14,64 @@ import {
 import { CrossSegmentRoute, FlashCampaign, FloorId, StoreTenant, ZoneId } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
-import { ShoppingMap3D } from './ShoppingMap3D';
 import { StoreAvatar } from './StoreAvatar';
+
+const ShoppingMap3D = lazy(() =>
+  import('./ShoppingMap3D').then((m) => ({ default: m.ShoppingMap3D }))
+);
+
+const L1_SVG_ZONES: ReadonlyArray<{
+  id: ZoneId;
+  title: string;
+  sub: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}> = [
+  {
+    id: 'ala-sul-esporte',
+    title: 'Ala Sul (Curva JK)',
+    sub: 'Renner • Centauro • PF • Stilo A',
+    x: 84,
+    y: 342,
+    w: 225,
+    h: 102,
+  },
+  {
+    id: 'alameda-gourmet',
+    title: 'Alameda Gourmet (P1)',
+    sub: 'Outback • Madero • Marisa • Camicado',
+    x: 325,
+    y: 342,
+    w: 265,
+    h: 102,
+  },
+  {
+    id: 'ala-central-ancoras',
+    title: 'Ala Central (P2 / P3)',
+    sub: 'C&A • Riachuelo • Leitura • Polo Wear',
+    x: 185,
+    y: 178,
+    w: 410,
+    h: 112,
+  },
+  {
+    id: 'ala-lazer-cinema',
+    title: 'Ala Norte PC (LO-2A)',
+    sub: 'Cinemark • Big • Super Big • WoW • Morofit',
+    x: 654,
+    y: 52,
+    w: 268,
+    h: 392,
+  },
+];
+
+const FLOOR_LABELS: Record<FloorId, string> = {
+  L1: 'Térreo (L1)',
+  L2: '2º Piso (L2)',
+  SS1: 'Subsolo (SS1)',
+};
 
 interface ShoppingMapProps {
   floor: FloorId;
@@ -44,11 +100,56 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
 }) => {
   const [renderMode, setRenderMode] = useState<'3d' | '2d'>('3d');
 
-  const floorZones = zonesTelemetry.filter((item) => item.zone.floor === floor);
-  const selected =
-    zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ??
-    floorZones[0] ??
-    zonesTelemetry[0];
+  const zoneById = useMemo(() => {
+    const map = new Map<ZoneId, ZoneLiveTelemetry>();
+    for (const item of zonesTelemetry) {
+      map.set(item.zone.id, item);
+    }
+    return map;
+  }, [zonesTelemetry]);
+
+  const floorZones = useMemo(
+    () => zonesTelemetry.filter((item) => item.zone.floor === floor),
+    [zonesTelemetry, floor]
+  );
+
+  const selected = useMemo(
+    () => zoneById.get(selectedZoneId) ?? floorZones[0] ?? zonesTelemetry[0],
+    [zoneById, selectedZoneId, floorZones, zonesTelemetry]
+  );
+
+  const selectedStoreNormalized = useMemo(
+    () => selectedStoreName?.trim().toLowerCase() ?? '',
+    [selectedStoreName]
+  );
+
+  const handleSetMode3D = useCallback(() => setRenderMode('3d'), []);
+  const handleSetMode2D = useCallback(() => setRenderMode('2d'), []);
+  const handleFloorL1 = useCallback(() => onFloorChange('L1'), [onFloorChange]);
+  const handleFloorL2 = useCallback(() => onFloorChange('L2'), [onFloorChange]);
+  const handleFloorSS1 = useCallback(() => onFloorChange('SS1'), [onFloorChange]);
+  const handleClearStore = useCallback(() => onSelectStoreName?.(null), [onSelectStoreName]);
+  const handleFocusActiveTenant = useCallback(() => {
+    if (activeTenant) {
+      onSelectStoreName?.(activeTenant.storeName);
+    }
+  }, [activeTenant, onSelectStoreName]);
+  const handleJumpToZone = useCallback(
+    (zoneFloor: FloorId, zoneId: ZoneId) => {
+      onFloorChange(zoneFloor);
+      onSelectZone(zoneId);
+    },
+    [onFloorChange, onSelectZone]
+  );
+  const handleSvgZoneKeyDown = useCallback(
+    (e: React.KeyboardEvent<SVGGElement>, zoneId: ZoneId) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onSelectZone(zoneId);
+      }
+    },
+    [onSelectZone]
+  );
 
   return (
     <div className="space-y-5">
@@ -69,12 +170,13 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
         </div>
 
         {/* Seletor 3D Real vs Planta 2D Técnica + Piso */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
           <div className="inline-flex bg-white/10 p-1 rounded-xl border border-white/10" role="group" aria-label="Modo de Visualização do Mapa">
             <button
               type="button"
-              onClick={() => setRenderMode('3d')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              aria-pressed={renderMode === '3d'}
+              onClick={handleSetMode3D}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 renderMode === '3d'
                   ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
                   : 'text-stone-300 hover:text-white'
@@ -85,8 +187,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setRenderMode('2d')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+              aria-pressed={renderMode === '2d'}
+              onClick={handleSetMode2D}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 renderMode === '2d'
                   ? 'bg-white text-[#111318] shadow-sm'
                   : 'text-stone-300 hover:text-white'
@@ -97,11 +200,12 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             </button>
           </div>
 
-          <div className="inline-flex bg-white/10 p-1 rounded-xl border border-white/10" role="group" aria-label="Pavimento">
+          <div className="inline-flex flex-wrap bg-white/10 p-1 rounded-xl border border-white/10" role="group" aria-label="Pavimento">
             <button
               type="button"
-              onClick={() => onFloorChange('L1')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${
+              aria-pressed={floor === 'L1'}
+              onClick={handleFloorL1}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 floor === 'L1'
                   ? 'bg-emerald-400 text-[#111318]'
                   : 'text-stone-300 hover:text-white'
@@ -111,8 +215,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onFloorChange('L2')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${
+              aria-pressed={floor === 'L2'}
+              onClick={handleFloorL2}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 floor === 'L2'
                   ? 'bg-emerald-400 text-[#111318]'
                   : 'text-stone-300 hover:text-white'
@@ -122,8 +227,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onFloorChange('SS1')}
-              className={`px-3 py-2 rounded-lg text-xs font-bold transition ${
+              aria-pressed={floor === 'SS1'}
+              onClick={handleFloorSS1}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                 floor === 'SS1'
                   ? 'bg-emerald-400 text-[#111318]'
                   : 'text-stone-300 hover:text-white'
@@ -140,18 +246,26 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
         {/* Área do Mapa (8 cols) */}
         <div className="xl:col-span-8">
           {renderMode === '3d' ? (
-            <ShoppingMap3D
-              floor={floor}
-              onFloorChange={onFloorChange}
-              zonesTelemetry={zonesTelemetry}
-              selectedZoneId={selectedZoneId}
-              onSelectZone={onSelectZone}
-              selectedStoreName={selectedStoreName}
-              onSelectStoreName={onSelectStoreName}
-              routes={routes}
-              campaigns={campaigns}
-              activeTenant={activeTenant}
-            />
+            <Suspense
+              fallback={
+                <div className="h-[500px] sm:h-[580px] rounded-2xl bg-[#080B10] border border-[#E2A83B]/30 flex items-center justify-center p-6 text-center text-xs font-bold tracking-wider uppercase text-[#E2A83B]">
+                  Inicializando Maquete 3D Obsidian • Capim Dourado...
+                </div>
+              }
+            >
+              <ShoppingMap3D
+                floor={floor}
+                onFloorChange={onFloorChange}
+                zonesTelemetry={zonesTelemetry}
+                selectedZoneId={selectedZoneId}
+                onSelectZone={onSelectZone}
+                selectedStoreName={selectedStoreName}
+                onSelectStoreName={onSelectStoreName}
+                routes={routes}
+                campaigns={campaigns}
+                activeTenant={activeTenant}
+              />
+            </Suspense>
           ) : (
             <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-stone-100">
@@ -177,8 +291,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                   {onSelectStoreName && (
                     <button
                       type="button"
-                      onClick={() => onSelectStoreName(null)}
-                      className="text-[11px] font-bold text-stone-600 hover:text-stone-900 underline"
+                      onClick={handleClearStore}
+                      className="text-[11px] font-bold text-stone-600 hover:text-stone-900 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B45309] rounded"
                     >
                       Limpar Foco
                     </button>
@@ -251,45 +365,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
 
                   {floor === 'L1' ? (
                     /* Cartões proporcionais das 4 Alas do Térreo (sem vazamento de texto!) */
-                    [
-                      {
-                        id: 'ala-sul-esporte' as ZoneId,
-                        title: 'Ala Sul (Curva JK)',
-                        sub: 'Renner • Centauro • PF • Stilo A',
-                        x: 84,
-                        y: 342,
-                        w: 225,
-                        h: 102,
-                      },
-                      {
-                        id: 'alameda-gourmet' as ZoneId,
-                        title: 'Alameda Gourmet (P1)',
-                        sub: 'Outback • Madero • Marisa • Camicado',
-                        x: 325,
-                        y: 342,
-                        w: 265,
-                        h: 102,
-                      },
-                      {
-                        id: 'ala-central-ancoras' as ZoneId,
-                        title: 'Ala Central (P2 / P3)',
-                        sub: 'C&A • Riachuelo • Leitura • Polo Wear',
-                        x: 185,
-                        y: 178,
-                        w: 410,
-                        h: 112,
-                      },
-                      {
-                        id: 'ala-lazer-cinema' as ZoneId,
-                        title: 'Ala Norte PC (LO-2A)',
-                        sub: 'Cinemark • Big • Super Big • WoW • Morofit',
-                        x: 654,
-                        y: 52,
-                        w: 268,
-                        h: 392,
-                      },
-                    ].map((box) => {
-                      const item = zonesTelemetry.find((z) => z.zone.id === box.id);
+                    L1_SVG_ZONES.map((box) => {
+                      const item = zoneById.get(box.id);
                       if (!item) return null;
                       const isSelected = item.zone.id === selectedZoneId;
                       const heatStroke =
@@ -302,8 +379,13 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                       return (
                         <g
                           key={item.zone.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Selecionar ${box.title} — IQ ${item.opportunityScore}`}
+                          aria-pressed={isSelected}
                           onClick={() => onSelectZone(item.zone.id)}
-                          className="cursor-pointer"
+                          onKeyDown={(e) => handleSvgZoneKeyDown(e, item.zone.id)}
+                          className="cursor-pointer focus:outline-none"
                         >
                           <rect
                             x={box.x}
@@ -365,13 +447,18 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                     /* 2º Piso Real: Praça de Alimentação Curva JK + Colégio Interação A8 + Unicesumar IOA */
                     <g>
                       {(() => {
-                        const l2Item = zonesTelemetry.find((z) => z.zone.id === 'praca-alimentacao-l2');
+                        const l2Item = zoneById.get('praca-alimentacao-l2');
                         const isSelected = l2Item?.zone.id === selectedZoneId;
                         const heatStroke = (l2Item?.opportunityScore ?? 70) >= 75 ? '#D97706' : '#059669';
                         return (
                           <g
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Selecionar Praça de Alimentação L2 (Curva JK)"
+                            aria-pressed={isSelected}
                             onClick={() => l2Item && onSelectZone(l2Item.zone.id)}
-                            className="cursor-pointer"
+                            onKeyDown={(e) => l2Item && handleSvgZoneKeyDown(e, l2Item.zone.id)}
+                            className="cursor-pointer focus:outline-none"
                           >
                             <path
                               d="M 88 210 Q 52 310 88 415 L 365 415 Q 410 310 365 210 Z"
@@ -467,7 +554,14 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                       </text>
 
                       {/* Operação Comercial SS1: Maria Express */}
-                      <g className="cursor-pointer" onClick={() => onSelectZone('ala-lazer-cinema')}>
+                      <g
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Selecionar Maria Express (SS1) — Ala Norte"
+                        onClick={() => onSelectZone('ala-lazer-cinema')}
+                        onKeyDown={(e) => handleSvgZoneKeyDown(e, 'ala-lazer-cinema')}
+                        className="cursor-pointer focus:outline-none"
+                      >
                         <rect x="180" y="285" width="280" height="95" rx="10" fill="#FEF3C7" stroke="#D97706" strokeWidth="2" />
                         <text x="320" y="318" textAnchor="middle" className="text-[12px] font-extrabold fill-amber-900">
                           MARIA EXPRESS (SS1) • QSUB1 (51 m²)
@@ -539,8 +633,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                 {onSelectStoreName && (
                   <button
                     type="button"
-                    onClick={() => onSelectStoreName(activeTenant.storeName)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#E2A83B]/20 hover:bg-[#E2A83B] text-[#E2A83B] hover:text-[#111318] text-[10px] font-extrabold border border-[#E2A83B]/40 transition shrink-0"
+                    onClick={handleFocusActiveTenant}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#E2A83B]/20 hover:bg-[#E2A83B] text-[#E2A83B] hover:text-[#111318] text-[10px] font-extrabold border border-[#E2A83B]/40 transition shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B]"
                   >
                     Focar 3D
                   </button>
@@ -552,7 +646,7 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#E2A83B]">
-                    {selected.zone.floor === 'L1' ? 'Térreo (L1)' : '2º Piso (L2)'} • {selected.zone.segment}
+                    {FLOOR_LABELS[selected.zone.floor]} • {selected.zone.segment}
                   </span>
                   {selected.cameraFeedLinked && (
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-400/30">
@@ -599,8 +693,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               <div className="flex flex-wrap gap-1.5">
                 {selected.zone.anchors.map((anchor) => {
                   const isMatch =
-                    selectedStoreName &&
-                    anchor.toLowerCase().includes(selectedStoreName.toLowerCase());
+                    selectedStoreNormalized.length > 0 &&
+                    anchor.toLowerCase().includes(selectedStoreNormalized);
                   return (
                     <span
                       key={anchor}
@@ -650,11 +744,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
                   <button
                     key={z.zone.id}
                     type="button"
-                    onClick={() => {
-                      onFloorChange(z.zone.floor);
-                      onSelectZone(z.zone.id);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl border transition flex items-center justify-between gap-2 ${
+                    aria-pressed={active}
+                    onClick={() => handleJumpToZone(z.zone.floor, z.zone.id)}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl border transition flex items-center justify-between gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2A83B] ${
                       active
                         ? 'bg-[#111318] border-[#111318] text-white'
                         : 'bg-[#FAF8F5] border-stone-200 text-[#111318] hover:border-stone-400'
