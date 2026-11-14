@@ -98,11 +98,23 @@ export function getScoreStatusLabel(score: number): string {
   return 'Momento de Atração';
 }
 
-/** Gera o texto padrão de WhatsApp & Concierge QR a partir do código e selo da oferta. */
+/**
+ * Ofertas de Resgate: tratam o motivo da venda perdida (RN07) sem desconto,
+ * porque os lojistas não querem sacrificar margem (feedback do orientador).
+ */
+export const RESGATE_OPTIONS = [
+  'Reserva + aviso de reposição',
+  'Até 10x sem juros',
+  'Atendimento expresso sem fila',
+  'Prova + ajuste grátis',
+  'Brinde na compra',
+] as const;
+
+/** Gera o texto padrão de WhatsApp & Concierge QR a partir do código e do benefício da oferta. */
 export function buildWhatsappOfferCopy(couponCode: string, discountBadge: string): string {
-  const safeCode = couponCode || 'CAPIM15';
-  const safeBadge = discountBadge || '15% OFF';
-  return `Só nas próximas 2 horas no Capim Dourado: apresente ${safeCode} e garanta ${safeBadge} em peças selecionadas!`;
+  const safeCode = couponCode || 'CAPIM-RESERVA';
+  const safeBadge = discountBadge || RESGATE_OPTIONS[0];
+  return `Só nas próximas 2 horas no Capim Dourado: apresente ${safeCode} e garanta ${safeBadge}!`;
 }
 
 /** Monta os campos pré-preenchidos para resgate ao vivo de um dos terços da vitrine. */
@@ -116,12 +128,12 @@ export function buildVitrineRescueDraft(part: VitrineThird): Pick<
       : part === 'centro'
         ? 'Vitrine Central'
         : 'Vitrine Direita';
-  const couponCode = `VITRINE${part.slice(0, 3).toUpperCase()}15`;
+  const couponCode = `VITRINE${part.slice(0, 3).toUpperCase()}`;
   return {
     title: `Resgate Ao Vivo — ${partLabel}`,
-    discountBadge: '15% OFF',
+    discountBadge: 'Prova + ajuste grátis',
     couponCode,
-    whatsappCopy: `Vimos você curtindo nossa ${partLabel} no Capim Dourado! Apresente ${couponCode} nos próximos 45 min e garanta 15% OFF exclusivo.`,
+    whatsappCopy: `Vimos você curtindo nossa ${partLabel} no Capim Dourado! Apresente ${couponCode} nos próximos 45 min e prove sem fila, com ajuste grátis.`,
     expiresInMinutes: 45,
   };
 }

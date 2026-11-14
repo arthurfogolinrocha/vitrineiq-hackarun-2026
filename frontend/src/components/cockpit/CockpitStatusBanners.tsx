@@ -29,7 +29,7 @@ export const CockpitStatusBanners: React.FC<CockpitStatusBannersProps> = ({
           <div className="flex items-center gap-2.5 text-xs">
             <Check className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
             <span>
-              <strong>Oferta publicada no Shopping e no Concierge QR!</strong> Cupom{' '}
+              <strong>Oferta publicada no Shopping e no Concierge QR!</strong> Código{' '}
               <span className="font-mono font-extrabold bg-emerald-100 px-1.5 py-0.5 rounded">
                 {publishedNotice.couponCode}
               </span>{' '}

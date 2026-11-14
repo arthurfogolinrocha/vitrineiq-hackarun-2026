@@ -6,6 +6,7 @@ import { StoreAvatar } from '../StoreAvatar';
 import {
   ALLIANCE_ORIGINS,
   CampaignDraftForm,
+  RESGATE_OPTIONS,
   buildWhatsappOfferCopy,
   resolveStoreMeta,
 } from './cockpitHelpers';
@@ -102,9 +103,8 @@ export const NewCampaignModal: React.FC<NewCampaignModalProps> = ({
             />
           </label>
           <label className="text-xs font-bold text-[#111318] space-y-1 block">
-            <span>Selo do Desconto</span>
-            <input
-              type="text"
+            <span>Oferta de Resgate (sem desconto)</span>
+            <select
               required
               value={form.discountBadge}
               onChange={(e) => {
@@ -115,7 +115,13 @@ export const NewCampaignModal: React.FC<NewCampaignModalProps> = ({
                 });
               }}
               className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B45309]"
-            />
+            >
+              {RESGATE_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 
@@ -162,7 +168,7 @@ export const NewCampaignModal: React.FC<NewCampaignModalProps> = ({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="text-xs font-bold text-[#111318] space-y-1 block">
-            <span>Código do Cupom</span>
+            <span>Código de Resgate</span>
             <input
               type="text"
               required

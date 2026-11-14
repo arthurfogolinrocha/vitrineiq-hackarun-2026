@@ -69,21 +69,22 @@ describe('cockpitHelpers — funções puras do Cockpit', () => {
     expect(custom).toContain('Capim Dourado');
 
     const fallback = buildWhatsappOfferCopy('', '');
-    expect(fallback).toContain('CAPIM15');
-    expect(fallback).toContain('15% OFF');
+    expect(fallback).toContain('CAPIM-RESERVA');
+    expect(fallback).toContain('Reserva + aviso de reposição');
+    expect(fallback).not.toMatch(/% ?OFF/i);
   });
 
   it('buildVitrineRescueDraft gera rascunhos consistentes para esquerda, centro e direita', () => {
     const expected: Record<VitrineThird, { label: string; code: string }> = {
-      esquerda: { label: 'Vitrine Esquerda', code: 'VITRINEESQ15' },
-      centro: { label: 'Vitrine Central', code: 'VITRINECEN15' },
-      direita: { label: 'Vitrine Direita', code: 'VITRINEDIR15' },
+      esquerda: { label: 'Vitrine Esquerda', code: 'VITRINEESQ' },
+      centro: { label: 'Vitrine Central', code: 'VITRINECEN' },
+      direita: { label: 'Vitrine Direita', code: 'VITRINEDIR' },
     };
 
     (['esquerda', 'centro', 'direita'] as VitrineThird[]).forEach((part) => {
       const draft = buildVitrineRescueDraft(part);
       expect(draft.title).toBe(`Resgate Ao Vivo — ${expected[part].label}`);
-      expect(draft.discountBadge).toBe('15% OFF');
+      expect(draft.discountBadge).toBe('Prova + ajuste grátis');
       expect(draft.couponCode).toBe(expected[part].code);
       expect(draft.expiresInMinutes).toBe(45);
       expect(draft.whatsappCopy).toContain(expected[part].label);

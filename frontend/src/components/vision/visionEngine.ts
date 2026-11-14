@@ -390,7 +390,7 @@ export function buildLocalAuditFallback(
       `Centro: destacar lançamento de maior margem na linha do olhar (1,45m) com iluminação focal (olhares atuais: ${cen}).`,
       `Direita: inserir totem QR do Concierge para resgate imediato sem fila (olhares atuais: ${dir}).`,
     ],
-    quick_win: `Fixar QR Code de cupom relâmpago na altura de 1,40m da porta de ${vitrineLabel} nos próximos 15 min.`,
+    quick_win: `Fixar QR Code de reserva relâmpago na altura de 1,40m da porta de ${vitrineLabel} nos próximos 15 min.`,
     source: 'FALLBACK_LOCAL',
     latency_ms: 42,
     audit_hash: 'LOCAL-RAM-AUDIT',

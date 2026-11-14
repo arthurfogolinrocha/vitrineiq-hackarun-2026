@@ -186,7 +186,7 @@ export const CROSS_SEGMENT_ROUTES: CrossSegmentRoute[] = [
     sharePercent: 68,
     insight:
       '68% do público que sai das sessões noturnas do Cinemark segue direto para alimentação ou sobremesa.',
-    recommendedCombo: 'Voucher 15% OFF no 2º Piso válido até 45 min após o ingresso do cinema.',
+    recommendedCombo: 'Convite com sobremesa de cortesia no 2º Piso até 45 min após o ingresso do cinema.',
   },
   {
     id: 'route-fit-sport',
@@ -244,11 +244,11 @@ export const INITIAL_FLASH_CAMPAIGNS: FlashCampaign[] = [
     id: 'camp-1',
     zoneId: 'ala-lazer-cinema',
     storeName: 'Vitrine Calçados & Sport (Demo)',
-    title: 'Relâmpago Pós-Cinema: 18% OFF em Linha Casual',
-    discountBadge: '18% OFF (2h)',
-    couponCode: 'VITRINE-CINE18',
+    title: 'Pós-Cinema: Prove a Linha Casual sem Fila',
+    discountBadge: 'Prova + ajuste grátis',
+    couponCode: 'VITRINE-CINE',
     whatsappCopy:
-      '🎬 Saindo do Cinemark no Capim Dourado? Apresente o código VITRINE-CINE18 nas próximas 2 horas e garanta 18% OFF na nossa vitrine casual!',
+      '🎬 Saindo do Cinemark no Capim Dourado? Apresente VITRINE-CINE nas próximas 2 horas: provador sem fila e ajuste grátis na linha casual!',
     expiresInMinutes: 120,
     active: true,
     createdAt: '20:45',

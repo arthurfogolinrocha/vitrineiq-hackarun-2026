@@ -24,7 +24,8 @@ function resolveTier(people: number, zoneId: ZoneId) {
       discountPct: 30,
       nextTarget: 5,
       headline: 'CROWD-DROP MÁXIMO DESBLOQUEADO!',
-      badge: '30% OFF COLETIVO',
+      badge: 'EXPERIÊNCIA VIP',
+      perk: 'Prova + ajuste + embrulho VIP',
       couponCode: `CROWD-${prefix}-30`,
       tone: 'from-[#E2A83B] via-[#F5C76B] to-amber-300',
     };
@@ -35,7 +36,8 @@ function resolveTier(people: number, zoneId: ZoneId) {
       discountPct: 20,
       nextTarget: 5,
       headline: 'COMBO COLETIVO ATIVO NA VITRINE',
-      badge: '20% OFF COLETIVO',
+      badge: 'BRINDE NA COMPRA',
+      perk: 'Brinde exclusivo na compra',
       couponCode: `CROWD-${prefix}-20`,
       tone: 'from-amber-500 to-[#F5C76B]',
     };
@@ -46,7 +48,8 @@ function resolveTier(people: number, zoneId: ZoneId) {
       discountPct: 10,
       nextTarget: 3,
       headline: 'VITRINE DESPERTADA AO VIVO',
-      badge: '10% OFF AGORA',
+      badge: 'PROVA EXPRESSA',
+      perk: 'Prova expressa sem fila',
       couponCode: `CROWD-${prefix}-10`,
       tone: 'from-sky-400 to-emerald-400',
     };
@@ -56,7 +59,8 @@ function resolveTier(people: number, zoneId: ZoneId) {
     discountPct: 5,
     nextTarget: 1,
     headline: 'AGUARDANDO PRIMEIROS OLHARES NA PORTA',
-    badge: '5% OFF INICIAL',
+    badge: 'CONVITE PARA PROVAR',
+    perk: 'Convite para provar a novidade',
     couponCode: `CROWD-${prefix}-05`,
     tone: 'from-stone-500 to-stone-400',
   };
@@ -175,7 +179,7 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
       title: `Vitrine Crowd-Drop Ao Vivo (${peopleNow} pessoas na frente)`,
       discountBadge: tier.badge,
       couponCode: tier.couponCode,
-      whatsappCopy: `🔥 Crowd-Drop na vitrine da ${storeName} (${zoneLabel})! ${peopleNow} pessoas desbloquearam ${tier.discountPct}% OFF pelos próximos 15 min com ${tier.couponCode}.`,
+      whatsappCopy: `🔥 Crowd-Drop na vitrine da ${storeName} (${zoneLabel})! ${peopleNow} pessoas desbloquearam: ${tier.perk}, pelos próximos 15 min com ${tier.couponCode}.`,
       expiresInMinutes: 15,
     });
     setPublished(true);
@@ -209,7 +213,7 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
             <div className="min-w-0">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-[#F5C76B]">
                 <span className="live-status-dot live-status-dot--gold" />
-                Modo Telão de Vitrine • Precificação Coletiva
+                Modo Telão de Vitrine • Benefício Coletivo
               </span>
               <h2 id="crowd-drop-title" className="text-lg sm:text-2xl font-black text-white mt-0.5 break-words">
                 {storeName} — Vitrine Crowd-Drop
@@ -243,18 +247,18 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
               </div>
 
               <div className="flex flex-wrap items-baseline gap-3 sm:gap-4">
-                <strong className="text-4xl sm:text-6xl font-black text-white kpi-metric">
-                  {tier.discountPct}% OFF
+                <strong className="text-2xl sm:text-4xl font-black text-white kpi-metric">
+                  {tier.perk}
                 </strong>
                 <div className="text-xs text-stone-200 leading-snug">
                   {peopleNow < 5 ? (
                     <>
                       Chame mais <strong className="text-[#F5C76B]">{missingForNext} pessoa(s)</strong> para
-                      olhar a vitrine agora e subir o desconto!
+                      olhar a vitrine agora e liberar o próximo benefício!
                     </>
                   ) : (
                     <span className="text-emerald-300 font-bold">
-                      Desconto máximo coletivo liberado pelos próximos 15 minutos!
+                      Experiência VIP liberada pelos próximos 15 minutos, sem mexer no preço!
                     </span>
                   )}
                 </div>
@@ -265,7 +269,7 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
                 <div
                   className="h-4 rounded-full bg-white/10 overflow-hidden p-0.5 border border-white/10"
                   role="progressbar"
-                  aria-label="Progresso de pessoas para desconto coletivo"
+                  aria-label="Progresso de pessoas para o benefício coletivo"
                   aria-valuemin={0}
                   aria-valuemax={5}
                   aria-valuenow={Math.min(5, peopleNow)}
@@ -276,9 +280,9 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
                   />
                 </div>
                 <div className="flex justify-between text-[11px] font-mono text-stone-300">
-                  <span className={peopleNow >= 1 ? 'text-white font-bold' : ''}>1+ • 10%</span>
-                  <span className={peopleNow >= 3 ? 'text-[#F5C76B] font-bold' : ''}>3+ • 20%</span>
-                  <span className={peopleNow >= 5 ? 'text-emerald-300 font-extrabold' : ''}>5+ • 30% MAX</span>
+                  <span className={peopleNow >= 1 ? 'text-white font-bold' : ''}>1+ • Prova</span>
+                  <span className={peopleNow >= 3 ? 'text-[#F5C76B] font-bold' : ''}>3+ • Brinde</span>
+                  <span className={peopleNow >= 5 ? 'text-emerald-300 font-extrabold' : ''}>5+ • VIP</span>
                 </div>
               </div>
             </div>
@@ -350,7 +354,7 @@ export const VitrineCrowdDropModal: React.FC<VitrineCrowdDropModalProps> = ({
             </button>
             {published && (
               <p role="status" aria-live="polite" className="text-[11px] font-bold text-emerald-700">
-                Cupom {tier.couponCode} ativo no Concierge QR.
+                Convite {tier.couponCode} ativo no Concierge QR.
               </p>
             )}
           </div>

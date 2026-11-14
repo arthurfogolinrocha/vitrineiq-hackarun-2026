@@ -41,7 +41,7 @@ export const CampaignManagerSection: React.FC<CampaignManagerSectionProps> = ({
               Campanhas Relâmpago no Ar
             </h3>
             <p className="text-[11px] text-stone-500">
-              Cupons ativos no Concierge QR e prontos para disparo no WhatsApp
+              Ofertas de resgate ativas no Concierge QR e prontos para disparo no WhatsApp
             </p>
           </div>
         </div>

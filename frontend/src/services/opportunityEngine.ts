@@ -159,7 +159,7 @@ export function matchConsumerOffer(
 
   return {
     couponCode: `VIQ-${zone.floor}${suffix}`,
-    matchedOffer: `Achado VitrineIQ na ${zone.shortName} (${zone.anchors.slice(0, 2).join(', ')}) — 12% OFF no balcão`,
+    matchedOffer: `Achado VitrineIQ na ${zone.shortName} (${zone.anchors.slice(0, 2).join(', ')}) — reserve e prove sem fila`,
   };
 }
 

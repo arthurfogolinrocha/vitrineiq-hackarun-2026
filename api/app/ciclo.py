@@ -333,7 +333,11 @@ def perfil_por_hora(vitrine_regs: list[dict[str, Any]], balcao: list[dict[str, A
 
 
 def compute_crowd_drop(regs: list[dict[str, Any]], zone_id: str) -> dict[str, Any]:
-    """Calcula o tier dinâmico de desconto coletivo (Crowd-Drop) pelos eventos recentes da ala."""
+    """Calcula o tier do Crowd-Drop pelos eventos recentes da ala.
+
+    O benefício é de serviço (prova, brinde, VIP), nunca desconto: lojistas não querem
+    sacrificar margem. `discountPct` fica só por compatibilidade do contrato da API.
+    """
     recentes = regs[-6:]
     olharam = sum(r.get("olharam", 0) for r in recentes)
     chegaram_perto = sum(r.get("chegaram_perto", 0) for r in recentes)
@@ -342,11 +346,11 @@ def compute_crowd_drop(regs: list[dict[str, Any]], zone_id: str) -> dict[str, An
         people_now = min(6, max(1, olharam // 10))
 
     if people_now >= 5:
-        tier, discount_pct, next_target, label = 3, 30, 5, "CROWD-DROP MÁXIMO (30% OFF)"
+        tier, discount_pct, next_target, label = 3, 30, 5, "CROWD-DROP MÁXIMO (Experiência VIP)"
     elif people_now >= 3:
-        tier, discount_pct, next_target, label = 2, 20, 5, "Combo Coletivo Ativo (20% OFF)"
+        tier, discount_pct, next_target, label = 2, 20, 5, "Combo Coletivo Ativo (Brinde na compra)"
     elif people_now >= 1:
-        tier, discount_pct, next_target, label = 1, 10, 3, "Vitrine Despertada (10% OFF)"
+        tier, discount_pct, next_target, label = 1, 10, 3, "Vitrine Despertada (Prova expressa)"
     else:
         tier, discount_pct, next_target, label = 0, 5, 1, "Aguardando Fluxo na Vitrine"
 

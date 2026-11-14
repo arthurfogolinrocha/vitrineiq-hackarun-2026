@@ -108,25 +108,26 @@ function generateIntelligentFallback(
   const lower = `${prompt} ${context || ''}`.toLowerCase();
 
   let actionTip =
-    'Posicionar placa de oferta-âncora na entrada da vitrine com QR Code de resgate válido por 2 horas.';
+    'Posicionar a peça mais procurada na entrada da vitrine com QR Code do Concierge para reserva e prova.';
   let whatsappTip =
-    '⚡ Só nas próximas 2h no Capim Dourado: apresente o cupom VITRINE-HOJE no balcão e garanta condição exclusiva!';
+    '✨ Novidade na vitrine do Capim Dourado: reserve pelo QR e prove hoje, sem compromisso.';
   let crossTip =
-    'Criar voucher cruzado com a Praça de Alimentação / Cinemark para converter o fluxo que já está circulando na ala.';
+    'Criar convite cruzado com a Praça de Alimentação / Cinemark para converter o fluxo que já está circulando na ala.';
 
-  if (lower.includes('preco') || lower.includes('preço') || lower.includes('desconto')) {
+  if (['preco', 'preço', 'desconto', 'parcel'].some((w) => lower.includes(w))) {
     actionTip =
-      'Destacar kit de entrada/combo de menor ticket na frente da vitrine e oferecer condição relâmpago de parcelamento sem juros.';
+      'Destacar kit de entrada de menor ticket na frente da vitrine e anunciar parcelamento sem juros, sem mexer no preço.';
     whatsappTip =
-      '🔥 Achado do dia no Capim Dourado: baixamos o combo mais procurado por tempo limitado. Mostre VITRINE-PRECO no balcão!';
+      '💳 Aquele item que você viu no Capim Dourado: hoje em até 10x sem juros. Reserve pelo QR!';
   } else if (lower.includes('estoque') || lower.includes('tamanho') || lower.includes('grade')) {
     actionTip =
-      'Ativar reserva expressa com entrega gratuita em casa ou retirada no dia seguinte para não perder o cliente por falta de grade.';
+      'Ativar reserva com aviso de reposição e retirada no dia seguinte para não perder o cliente por falta de grade.';
     whatsappTip =
-      '📦 Não achou sua numeração na vitrine? Garantimos entrega expressa amanhã com 10% OFF usando VITRINE-GRADE!';
+      '📦 Não achou sua numeração? Reserve pelo QR e avisamos assim que chegar, separado no seu nome.';
   } else if (lower.includes('fila') || lower.includes('almo') || lower.includes('cinema')) {
     actionTip =
       'Liberar fila expressa para pedidos pré-selecionados via QR Code (retirada em balcão dedicado em até 5 min).';
+    whatsappTip = '⏱️ Sem fila agora: escolha pelo QR e retire no balcão expresso em até 5 minutos.';
     crossTip =
       'Integrar alerta pós-sessão do Cinemark e saída da Morofit para antecipar produção em horários de pico.';
   }
@@ -143,7 +144,7 @@ Demanda ativa detectada para ${wingName}. Oportunidade imediata de conversão ap
 2. Ação Imediata na Vitrine & Balcão:
 • ${actionTip}
 
-3. Copy Pronta para WhatsApp / Cupom Relâmpago:
+3. Copy Pronta para WhatsApp / Convite de Resgate:
 • "${whatsappTip}"
 
 4. Oportunidade Cross-Segmento no Capim Dourado:
