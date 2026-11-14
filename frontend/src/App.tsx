@@ -38,6 +38,7 @@ import { analyzeWithAI } from './services/ai';
 import {
   api,
   CicloEstado,
+  LiveContextPayload,
   definirAoExpirar,
   lerSessao,
   salvarSessao,
@@ -156,6 +157,32 @@ export function App() {
   const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
   const [porHora, setPorHora] = useState<CicloEstado['porHora']>({});
   const [alertasVistos, setAlertasVistos] = useState<string[]>([]);
+  const [liveContext, setLiveContext] = useState<LiveContextPayload | null>(null);
+  const [isContextAuto, setIsContextAuto] = useState(true);
+  const [isSyncingContext, setIsSyncingContext] = useState(false);
+
+  const syncLiveContext = useCallback(async (force = false) => {
+    setIsSyncingContext(true);
+    try {
+      const ctx = await api.contexto(force);
+      setLiveContext(ctx);
+      setFactors({
+        weather: ctx.weather,
+        timeSlot: ctx.time_slot,
+        mallEvent: ctx.mall_event,
+      });
+      setIsContextAuto(true);
+    } catch {
+      // Mantém contexto local atual se a API estiver offline
+    } finally {
+      setIsSyncingContext(false);
+    }
+  }, []);
+
+  const handleManualFactorsChange = useCallback((next: ShopContextFactors) => {
+    setIsContextAuto(false);
+    setFactors(next);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -182,9 +209,10 @@ export function App() {
   useEffect(() => {
     if (demo || (!sessao && !conciergePublico)) return;
     refresh();
+    syncLiveContext(false);
     const timer = window.setInterval(refresh, 3000);
     return () => window.clearInterval(timer);
-  }, [refresh, demo, sessao, conciergePublico]);
+  }, [refresh, syncLiveContext, demo, sessao, conciergePublico]);
 
   /** Com a API no ar, grava nela e relê o estado; se a chamada falhar, cai no modo local. */
   const viaApi = (chamada: () => Promise<unknown>, local: () => void) => {
@@ -789,7 +817,11 @@ export function App() {
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
                 factors={factors}
-                onChangeFactors={setFactors}
+                onChangeFactors={handleManualFactorsChange}
+                liveContext={liveContext}
+                isContextAuto={isContextAuto}
+                isSyncingContext={isSyncingContext}
+                onSyncLiveContext={() => syncLiveContext(true)}
                 campaigns={campaigns}
                 onLaunchCampaign={handleLaunchCampaign}
                 onToggleCampaign={handleToggleCampaign}

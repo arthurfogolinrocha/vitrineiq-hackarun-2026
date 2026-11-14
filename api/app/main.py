@@ -19,6 +19,7 @@ from .ai_agent import generate_plan
 from .auth import exigir_login, limitar_por_ip
 from .auth import router as auth_router
 from .ciclo import router as ciclo_router
+from .contexto import get_live_context
 from .engine import (
     calculate_retail_opportunity_score,
     classify_score,
@@ -27,6 +28,7 @@ from .engine import (
 from .schemas import (
     AuditHashRequest,
     AuditHashResponse,
+    ContextoResponse,
     PlanRequest,
     PlanResponse,
     ScoreRequest,
@@ -92,6 +94,12 @@ def health() -> dict:
         "version": __version__,
         "ai_provider_configured": bool(os.getenv("GEMINI_API_KEY")),
     }
+
+
+@app.get("/api/contexto", response_model=ContextoResponse)
+def contexto(force: bool = False) -> ContextoResponse:
+    """Retorna clima real de Palmas-TO, faixa horária, eventos e gatilho do shopping."""
+    return ContextoResponse(**get_live_context(force_refresh=force))
 
 
 @app.post("/api/score", response_model=ScoreResponse)

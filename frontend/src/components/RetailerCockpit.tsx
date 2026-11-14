@@ -13,6 +13,7 @@ import {
   Megaphone,
   Pause,
   Play,
+  RefreshCw,
   Search,
   Sparkles,
   Sun,
@@ -33,6 +34,7 @@ import {
   ZoneId,
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
+import { LiveContextPayload } from '../services/api';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
 import { stripMarkdown } from '../services/ai';
 import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
@@ -43,6 +45,10 @@ interface RetailerCockpitProps {
   onSelectZone: (zoneId: ZoneId) => void;
   factors: ShopContextFactors;
   onChangeFactors: (next: ShopContextFactors) => void;
+  liveContext?: LiveContextPayload | null;
+  isContextAuto?: boolean;
+  isSyncingContext?: boolean;
+  onSyncLiveContext?: () => void;
   campaigns: FlashCampaign[];
   onLaunchCampaign: (campaign: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) => void;
   onToggleCampaign?: (id: string) => void;
@@ -101,6 +107,10 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   onSelectZone,
   factors,
   onChangeFactors,
+  liveContext,
+  isContextAuto = true,
+  isSyncingContext = false,
+  onSyncLiveContext,
   campaigns,
   onLaunchCampaign,
   onToggleCampaign,
@@ -665,14 +675,79 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
         {/* CONTROLES TÁTEIS DE ALA, CLIMA E EVENTO */}
         <section className="xl:col-span-5 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
-              Simulador de Cenário Real
-            </span>
-            <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
-              Troque de Ala ou Condição do Shopping
-            </h3>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                Contexto em Tempo Real &amp; Simulador
+              </span>
+              <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
+                Troque de Ala ou Condição do Shopping
+              </h3>
+            </div>
+            {onSyncLiveContext && (
+              <button
+                type="button"
+                onClick={onSyncLiveContext}
+                disabled={isSyncingContext}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold border inline-flex items-center gap-1.5 shrink-0 transition ${
+                  isContextAuto && liveContext
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100'
+                    : 'bg-[#FAF8F5] border-stone-200 text-stone-700 hover:border-stone-400'
+                }`}
+                title="Sincronizar clima de Palmas (Open-Meteo), feriados (BrasilAPI) e site oficial do Capim Dourado"
+              >
+                <RefreshCw
+                  className={`w-3 h-3 ${isSyncingContext ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+                <span>
+                  {isSyncingContext
+                    ? 'Sincronizando...'
+                    : isContextAuto && liveContext
+                      ? 'Ao vivo'
+                      : 'Voltar ao vivo'}
+                </span>
+              </button>
+            )}
           </div>
+
+          {liveContext && (
+            <div className="rounded-2xl bg-[#FAF8F5] border border-stone-200 px-3.5 py-2.5 space-y-1.5 text-[11px]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-[#111318]">
+                  Palmas-TO:{' '}
+                  {liveContext.temperature_c !== null
+                    ? `${liveContext.temperature_c.toFixed(1)}°C`
+                    : 'Estimado'}{' '}
+                  • {liveContext.weather_description}
+                </span>
+                <span className="text-stone-500 font-semibold">
+                  {liveContext.sources.clima === 'open-meteo' ? 'Open-Meteo' : 'Local'} •{' '}
+                  {liveContext.cinema_movies_count > 0
+                    ? `${liveContext.cinema_movies_count} filmes Cinemark`
+                    : 'Calendário'}
+                </span>
+              </div>
+              <p className="text-stone-600">
+                <span className="font-semibold text-[#111318]">Gatilho detectado:</span>{' '}
+                {liveContext.event_reason}
+                {!isContextAuto && ' (modo simulação manual ativo)'}
+              </p>
+              {liveContext.active_events.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                  <span className="text-stone-500 font-semibold mr-1">Eventos no site:</span>
+                  {liveContext.active_events.slice(0, 3).map((ev) => (
+                    <span
+                      key={ev}
+                      className="px-2 py-0.5 rounded-full bg-white border border-stone-200 text-[10px] font-bold text-[#111318]"
+                    >
+                      {ev}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Seletor Tátil de Ala */}
           <div className="space-y-1.5">
