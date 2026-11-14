@@ -14,176 +14,385 @@ import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { slide } from '@remotion/transitions/slide';
 import { CapimMall3D } from './scenes3d/CapimMall3D';
+import { BrandWatermark, SubtitlePill } from './components/UiOverlays';
 import {
-  BrandWatermark,
-  GlassCard3D,
-  KineticHeadline,
-  SubtitlePill,
-} from './components/UiOverlays';
+  CardFan3D,
+  FloatingTelemetryPill,
+  IPhone3DStage,
+  KineticPillHeadline,
+  MacBook3DStage,
+  StudioGridBackdrop,
+  TopKeynotePill,
+} from './components/StudioMockups';
 import { FONTS, PALETTE } from './designSystem';
+import timingsRaw from './timingsMarketing.json';
 
-export interface AudioTimingEntry {
+export interface TimingItem {
   id: string;
   durationSec: number;
   frames: number;
 }
 
-// Durações base derivadas de src/audioTimings.json (fallback seguro caso importado antes da geração)
-import timingsRaw from './audioTimings.json';
-const TIMINGS: AudioTimingEntry[] = timingsRaw as AudioTimingEntry[];
+const TIMINGS = timingsRaw as TimingItem[];
+const framesOf = (id: string, fallback: number, pad = 64) =>
+  (TIMINGS.find((t) => t.id === id)?.frames ?? fallback) + pad;
 
-const getFrames = (id: string, fallback: number) =>
-  (TIMINGS.find((t) => t.id === id)?.frames ?? fallback) + 42;
-
-export const SCENE_DURATIONS = {
-  hook: getFrames('01_hook', 354),
-  dor: getFrames('02_dor', 352),
-  revelacao: getFrames('03_revelacao', 421),
-  raiox: getFrames('04_raiox_lgpd', 427),
-  crowddrop: getFrames('05_crowddrop', 399),
-  concierge: getFrames('06_concierge_balcao', 391),
-  cta: getFrames('07_cta', 460) + 50,
+export const MKT_SCENES = {
+  m01_hook: framesOf('m01_hook', 301, 56),
+  m02_dor: framesOf('m02_dor', 372, 56),
+  m03_revelacao: framesOf('m03_revelacao', 412, 60),
+  m04_cockpit_3d: framesOf('m04_cockpit_3d', 448, 70),
+  m05_crowddrop: framesOf('m05_crowddrop', 440, 68),
+  m06_raiox_lgpd: framesOf('m06_raiox_lgpd', 420, 64),
+  m07_balcao_qr: framesOf('m07_balcao_qr', 420, 68),
+  m08_cta: framesOf('m08_cta', 390, 96),
 };
 
-export const TRANSITION_FRAMES = 14;
-export const TOTAL_DURATION_FRAMES =
-  SCENE_DURATIONS.hook +
-  SCENE_DURATIONS.dor +
-  SCENE_DURATIONS.revelacao +
-  SCENE_DURATIONS.raiox +
-  SCENE_DURATIONS.crowddrop +
-  SCENE_DURATIONS.concierge +
-  SCENE_DURATIONS.cta -
-  6 * TRANSITION_FRAMES;
+export const MKT_TRANSITION = 14;
+export const MKT_TOTAL_FRAMES =
+  Object.values(MKT_SCENES).reduce((acc, v) => acc + v, 0) - 7 * MKT_TRANSITION;
 
-const BackdropGlow: React.FC<{ color?: string }> = ({ color = PALETTE.gold }) => (
-  <AbsoluteFill
-    style={{
-      background: `radial-gradient(circle at 50% 42%, ${color}22 0%, rgba(8,9,13,0.92) 56%, #08090D 100%)`,
-      pointerEvents: 'none',
-    }}
-  />
-);
-
+/** Cena 1 — Cold Open Pattern Interrupt (0–3s prende imediatamente) */
 const Scene1Hook: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const count = Math.round(
-    interpolate(frame, [8, 95], [0, 188], {
+  const passers = Math.round(
+    interpolate(frame, [2, 68], [0, 123], {
       easing: Easing.bezier(0.16, 1, 0.3, 1),
       extrapolateLeft: 'clamp',
       extrapolateRight: 'clamp',
     })
   );
-  const pulseOpacity = 0.45 + 0.35 * Math.sin((frame / fps) * 3.5);
+  const flashOp = interpolate(frame, [0, 12, 32], [0.55, 0.14, 0], { extrapolateRight: 'clamp' });
+  const punchScale = spring({ frame: Math.max(0, frame - 42), fps, config: { damping: 14, stiffness: 190 } });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/01_hook.wav')} volume={1} />
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
+      <Sequence from={40}>
+        <Audio src={staticFile('sfx/whip.wav')} volume={0.62} />
       </Sequence>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.7} />
+      <Sequence from={14}>
+        <Audio src={staticFile('audio_mkt/m01_hook.wav')} volume={1} />
+      </Sequence>
 
-      <BackdropGlow color={PALETTE.gold} />
-
-      {/* Grid minimalista Obsidian no fundo */}
+      <CapimMall3D cameraMode="cold-open-dive" localFrame={frame} flowMood="loss" />
       <AbsoluteFill
         style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
-          backgroundSize: '64px 64px',
-          opacity: 0.65,
+          background:
+            'radial-gradient(circle at 50% 48%, rgba(244,63,94,0.16) 0%, rgba(6,7,11,0.78) 62%, rgba(6,7,11,0.95) 100%)',
         }}
       />
+      <AbsoluteFill style={{ backgroundColor: '#F43F5E', opacity: flashOp, pointerEvents: 'none' }} />
 
       <AbsoluteFill
         style={{
           justifyContent: 'center',
           alignItems: 'center',
-          padding: '0 100px',
           flexDirection: 'column',
-          gap: 28,
+          gap: 24,
+          padding: '0 80px',
         }}
       >
-        <div
-          style={{
-            fontFamily: FONTS.mono,
-            fontSize: 16,
-            letterSpacing: '0.26em',
-            color: PALETTE.gold,
-            border: `1px solid ${PALETTE.gold}55`,
-            background: `${PALETTE.gold}14`,
-            padding: '8px 20px',
-            borderRadius: 999,
-            opacity: pulseOpacity,
-          }}
-        >
-          CAPIM DOURADO SHOPPING • 38.800 m²
-        </div>
+        <TopKeynotePill label="ALERTA DE FATURAMENTO INVISÍVEL" color={PALETTE.rose} />
 
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 32 }}>
           <span
             style={{
               fontFamily: FONTS.display,
               fontWeight: 800,
-              fontSize: 146,
-              lineHeight: 0.95,
-              letterSpacing: '-0.05em',
-              color: PALETTE.goldBright,
-              textShadow: '0 0 60px rgba(226,168,59,0.45)',
+              fontSize: 158,
+              lineHeight: 0.9,
+              letterSpacing: '-0.055em',
+              color: PALETTE.rose,
+              textShadow: '0 0 60px rgba(244,63,94,0.55)',
             }}
           >
-            {count}
+            {passers}
           </span>
           <span
             style={{
               fontFamily: FONTS.display,
-              fontWeight: 700,
-              fontSize: 48,
+              fontWeight: 800,
+              fontSize: 54,
+              color: '#F8FAFC',
               letterSpacing: '-0.03em',
-              color: PALETTE.text,
             }}
           >
-            Lojas Reais.
+            passaram na porta.
           </span>
         </div>
 
-        <KineticHeadline
-          words={['Zero', 'visibilidade', 'antes', 'do', 'caixa.']}
-          highlightWords={['Zero']}
-          startFrame={55}
-          fontSize={62}
+        <div
+          style={{
+            opacity: interpolate(punchScale, [0, 1], [0, 1]),
+            transform: `scale(${interpolate(punchScale, [0, 1], [0.85, 1])})`,
+          }}
+        >
+          <KineticPillHeadline
+            words={['ZERO', 'dados.', 'Dinheiro', 'evaporando.']}
+            pillWord="ZERO"
+            pillColor={PALETTE.rose}
+            startFrame={42}
+            fontSize={62}
+          />
+        </div>
+      </AbsoluteFill>
+
+      <SubtitlePill
+        badge="R$ 3.186 / HORA"
+        accent={PALETTE.rose}
+        caption="Cada vitrine sem leitura perde compradores silenciosamente todo dia."
+      />
+    </AbsoluteFill>
+  );
+};
+
+/** Cena 2 — Contraste Brutal: E-commerce vs Loja Física */
+const Scene2Contrast: React.FC = () => {
+  const frame = useCurrentFrame();
+  const cards = [
+    {
+      badge: 'E-COMMERCE DIGITAL',
+      metric: '100%',
+      title: 'Cada clique é rastreado',
+      desc: 'Sabe quem entrou, onde olhou, o que faltou e por que abandonou o carrinho.',
+      accent: PALETTE.cyan,
+    },
+    {
+      badge: 'VAREJO FÍSICO HOJE',
+      metric: '0%',
+      title: 'Cego antes do caixa',
+      desc: 'Só enxerga a nota fiscal. Zero leitura da vitrine, fila ou objeção no balcão.',
+      accent: PALETTE.rose,
+    },
+  ];
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('sfx/whoosh.wav')} volume={0.6} />
+      <Sequence from={12}>
+        <Audio src={staticFile('audio_mkt/m02_dor.wav')} volume={1} />
+      </Sequence>
+      <StudioGridBackdrop accent={PALETTE.rose} />
+
+      <AbsoluteFill
+        style={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexDirection: 'column',
+          gap: 38,
+          padding: '0 90px',
+        }}
+      >
+        <TopKeynotePill label="O ABISMO DA LOJA FÍSICA" color={PALETTE.gold} />
+        <KineticPillHeadline
+          words={['No', 'site', 'você', 'mede', 'tudo.', 'Na', 'loja,', 'opera', 'no', 'ESCURO.']}
+          pillWord="ESCURO"
+          pillColor={PALETTE.rose}
+          startFrame={4}
+          fontSize={58}
+        />
+
+        <div style={{ display: 'flex', gap: 32, width: '100%', maxWidth: 1280 }}>
+          {cards.map((c, idx) => {
+            const op = interpolate(frame, [26 + idx * 14, 46 + idx * 14], [0, 1], {
+              extrapolateLeft: 'clamp',
+              extrapolateRight: 'clamp',
+            });
+            const ty = interpolate(frame, [26 + idx * 14, 46 + idx * 14], [36, 0], {
+              easing: Easing.bezier(0.16, 1, 0.3, 1),
+              extrapolateLeft: 'clamp',
+              extrapolateRight: 'clamp',
+            });
+            return (
+              <div
+                key={c.title}
+                style={{
+                  flex: 1,
+                  opacity: op,
+                  transform: `translateY(${ty}px) perspective(1200px) rotateY(${idx === 0 ? 4 : -4}deg)`,
+                  background: 'linear-gradient(155deg, rgba(19,23,35,0.92) 0%, rgba(9,11,17,0.9) 100%)',
+                  border: `1.5px solid ${c.accent}66`,
+                  borderRadius: 26,
+                  padding: '32px 34px',
+                  boxShadow: `0 28px 70px rgba(0,0,0,0.75), 0 0 40px ${c.accent}1f`,
+                }}
+              >
+                <div style={{ fontFamily: FONTS.mono, fontSize: 12, fontWeight: 700, color: c.accent, letterSpacing: '0.16em' }}>
+                  {c.badge}
+                </div>
+                <div style={{ fontFamily: FONTS.display, fontSize: 78, fontWeight: 800, color: c.accent, margin: '8px 0' }}>
+                  {c.metric}
+                </div>
+                <div style={{ fontFamily: FONTS.display, fontSize: 28, fontWeight: 700, color: '#FFF', marginBottom: 8 }}>
+                  {c.title}
+                </div>
+                <div style={{ fontFamily: FONTS.sans, fontSize: 18, color: '#94A3B8', lineHeight: 1.45 }}>
+                  {c.desc}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+/** Cena 3 — A Virada Apple-Style: Gêmeo Digital 3D do Capim Dourado acende */
+const Scene3Revelacao: React.FC = () => {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.8} />
+      <Sequence from={70}>
+        <Audio src={staticFile('sfx/ding.wav')} volume={0.55} />
+      </Sequence>
+      <Sequence from={10}>
+        <Audio src={staticFile('audio_mkt/m03_revelacao.wav')} volume={1} />
+      </Sequence>
+
+      <CapimMall3D cameraMode="reveal-dolly" localFrame={frame} flowMood="live" />
+      <AbsoluteFill
+        style={{
+          background:
+            'radial-gradient(circle at 50% 46%, rgba(8,9,13,0.18) 0%, rgba(8,9,13,0.88) 82%)',
+        }}
+      />
+      <BrandWatermark />
+
+      <AbsoluteFill style={{ justifyContent: 'center', alignItems: 'center', gap: 22, padding: '0 80px' }}>
+        <div
+          style={{
+            padding: '10px 26px',
+            borderRadius: 999,
+            background: 'rgba(8,9,13,0.88)',
+            border: `1.5px solid ${PALETTE.gold}`,
+            fontFamily: FONTS.mono,
+            fontSize: 15,
+            fontWeight: 700,
+            color: PALETTE.goldBright,
+            letterSpacing: '0.18em',
+          }}
+        >
+          188 LOJAS CONECTADAS • 38.800 m² EM 3D
+        </div>
+        <KineticPillHeadline
+          words={['VitrineIQ:', 'o', 'GOOGLE ANALYTICS', 'do', 'varejo', 'físico.']}
+          pillWord="GOOGLE ANALYTICS"
+          pillColor={PALETTE.gold}
+          startFrame={16}
+          fontSize={68}
         />
       </AbsoluteFill>
 
       <SubtitlePill
-        badge="O PONTO CEGO"
-        caption="188 vitrines operando no escuro antes da nota fiscal."
+        badge="TEMPO REAL"
+        caption="Cada corredor, vitrine e balcão medido ao vivo no Capim Dourado."
       />
     </AbsoluteFill>
   );
 };
 
-const Scene2Dor: React.FC = () => {
+/** Cena 4 — MacBook 3D Real UI: Painel Executivo + Horário de Pico + Shopping 3D Real */
+const Scene4CockpitAnd3D: React.FC = () => {
   const frame = useCurrentFrame();
-  const funnelBars = [
-    { label: 'Passam no Corredor', value: '1.420 / dia', pct: 92, color: '#94A3B8' },
-    { label: 'Olham a Vitrine', value: '???', pct: 46, color: PALETTE.gold },
-    { label: 'Entram & Compram', value: 'Só o caixa vê', pct: 18, color: PALETTE.rose },
-  ];
+  const showMap = frame >= 245;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/02_dor.wav')} volume={1} />
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('sfx/switch.wav')} volume={0.65} />
+      <Sequence from={92}>
+        <Audio src={staticFile('sfx/mouse-click.wav')} volume={0.75} />
       </Sequence>
-      <Audio src={staticFile('audio/sfx_whoosh.wav')} volume={0.65} />
+      <Sequence from={242}>
+        <Audio src={staticFile('sfx/whip.wav')} volume={0.65} />
+      </Sequence>
+      <Sequence from={10}>
+        <Audio src={staticFile('audio_mkt/m04_cockpit_3d.wav')} volume={1} />
+      </Sequence>
+      <StudioGridBackdrop accent={PALETTE.gold} />
 
-      <CapimMall3D cameraMode="reveal" localFrame={frame} />
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
+        <TopKeynotePill label={showMap ? 'GÊMEO DIGITAL 3D • PISOS L1 & L2' : 'PAINEL EXECUTIVO & CLIMA'} />
+        <div style={{ marginTop: 12 }}>
+          <KineticPillHeadline
+            words={
+              showMap
+                ? ['Explore', 'os', '2', 'PISOS', 'em', '3D', 'ao', 'vivo.']
+                : ['IQ', 'Score,', 'clima', 'e', 'PICO', 'por', 'hora.']
+            }
+            pillWord={showMap ? 'PISOS' : 'PICO'}
+            startFrame={4}
+            fontSize={48}
+          />
+        </div>
+
+        <div style={{ marginTop: 26, position: 'relative' }}>
+          <MacBook3DStage
+            capturePath="captures/ui_01_cockpit.png"
+            secondaryCapturePath="captures/ui_04_map3d_l2.png"
+            switchAtFrame={245}
+            rotateY={showMap ? 5 : -5}
+            zoomFrom={1}
+            zoomTo={showMap ? 1.2 : 1.32}
+            zoomStartFrame={showMap ? 255 : 40}
+            zoomEndFrame={showMap ? 380 : 175}
+            focusX={showMap ? 48 : 58}
+            focusY={showMap ? 58 : 34}
+            cursorWaypoints={[
+              { frame: 10, x: 20, y: 20 },
+              { frame: 92, x: 30, y: 44, click: true },
+              { frame: 235, x: 11, y: 31, click: true },
+            ]}
+            widthPx={980}
+          />
+        </div>
+      </AbsoluteFill>
+
+      <FloatingTelemetryPill
+        kicker="IQ SCORE ATIVO"
+        value="74 / 100"
+        accent={PALETTE.gold}
+        delay={18}
+        style={{ position: 'absolute', left: 54, top: 380 }}
+      />
+      <FloatingTelemetryPill
+        kicker="DINHEIRO NA MESA"
+        value="R$ 3.186 / h"
+        accent={PALETTE.emerald}
+        delay={32}
+        style={{ position: 'absolute', right: 54, top: 470 }}
+      />
+    </AbsoluteFill>
+  );
+};
+
+/** Cena 5 — Crowd-Drop: Onda dourada GLSL + Telão Real 30% OFF */
+const Scene5CrowdDrop: React.FC = () => {
+  const frame = useCurrentFrame();
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
+      <Sequence from={115}>
+        <Audio src={staticFile('sfx/ding.wav')} volume={0.7} />
+      </Sequence>
+      <Sequence from={10}>
+        <Audio src={staticFile('audio_mkt/m05_crowddrop.wav')} volume={1} />
+      </Sequence>
+
+      <CapimMall3D
+        cameraMode="crowddrop-aerial"
+        localFrame={frame}
+        showCrowdDropWave
+        flowMood="gold"
+      />
       <AbsoluteFill
         style={{
           background:
-            'linear-gradient(90deg, rgba(8,9,13,0.92) 0%, rgba(8,9,13,0.58) 54%, rgba(8,9,13,0.22) 100%)',
+            'linear-gradient(90deg, rgba(6,7,11,0.92) 0%, rgba(6,7,11,0.55) 50%, rgba(6,7,11,0.78) 100%)',
         }}
       />
       <BrandWatermark />
@@ -191,504 +400,201 @@ const Scene2Dor: React.FC = () => {
       <div
         style={{
           position: 'absolute',
-          left: 72,
-          top: 165,
-          width: 680,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 28,
-        }}
-      >
-        <KineticHeadline
-          words={['O', 'cliente', 'passou.', 'Você', 'não', 'viu.']}
-          highlightWords={['não', 'viu']}
-          align="left"
-          startFrame={8}
-          fontSize={58}
-        />
-
-        <GlassCard3D startFrame={22} rotateY={5} rotateX={2} accent={PALETTE.rose}>
-          <div
-            style={{
-              fontFamily: FONTS.mono,
-              fontSize: 12,
-              letterSpacing: '0.16em',
-              color: PALETTE.rose,
-              marginBottom: 16,
-            }}
-          >
-            FUNIL FÍSICO INVISÍVEL
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {funnelBars.map((bar, idx) => {
-              const barW = interpolate(frame, [30 + idx * 12, 75 + idx * 12], [0, bar.pct], {
-                easing: Easing.bezier(0.16, 1, 0.3, 1),
-                extrapolateLeft: 'clamp',
-                extrapolateRight: 'clamp',
-              });
-              return (
-                <div key={bar.label}>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: 17,
-                      fontWeight: 600,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <span>{bar.label}</span>
-                    <span style={{ fontFamily: FONTS.mono, color: bar.color }}>{bar.value}</span>
-                  </div>
-                  <div
-                    style={{
-                      height: 10,
-                      borderRadius: 999,
-                      background: 'rgba(255,255,255,0.08)',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${barW}%`,
-                        height: '100%',
-                        borderRadius: 999,
-                        background: bar.color,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </GlassCard3D>
-      </div>
-
-      <SubtitlePill
-        badge="A DOR REAL"
-        caption="Sem telemetria de vitrine, estoque e promoções agem tarde demais."
-        accent={PALETTE.rose}
-      />
-    </AbsoluteFill>
-  );
-};
-
-const Scene3Revelacao: React.FC = () => {
-  const frame = useCurrentFrame();
-  const iqScore = Math.round(
-    interpolate(frame, [28, 95], [48, 94], {
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-      extrapolateLeft: 'clamp',
-      extrapolateRight: 'clamp',
-    })
-  );
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/03_revelacao.wav')} volume={1} />
-      </Sequence>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.8} />
-      <Sequence from={40}>
-        <Audio src={staticFile('audio/sfx_click.wav')} volume={0.6} />
-      </Sequence>
-
-      <CapimMall3D cameraMode="reveal" localFrame={frame + 120} />
-      <AbsoluteFill
-        style={{
-          background:
-            'radial-gradient(circle at 72% 48%, rgba(8,9,13,0.15) 0%, rgba(8,9,13,0.88) 72%)',
-        }}
-      />
-      <BrandWatermark />
-
-      <div
-        style={{
-          position: 'absolute',
-          left: 72,
-          top: 165,
-          width: 650,
+          left: 64,
+          top: 170,
+          width: 660,
           display: 'flex',
           flexDirection: 'column',
           gap: 24,
         }}
       >
-        <KineticHeadline
-          words={['VitrineIQ.', 'Inteligência', 'Espacial', '3D.']}
-          highlightWords={['VitrineIQ', '3D']}
-          align="left"
-          startFrame={8}
-          fontSize={64}
-        />
-
-        <div style={{ display: 'flex', gap: 18 }}>
-          <GlassCard3D startFrame={22} rotateY={4} style={{ flex: 1 }}>
-            <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.muted }}>
-              IQ SCORE AO VIVO
-            </div>
-            <div
-              style={{
-                fontFamily: FONTS.display,
-                fontSize: 64,
-                fontWeight: 800,
-                color: PALETTE.goldBright,
-                lineHeight: 1.05,
-                marginTop: 6,
-              }}
-            >
-              {iqScore}
-              <span style={{ fontSize: 22, color: PALETTE.muted }}>/100</span>
-            </div>
-            <div style={{ fontSize: 14, color: PALETTE.emerald, marginTop: 6, fontWeight: 600 }}>
-              +38°C Palmas • Pós-Cinemark Ativo
-            </div>
-          </GlassCard3D>
-
-          <GlassCard3D startFrame={34} rotateY={-4} accent={PALETTE.cyan} style={{ flex: 1 }}>
-            <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.muted }}>
-              GÊMEO DIGITAL L1/L2
-            </div>
-            <div
-              style={{
-                fontFamily: FONTS.display,
-                fontSize: 44,
-                fontWeight: 800,
-                color: PALETTE.cyan,
-                lineHeight: 1.15,
-                marginTop: 10,
-              }}
-            >
-              188 Lojas
-            </div>
-            <div style={{ fontSize: 14, color: '#CBD5E1', marginTop: 8 }}>
-              Portarias P1–P4, Subsolo SS1/SS2 & 2º Piso
-            </div>
-          </GlassCard3D>
-        </div>
-      </div>
-
-      <SubtitlePill
-        badge="SISTEMA OPERACIONAL"
-        caption="O Gêmeo Digital 3D do Capim Dourado Shopping em tempo real."
-      />
-    </AbsoluteFill>
-  );
-};
-
-const Scene4RaioX: React.FC = () => {
-  const frame = useCurrentFrame();
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/04_raiox_lgpd.wav')} volume={1} />
-      </Sequence>
-      <Audio src={staticFile('audio/sfx_whoosh.wav')} volume={0.6} />
-      <Sequence from={45}>
-        <Audio src={staticFile('audio/sfx_click.wav')} volume={0.65} />
-      </Sequence>
-
-      <CapimMall3D cameraMode="showcase-vitrine" localFrame={frame} showScanner />
-      <AbsoluteFill
-        style={{
-          background:
-            'linear-gradient(270deg, rgba(8,9,13,0.90) 0%, rgba(8,9,13,0.45) 48%, rgba(8,9,13,0.18) 100%)',
-        }}
-      />
-      <BrandWatermark />
-
-      <div
-        style={{
-          position: 'absolute',
-          right: 68,
-          top: 155,
-          width: 600,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 22,
-        }}
-      >
-        <KineticHeadline
-          words={['Raio-X', 'Multimodal', '&', 'Edge', 'LGPD.']}
-          highlightWords={['Raio-X', 'LGPD']}
+        <TopKeynotePill label="INOVAÇÃO EXCLUSIVA • CROWD-DROP" color={PALETTE.goldBright} />
+        <KineticPillHeadline
+          words={['Juntou', 'gente', 'na', 'porta?', '30% OFF', 'automático.']}
+          pillWord="30% OFF"
+          pillColor={PALETTE.gold}
           align="left"
           startFrame={8}
           fontSize={56}
         />
-
-        <GlassCard3D startFrame={24} rotateY={-6} accent={PALETTE.cyan}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.cyan }}>
-              SENSOR WEBCAM EM RAM
-            </span>
-            <span
-              style={{
-                fontFamily: FONTS.mono,
-                fontSize: 11,
-                fontWeight: 700,
-                padding: '4px 10px',
-                borderRadius: 999,
-                background: 'rgba(16,185,129,0.2)',
-                color: PALETTE.emerald,
-              }}
-            >
-              ZERO VÍDEO SALVO • 0 PII
-            </span>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 12,
-              marginTop: 18,
-            }}
-          >
-            {[
-              { k: 'Passantes', v: '312', c: '#F8FAFC' },
-              { k: 'Pararam na Vitrine', v: '98 (31%)', c: PALETTE.cyan },
-              { k: 'Entradas', v: '41', c: PALETTE.emerald },
-            ].map((m) => (
-              <div
-                key={m.k}
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  borderRadius: 14,
-                  padding: '12px 14px',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                }}
-              >
-                <div style={{ fontSize: 12, color: PALETTE.muted }}>{m.k}</div>
-                <div
-                  style={{
-                    fontFamily: FONTS.display,
-                    fontSize: 24,
-                    fontWeight: 800,
-                    color: m.c,
-                    marginTop: 4,
-                  }}
-                >
-                  {m.v}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              marginTop: 16,
-              padding: '12px 14px',
-              borderRadius: 12,
-              background: 'rgba(34,211,238,0.1)',
-              border: '1px solid rgba(34,211,238,0.28)',
-              fontSize: 14,
-              color: '#E0F2FE',
-            }}
-          >
-            <strong>Gemini Multimodal:</strong> “Destaque manequim central à altura dos olhos — ganho estimado de +19% na entrada.”
-          </div>
-        </GlassCard3D>
+        <p style={{ fontFamily: FONTS.sans, fontSize: 22, color: '#CBD5E1', lineHeight: 1.45, margin: 0 }}>
+          Quanto mais pessoas param juntas na vitrine, maior o desconto coletivo desbloqueado no QR do telão por 15 minutos.
+        </p>
       </div>
 
-      <SubtitlePill
-        badge="WEBCAM COM BLUR LGPD"
-        caption="Visão computacional na borda + auditoria de vitrine via Gemini."
-        accent={PALETTE.cyan}
-      />
-    </AbsoluteFill>
-  );
-};
-
-const Scene5CrowdDrop: React.FC = () => {
-  const frame = useCurrentFrame();
-  const discount = frame > 95 ? '30% OFF' : frame > 50 ? '20% OFF' : '15% OFF';
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/05_crowddrop.wav')} volume={1} />
-      </Sequence>
-      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.75} />
-      <Sequence from={48}>
-        <Audio src={staticFile('audio/sfx_chime.wav')} volume={0.85} />
-      </Sequence>
-
-      <CapimMall3D cameraMode="crowddrop-aerial" localFrame={frame} showCrowdDropWave />
-      <AbsoluteFill
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(8,9,13,0.82) 0%, rgba(8,9,13,0.15) 45%, rgba(8,9,13,0.82) 100%)',
-        }}
-      />
-      <BrandWatermark />
-
-      <div
-        style={{
-          position: 'absolute',
-          top: 112,
-          left: 72,
-          right: 72,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-        }}
-      >
-        <KineticHeadline
-          words={['Vitrine', 'Crowd-Drop.']}
-          highlightWords={['Crowd-Drop']}
-          align="left"
-          startFrame={6}
-          fontSize={66}
+      <div style={{ position: 'absolute', right: 56, top: 195 }}>
+        <MacBook3DStage
+          capturePath="captures/ui_02_crowddrop.png"
+          rotateY={-10}
+          rotateX={3}
+          zoomFrom={1.04}
+          zoomTo={1.2}
+          zoomStartFrame={20}
+          zoomEndFrame={180}
+          focusX={52}
+          focusY={42}
+          cursorWaypoints={[
+            { frame: 30, x: 48, y: 70 },
+            { frame: 115, x: 69, y: 61, click: true },
+          ]}
+          widthPx={860}
         />
-
-        <GlassCard3D startFrame={22} rotateY={-8} accent={PALETTE.goldBright} style={{ width: 410 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.goldBright }}>
-              GATILHO COLETIVO ATIVO
-            </span>
-            <span style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.emerald }}>
-              ● 5 PESSOAS NA VITRINE
-            </span>
-          </div>
-          <div
-            style={{
-              fontFamily: FONTS.display,
-              fontSize: 58,
-              fontWeight: 800,
-              color: PALETTE.goldBright,
-              marginTop: 8,
-              textShadow: '0 0 36px rgba(252,211,77,0.45)',
-            }}
-          >
-            {discount}
-          </div>
-          <div style={{ fontSize: 15, color: '#E2E8F0', marginTop: 4 }}>
-            Pulso redireciona fluxo para salas ociosas & Vagas 132 / 142 em segundos.
-          </div>
-        </GlassCard3D>
       </div>
 
       <SubtitlePill
-        badge="VITRINE CROWD-DROP"
-        caption="Aglomeração na vitrine desbloqueia desconto dinâmico e QR na hora."
+        badge="PRECIFICAÇÃO COLETIVA"
+        caption="Transforme aglomeração na vitrine em corrida imediata para o caixa."
       />
     </AbsoluteFill>
   );
 };
 
-const Scene6ConciergeBalcao: React.FC = () => {
+/** Cena 6 — Raio-X Gemini + Sensor Webcam LGPD Zero-PII */
+const Scene6RaioXLGPD: React.FC = () => {
   const frame = useCurrentFrame();
 
   return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('sfx/shutter-modern.wav')} volume={0.7} />
       <Sequence from={10}>
-        <Audio src={staticFile('audio/06_concierge_balcao.wav')} volume={1} />
-      </Sequence>
-      <Audio src={staticFile('audio/sfx_whoosh.wav')} volume={0.65} />
-      <Sequence from={32}>
-        <Audio src={staticFile('audio/sfx_click.wav')} volume={0.6} />
+        <Audio src={staticFile('audio_mkt/m06_raiox_lgpd.wav')} volume={1} />
       </Sequence>
 
-      <CapimMall3D cameraMode="concierge-totem" localFrame={frame} showGlassTotem />
+      <CapimMall3D cameraMode="showcase-vitrine" localFrame={frame} showScanner flowMood="live" />
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 50%, rgba(8,9,13,0.18) 0%, rgba(8,9,13,0.86) 72%)',
+            'linear-gradient(180deg, rgba(6,7,11,0.88) 0%, rgba(6,7,11,0.52) 48%, rgba(6,7,11,0.92) 100%)',
         }}
       />
-      <BrandWatermark />
 
-      <div
-        style={{
-          position: 'absolute',
-          top: 150,
-          left: 68,
-          right: 68,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <GlassCard3D startFrame={12} rotateY={10} accent={PALETTE.cyan} style={{ width: 450 }}>
-          <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.cyan }}>
-            PONTA DO CONSUMIDOR
-          </div>
-          <div style={{ fontFamily: FONTS.display, fontSize: 36, fontWeight: 800, marginTop: 8 }}>
-            Concierge QR
-          </div>
-          <p style={{ fontSize: 16, color: '#CBD5E1', lineHeight: 1.45, marginTop: 10 }}>
-            Escaneia na vitrine sem app e sem CPF. Recebe oferta relâmpago personalizada na ala.
-          </p>
-          <div
-            style={{
-              marginTop: 14,
-              display: 'inline-block',
-              fontFamily: FONTS.mono,
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#08090D',
-              background: PALETTE.goldBright,
-              padding: '7px 14px',
-              borderRadius: 10,
-            }}
-          >
-            CUPOM ATIVO: VITRINE-QR20
-          </div>
-        </GlassCard3D>
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
+        <TopKeynotePill label="EDGE COMPUTER VISION • 100% LGPD" color={PALETTE.cyan} />
+        <div style={{ marginTop: 12 }}>
+          <KineticPillHeadline
+            words={['Webcam', 'comum.', 'ZERO', 'rostos', 'gravados.']}
+            pillWord="ZERO"
+            pillColor={PALETTE.emerald}
+            startFrame={4}
+            fontSize={52}
+          />
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <MacBook3DStage
+            capturePath="captures/ui_05_sensor_lgpd.png"
+            rotateY={5}
+            zoomFrom={1}
+            zoomTo={1.24}
+            zoomStartFrame={28}
+            zoomEndFrame={165}
+            focusX={48}
+            focusY={50}
+            cursorWaypoints={[
+              { frame: 20, x: 38, y: 50 },
+              { frame: 130, x: 82, y: 78, click: true },
+            ]}
+            widthPx={940}
+          />
+        </div>
+      </AbsoluteFill>
 
-        <GlassCard3D startFrame={26} rotateY={-10} accent={PALETTE.emerald} style={{ width: 450 }}>
-          <div style={{ fontFamily: FONTS.mono, fontSize: 12, color: PALETTE.emerald }}>
-            PONTA DO VENDEDOR
-          </div>
-          <div style={{ fontFamily: FONTS.display, fontSize: 36, fontWeight: 800, marginTop: 8 }}>
-            Balcão Voz 4s
-          </div>
-          <p style={{ fontSize: 16, color: '#CBD5E1', lineHeight: 1.45, marginTop: 10 }}>
-            Registra venda perdida em 1 toque ou comando de voz — com <strong>Fila Offline</strong> resiliente.
-          </p>
-          <div
-            style={{
-              marginTop: 14,
-              fontFamily: FONTS.mono,
-              fontSize: 13,
-              color: PALETTE.emerald,
-              background: 'rgba(16,185,129,0.14)',
-              border: '1px solid rgba(16,185,129,0.35)',
-              padding: '8px 12px',
-              borderRadius: 10,
-            }}
-          >
-            🎙 “Sem numeração 41 no tênis branco” → SALVO
-          </div>
-        </GlassCard3D>
-      </div>
-
-      <SubtitlePill
-        badge="CICLO FECHADO"
-        caption="Concierge QR anônimo + Modo Balcão por voz 4s com fila offline."
+      <FloatingTelemetryPill
+        kicker="LATÊNCIA NA BORDA"
+        value="< 5 ms em RAM"
+        accent={PALETTE.cyan}
+        delay={18}
+        style={{ position: 'absolute', left: 54, top: 410 }}
+      />
+      <FloatingTelemetryPill
+        kicker="RAIO-X GEMINI"
+        value="Auditoria em 3s"
         accent={PALETTE.emerald}
+        delay={34}
+        style={{ position: 'absolute', right: 54, top: 480 }}
       />
     </AbsoluteFill>
   );
 };
 
-const Scene7CTA: React.FC = () => {
+/** Cena 7 — Balcão Voz 4s + Concierge QR no iPhone 3D Titanium */
+const Scene7BalcaoAndQR: React.FC = () => {
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('sfx/page-turn.wav')} volume={0.65} />
+      <Sequence from={110}>
+        <Audio src={staticFile('sfx/mouse-click.wav')} volume={0.75} />
+      </Sequence>
+      <Sequence from={10}>
+        <Audio src={staticFile('audio_mkt/m07_balcao_qr.wav')} volume={1} />
+      </Sequence>
+      <StudioGridBackdrop accent={PALETTE.emerald} />
+
+      <AbsoluteFill style={{ alignItems: 'center', paddingTop: 28 }}>
+        <TopKeynotePill label="BALCÃO VOZ 4S • CONCIERGE QR SEM CPF" color={PALETTE.emerald} />
+        <div style={{ marginTop: 12 }}>
+          <KineticPillHeadline
+            words={['Venda', 'perdida', 'em', '4s.', 'Cupom', 'no', 'QR', 'sem', 'app.']}
+            pillWord="4s"
+            pillColor={PALETTE.gold}
+            startFrame={4}
+            fontSize={50}
+          />
+        </div>
+
+        <div
+          style={{
+            marginTop: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 48,
+            width: '100%',
+            padding: '0 80px',
+          }}
+        >
+          <MacBook3DStage
+            capturePath="captures/ui_06_balcao_voz.png"
+            rotateY={7}
+            zoomFrom={1}
+            zoomTo={1.24}
+            zoomStartFrame={20}
+            zoomEndFrame={150}
+            focusX={40}
+            focusY={34}
+            cursorWaypoints={[
+              { frame: 20, x: 55, y: 45 },
+              { frame: 110, x: 31, y: 31, click: true },
+            ]}
+            widthPx={940}
+          />
+          <IPhone3DStage capturePath="captures/ui_09_concierge_mobile.png" rotateY={-11} widthPx={310} />
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+/** Cena 8 — Clímax Leque 3D + Lockup Apple-Style */
+const Scene8CTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const logoPop = spring({ frame, fps, config: { damping: 18, stiffness: 110 } });
+  const logoS = spring({ frame: Math.max(0, frame - 90), fps, config: { damping: 18, stiffness: 120 } });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      <Sequence from={10}>
-        <Audio src={staticFile('audio/07_cta.wav')} volume={1} />
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      <Audio src={staticFile('audio/sfx_sub_drop.wav')} volume={0.85} />
+      <Sequence from={92}>
+        <Audio src={staticFile('sfx/ding.wav')} volume={0.7} />
       </Sequence>
-      <Audio src={staticFile('audio/sfx_chime.wav')} volume={0.75} />
+      <Sequence from={10}>
+        <Audio src={staticFile('audio_mkt/m08_cta.wav')} volume={1} />
+      </Sequence>
 
-      <CapimMall3D cameraMode="outro" localFrame={frame} showCrowdDropWave />
+      <CapimMall3D cameraMode="outro" localFrame={frame} showCrowdDropWave flowMood="gold" />
       <AbsoluteFill
         style={{
           background:
-            'radial-gradient(circle at 50% 48%, rgba(8,9,13,0.45) 0%, rgba(8,9,13,0.92) 72%)',
+            'radial-gradient(circle at 50% 45%, rgba(8,9,13,0.68) 0%, rgba(6,7,11,0.95) 85%)',
         }}
       />
 
@@ -697,166 +603,167 @@ const Scene7CTA: React.FC = () => {
           justifyContent: 'center',
           alignItems: 'center',
           flexDirection: 'column',
-          gap: 26,
-          padding: '0 90px',
+          gap: 34,
+          padding: '0 80px',
         }}
       >
-        <div
-          style={{
-            transform: `scale(${interpolate(logoPop, [0, 1], [0.85, 1])})`,
-            opacity: interpolate(logoPop, [0, 1], [0, 1]),
-            display: 'flex',
-            alignItems: 'center',
-            gap: 18,
-          }}
-        >
-          <div
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: 20,
-              background: 'linear-gradient(135deg, #FCD34D 0%, #B45309 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: FONTS.display,
-              fontWeight: 800,
-              fontSize: 40,
-              color: '#08090D',
-              boxShadow: '0 0 50px rgba(226,168,59,0.55)',
-            }}
-          >
-            V
-          </div>
-          <div
-            style={{
-              fontFamily: FONTS.display,
-              fontWeight: 800,
-              fontSize: 82,
-              letterSpacing: '-0.04em',
-              color: PALETTE.text,
-            }}
-          >
-            Vitrine<span style={{ color: PALETTE.goldBright }}>IQ</span>
-          </div>
-        </div>
-
-        <KineticHeadline
-          words={['O', 'Google', 'Analytics', 'do', 'Varejo', 'Físico.']}
-          highlightWords={['Google', 'Analytics', 'Varejo', 'Físico']}
-          startFrame={18}
-          fontSize={52}
+        <CardFan3D
+          cards={[
+            {
+              badge: 'ATRAÇÃO DE VITRINE',
+              metric: '100%',
+              title: 'Edge LGPD + Raio-X IA',
+              desc: 'Webcam sem gravação + auditoria instantânea da vitrine.',
+              accent: PALETTE.cyan,
+            },
+            {
+              badge: 'CONVERSÃO COLETIVA',
+              metric: '30% OFF',
+              title: 'Crowd-Drop & Concierge QR',
+              desc: 'Transforma passantes em compradores sem baixar app.',
+              accent: PALETTE.goldBright,
+            },
+            {
+              badge: 'OPERACIONAL NO BALCÃO',
+              metric: '4s Voz',
+              title: 'Motivo Real + Fila Offline',
+              desc: 'Nunca mais perca o porquê da venda não fechada.',
+              accent: PALETTE.emerald,
+            },
+          ]}
         />
 
-        <GlassCard3D startFrame={40} rotateY={0} rotateX={2} accent={PALETTE.gold}>
+        <div
+          style={{
+            opacity: interpolate(logoS, [0, 1], [0, 1]),
+            transform: `translateY(${interpolate(logoS, [0, 1], [26, 0])}px)`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div
+              style={{
+                width: 68,
+                height: 68,
+                borderRadius: 18,
+                background: 'linear-gradient(135deg, #F5C76B 0%, #D97706 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontFamily: FONTS.display,
+                fontWeight: 800,
+                fontSize: 38,
+                color: '#08090D',
+                boxShadow: '0 14px 40px rgba(226,168,59,0.55)',
+              }}
+            >
+              V
+            </div>
+            <span style={{ fontFamily: FONTS.display, fontWeight: 800, fontSize: 68, color: '#FFF', letterSpacing: '-0.03em' }}>
+              Vitrine<span style={{ color: PALETTE.goldBright }}>IQ</span>
+            </span>
+          </div>
+
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 32,
+              padding: '12px 32px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #E2A83B 0%, #FDE68A 100%)',
+              color: '#08090D',
               fontFamily: FONTS.mono,
-              fontSize: 15,
+              fontSize: 22,
+              fontWeight: 700,
+              boxShadow: '0 14px 40px rgba(226,168,59,0.45)',
             }}
           >
-            <div>
-              <div style={{ color: PALETTE.muted, fontSize: 11 }}>PRODUÇÃO AO VIVO</div>
-              <div style={{ color: PALETTE.goldBright, fontWeight: 700, marginTop: 4 }}>
-                vitrineiq-capim-dourado.vercel.app
-              </div>
-            </div>
-            <div style={{ width: 1, height: 34, background: 'rgba(255,255,255,0.14)' }} />
-            <div>
-              <div style={{ color: PALETTE.muted, fontSize: 11 }}>ENGENHARIA AUDITADA</div>
-              <div style={{ color: PALETTE.emerald, fontWeight: 700, marginTop: 4 }}>
-                9.8/10 • 157 TESTES • ZERO PII
-              </div>
-            </div>
-            <div style={{ width: 1, height: 34, background: 'rgba(255,255,255,0.14)' }} />
-            <div>
-              <div style={{ color: PALETTE.muted, fontSize: 11 }}>TIME NIDO KING</div>
-              <div style={{ color: PALETTE.text, fontWeight: 700, marginTop: 4 }}>
-                1º HackaRun UniCatólica 2026
-              </div>
-            </div>
+            vitrineiq-capim-dourado.vercel.app ↗
           </div>
-        </GlassCard3D>
+        </div>
       </AbsoluteFill>
     </AbsoluteFill>
   );
 };
 
 export const MarketingVideo: React.FC = () => {
+  const { fps } = useVideoConfig();
   return (
-    <AbsoluteFill style={{ backgroundColor: PALETTE.obsidian }}>
-      {/* Trilha dark-tech 120 BPM com ducking sutil durante todo o comercial */}
+    <AbsoluteFill style={{ backgroundColor: '#06070B' }}>
+      {/* Trilha studio 124 BPM com ducking dinâmico sobre cada corte */}
       <Audio
-        src={staticFile('audio/music_bed.wav')}
+        src={staticFile('sfx/music_studio_124bpm.wav')}
         volume={(f) => {
-          const fadeOut = interpolate(f, [TOTAL_DURATION_FRAMES - 90, TOTAL_DURATION_FRAMES], [0.24, 0.02], {
+          const fadeOut = interpolate(f, [MKT_TOTAL_FRAMES - 100, MKT_TOTAL_FRAMES], [1, 0], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',
           });
-          return f < 30 ? interpolate(f, [0, 30], [0.06, 0.24]) : fadeOut;
+          // Mais forte nos primeiros 2.5s (hook) e depois acomoda limpo sob a voz
+          const base = f < 140 ? 0.32 : 0.16;
+          return base * fadeOut;
         }}
       />
 
       <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.hook}>
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m01_hook}>
           <Scene1Hook />
         </TransitionSeries.Sequence>
-
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.dor}>
-          <Scene2Dor />
-        </TransitionSeries.Sequence>
-
         <TransitionSeries.Transition
           presentation={slide({ direction: 'from-right' })}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.revelacao}>
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m02_dor}>
+          <Scene2Contrast />
+        </TransitionSeries.Sequence>
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
+        />
+
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m03_revelacao}>
           <Scene3Revelacao />
         </TransitionSeries.Sequence>
-
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
-        />
-
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.raiox}>
-          <Scene4RaioX />
-        </TransitionSeries.Sequence>
-
         <TransitionSeries.Transition
           presentation={slide({ direction: 'from-bottom' })}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.crowddrop}>
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m04_cockpit_3d}>
+          <Scene4CockpitAnd3D />
+        </TransitionSeries.Sequence>
+        <TransitionSeries.Transition
+          presentation={slide({ direction: 'from-right' })}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
+        />
+
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m05_crowddrop}>
           <Scene5CrowdDrop />
         </TransitionSeries.Sequence>
-
         <TransitionSeries.Transition
           presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.concierge}>
-          <Scene6ConciergeBalcao />
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m06_raiox_lgpd}>
+          <Scene6RaioXLGPD />
         </TransitionSeries.Sequence>
-
         <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: TRANSITION_FRAMES })}
+          presentation={slide({ direction: 'from-right' })}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
         />
 
-        <TransitionSeries.Sequence durationInFrames={SCENE_DURATIONS.cta}>
-          <Scene7CTA />
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m07_balcao_qr}>
+          <Scene7BalcaoAndQR />
+        </TransitionSeries.Sequence>
+        <TransitionSeries.Transition
+          presentation={fade()}
+          timing={linearTiming({ durationInFrames: MKT_TRANSITION })}
+        />
+
+        <TransitionSeries.Sequence durationInFrames={MKT_SCENES.m08_cta}>
+          <Scene8CTA />
         </TransitionSeries.Sequence>
       </TransitionSeries>
     </AbsoluteFill>

@@ -41,4 +41,8 @@ pnpm-debug.log*
 .idea/
 .vscode/
 
+# Audio beds grandes (>40MB) usados apenas no render Remotion local
+video/public/sfx/music_studio_124bpm.wav
+video/public/audio/music_bed.wav
+
 

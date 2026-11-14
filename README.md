@@ -11,7 +11,7 @@
 
 O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolver o maior ponto cego do lojista de shopping: entender **por que o consumidor não comprou**, **o que ele procura no corredor agora** e **quais fatores externos e rotas entre segmentos** geram oportunidades imediatas de venda — sem cadastro nem dados pessoais: a câmera da vitrine processa a imagem no próprio aparelho, pixeliza rostos no preview e envia **só contagens**, e o hardware é uma webcam comum.
 
-> 🏆 **Nível de Engenharia Auditado: `9.8 / 10`** • `157` testes automatizados verdes (`107 pytest` + `50 Vitest`) + Smoke E2E/WCAG (`Playwright` + `axe-core`), CSP estrita sem script inline, fontes auto-hospedadas, fila offline no Balcão e `Deploy Vercel Production` ativo.
+> 🏆 **Nível de Engenharia Auditado: `9.8 / 10`** • `158` testes automatizados verdes (`107 pytest` + `51 Vitest`) + Smoke E2E/WCAG (`Playwright` + `axe-core`), CSP estrita sem script inline, fontes auto-hospedadas, fila offline no Balcão e `Deploy Vercel Production` ativo.
 
 ---
 
@@ -40,7 +40,7 @@ O **VitrineIQ** conecta duas pontas do varejo físico em tempo real para resolve
 * [`docs/missao-1/`](./docs/missao-1/) — Primeira entrega: planejamento técnico, PDF de requisitos e prints.
 * [`docs/missao-2/`](./docs/missao-2/) — Evidências do protótipo funcional, testes automatizados e hardening `9.8/10`.
 * [`docs/missao-3/`](./docs/missao-3/) — Entrega final: roteiro, vídeo de pitch, declaração ética de IA (Artigo 6) e checklist.
-* [`frontend/`](./frontend) — Aplicação React 19 + TypeScript strict + Vite + Tailwind CSS + Three.js modular (`map3d/`, `cockpit/`, `vision/`, `app/`, `hooks/`) + Suíte Vitest (`50` testes).
+* [`frontend/`](./frontend) — Aplicação React 19 + TypeScript strict + Vite + Tailwind CSS + Three.js modular (`map3d/`, `cockpit/`, `vision/`, `app/`, `hooks/`) + Suíte Vitest (`51` testes).
 * [`api/`](./api) — Backend Python + FastAPI + Uvicorn (`/api/score`, `/api/ia/plano`, `/api/estado`, `/api/vitrine/*`, `/api/auth/*`, `/api/audit/hash`) + Suíte `pytest` (`107` testes).
 * [`computer-vision/`](./computer-vision) — Visão computacional da vitrine (`YOLO` + `OpenCV`): script da câmera que conta passantes e atenção (só contagens anônimas) e envia para `/vitrine/*` da API.
 * [`frontend/scripts/e2e-smoke.mjs`](./frontend/scripts/e2e-smoke.mjs) & [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) — Pipeline de CI completo com verificação de cabeçalhos/CSP, Playwright E2E multi-viewport e auditoria WCAG (`axe-core`).
