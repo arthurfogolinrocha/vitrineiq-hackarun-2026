@@ -35,7 +35,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://vitrineiq-hackarun-2026-api.vercel.app https://www.intranetmall.com https://www.capimdouradosc.com.br http://localhost:8000 http://127.0.0.1:8000; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+          "value": "default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://vitrineiq-hackarun-2026-api.vercel.app https://www.intranetmall.com https://www.capimdouradosc.com.br http://localhost:8000 http://127.0.0.1:8000; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         }
       ]
     }

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   VitrineThird,
   buildVitrineRescueDraft,
@@ -11,6 +11,7 @@ import {
   resolveStoreMeta,
 } from '../components/cockpit/cockpitHelpers';
 import { CAPIM_DOURADO_ZONES } from '../data/shoppingData';
+import { api, CicloEstado, salvarSessao, Sessao } from '../services/api';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { StoreTenant, VisionFunnelSnapshot } from '../types';
 import { generateAuditHash } from '../utils/security';
@@ -260,6 +261,175 @@ describe('Contrato de segurança e cache do frontend/vercel.json', () => {
     expect(csp).toContain('https://vitrineiq-hackarun-2026-api.vercel.app');
     expect(csp).not.toContain('default-src *');
     expect(csp).not.toContain('script-src *');
+    expect(csp).not.toContain('fonts.googleapis.com');
+    expect(csp).not.toContain('fonts.gstatic.com');
+
+    const directives = new Map(
+      csp
+        .split(';')
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .map((part) => {
+          const [name, ...values] = part.split(/\s+/);
+          return [name, values.join(' ')];
+        })
+    );
+
+    const scriptSrc = directives.get('script-src') ?? '';
+    expect(scriptSrc).toContain("'self'");
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+    expect(directives.get('style-src')).toBe("'self' 'unsafe-inline'");
+    expect(directives.get('font-src')).toBe("'self' data:");
+  });
+});
+
+function makeEstadoPayload(overrides: Partial<CicloEstado> = {}): CicloEstado {
+  return {
+    lostSales: [],
+    completedSalesByZone: { 'ala-sul-esporte': 3 },
+    signals: [],
+    campaigns: [],
+    vitrine: {},
+    alertas: [],
+    porHora: {},
+    ...overrides,
+  };
+}
+
+function makeMemoryStorage(): Storage {
+  const map = new Map<string, string>();
+  return {
+    getItem: (k: string) => map.get(k) ?? null,
+    setItem: (k: string, v: string) => void map.set(k, v),
+    removeItem: (k: string) => void map.delete(k),
+    clear: () => map.clear(),
+    key: () => null,
+    get length() {
+      return map.size;
+    },
+  };
+}
+
+describe('Cliente API — suporte a ETag / 304 Not Modified e trocarSenha', () => {
+  afterEach(() => {
+    salvarSessao(null, makeMemoryStorage());
+    vi.unstubAllGlobals();
+  });
+
+  it('armazena ETag, envia If-None-Match e reaproveita payload cacheado em 304 Not Modified', async () => {
+    const payloadV1 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 7 } });
+    const payloadV2 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 12 } });
+    const json304Spy = vi.fn(async () => {
+      throw new Error('304 não deve tentar parsear JSON');
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ ETag: '"estado-v1"' }),
+        json: async () => payloadV1,
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 304,
+        headers: new Headers({ ETag: '"estado-v1"' }),
+        json: json304Spy,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ ETag: '"estado-v2"' }),
+        json: async () => payloadV2,
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const first = await api.estado({ ala: 'ala-sul-esporte' });
+    expect(first).toEqual(payloadV1);
+
+    const second = await api.estado({ ala: 'ala-sul-esporte' });
+    expect(second).toEqual(payloadV1);
+    expect(json304Spy).not.toHaveBeenCalled();
+
+    const secondInit = fetchMock.mock.calls[1][1] as RequestInit;
+    expect((secondInit.headers as Record<string, string>)['If-None-Match']).toBe('"estado-v1"');
+
+    // Invalidação ao salvar sessão limpa o cache e evita enviar If-None-Match antigo
+    const sessao: Sessao = {
+      token: 'tok-abc',
+      usuario: {
+        nome: 'admin',
+        papel: 'admin',
+        lojaId: null,
+        lojaNome: null,
+        zoneId: null,
+      },
+    };
+    salvarSessao(sessao, makeMemoryStorage());
+
+    const third = await api.estado({ ala: 'ala-sul-esporte' });
+    expect(third).toEqual(payloadV2);
+
+    const thirdInit = fetchMock.mock.calls[2][1] as RequestInit;
+    expect((thirdInit.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
+    expect((thirdInit.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc');
+  });
+
+  it('invalida o cache de estado após mutação e tolera mocks sem headers', async () => {
+    const payloadV1 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 2 } });
+    const payloadV2 = makeEstadoPayload({ completedSalesByZone: { 'ala-sul-esporte': 3 } });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers({ ETag: 'W/"mut-1"' }),
+        json: async () => payloadV1,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        // Mock mínimo sem `.headers`
+        json: async () => payloadV2,
+      });
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.estado();
+    await api.registrarVenda('ala-sul-esporte', 'Centauro');
+    const afterMutation = await api.estado();
+
+    expect(afterMutation).toEqual(payloadV2);
+    const thirdInit = fetchMock.mock.calls[2][1] as RequestInit;
+    expect((thirdInit.headers as Record<string, string>)['If-None-Match']).toBeUndefined();
+  });
+
+  it('envia PATCH /api/auth/senha em api.trocarSenha', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await api.trocarSenha('senhaAntiga', 'novaSenha123');
+    expect(res).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/auth\/senha$/);
+    expect((init as RequestInit).method).toBe('PATCH');
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({
+      senhaAtual: 'senhaAntiga',
+      novaSenha: 'novaSenha123',
+    });
   });
 });
 

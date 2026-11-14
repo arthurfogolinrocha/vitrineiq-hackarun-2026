@@ -58,6 +58,7 @@ export class ApiErro extends Error {
 const CHAVE_SESSAO = 'vitrineiq.sessao';
 let token: string | null = null;
 let aoExpirar: (() => void) | null = null;
+const estadoCache = new Map<string, { etag: string; data: CicloEstado }>();
 
 /** Lê a sessão salva e passa a usar o token dela. Sem storage (ou JSON inválido), não há sessão. */
 export function lerSessao(storage?: Storage): Sessao | null {
@@ -74,6 +75,7 @@ export function lerSessao(storage?: Storage): Sessao | null {
 /** Grava (ou apaga, com `null`) a sessão. Sem storage, a sessão só dura na memória. */
 export function salvarSessao(sessao: Sessao | null, storage?: Storage): void {
   token = sessao?.token ?? null;
+  estadoCache.clear();
   try {
     const st = storage ?? localStorage;
     if (sessao) st.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
@@ -166,21 +168,33 @@ export interface CicloEstado {
 
 const TIMEOUT_MS = 5000;
 
-async function chamar<T>(
-  caminho: string,
-  method = 'GET',
-  body?: unknown,
-  timeoutMs = TIMEOUT_MS
-): Promise<T> {
+interface ChamadaOpcoes<T> {
+  method?: string;
+  body?: unknown;
+  timeoutMs?: number;
+  extraHeaders?: Record<string, string>;
+  cachedData?: T;
+  onSuccess?: (res: Response, data: T) => void;
+}
+
+async function executarChamada<T>(caminho: string, opts: ChamadaOpcoes<T> = {}): Promise<T> {
+  const { method = 'GET', body, timeoutMs = TIMEOUT_MS, extraHeaders, cachedData, onSuccess } = opts;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${resolveApiUrl()}/api${caminho}`, {
       method,
-      headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...cabecalhoAuth() },
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...cabecalhoAuth(),
+        ...extraHeaders,
+      },
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal,
     });
+    if (res.status === 304 && cachedData !== undefined) {
+      return cachedData;
+    }
     if (!res.ok) {
       const detail = await res.json().then((d) => d?.detail, () => undefined);
       if (res.status === 401) tratar401();
@@ -189,10 +203,27 @@ async function chamar<T>(
         typeof detail === 'string' ? detail : MENSAGENS[res.status] ?? `Erro ${res.status} na API.`
       );
     }
-    return (res.status === 204 ? undefined : await res.json()) as T;
+    const data = (res.status === 204 ? undefined : await res.json()) as T;
+    onSuccess?.(res, data);
+    return data;
   } finally {
     clearTimeout(timer);
   }
+}
+
+function chamar<T>(
+  caminho: string,
+  method = 'GET',
+  body?: unknown,
+  timeoutMs = TIMEOUT_MS
+): Promise<T> {
+  return executarChamada<T>(caminho, { method, body, timeoutMs });
+}
+
+async function chamarMutacaoEstado<T>(caminho: string, method: string, body?: unknown): Promise<T> {
+  const data = await chamar<T>(caminho, method, body);
+  estadoCache.clear();
+  return data;
 }
 
 export interface VitrineAuditPayload {
@@ -207,6 +238,8 @@ export const api = {
   saude: () => chamar('/health'),
   login: (usuario: string, senha: string) => chamar<Sessao>('/auth/login', 'POST', { usuario, senha }),
   eu: () => chamar<Usuario>('/auth/eu'),
+  trocarSenha: (senhaAtual: string, novaSenha: string) =>
+    chamar<{ ok: boolean }>('/auth/senha', 'PATCH', { senhaAtual, novaSenha }),
   lojistas: () => chamar<Lojista[]>('/admin/lojistas'),
   criarLojista: (dados: { usuario: string; senha: string; lojaNome: string; zoneId: ZoneId }) =>
     chamar<Lojista>('/admin/lojistas', 'POST', dados),
@@ -218,14 +251,27 @@ export const api = {
     if (filtro?.loja) q.set('loja', filtro.loja);
     if (filtro?.ala) q.set('ala', filtro.ala);
     const qs = q.toString();
-    return chamar<CicloEstado>(qs ? `/estado?${qs}` : '/estado');
+    const cacheKey = `${token ?? 'anon'}|${qs}`;
+    const cached = estadoCache.get(cacheKey);
+    return executarChamada<CicloEstado>(qs ? `/estado?${qs}` : '/estado', {
+      extraHeaders: cached ? { 'If-None-Match': cached.etag } : undefined,
+      cachedData: cached?.data,
+      onSuccess: (res, data) => {
+        const etag = res.headers?.get?.('etag')?.trim();
+        if (etag) {
+          estadoCache.set(cacheKey, { etag, data });
+        } else {
+          estadoCache.delete(cacheKey);
+        }
+      },
+    });
   },
   contexto: (force = false) => chamar<LiveContextPayload>(force ? '/contexto?force=true' : '/contexto'),
   registrarVenda: (zoneId: ZoneId, storeName: string) =>
-    chamar('/balcao', 'POST', { zoneId, storeName, tipo: 'venda' }),
+    chamarMutacaoEstado('/balcao', 'POST', { zoneId, storeName, tipo: 'venda' }),
   registrarPerda: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) =>
-    chamar('/balcao', 'POST', { zoneId, storeName, tipo: 'perdida', reason, note }),
-  desfazerBalcao: (id: string) => chamar(`/balcao/${id}`, 'DELETE'),
+    chamarMutacaoEstado('/balcao', 'POST', { zoneId, storeName, tipo: 'perdida', reason, note }),
+  desfazerBalcao: (id: string) => chamarMutacaoEstado(`/balcao/${id}`, 'DELETE'),
   buscar: (
     zoneId: ZoneId,
     query: string,
@@ -244,12 +290,13 @@ export const api = {
     draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>,
     triggerOrigin?: string
   ) =>
-    chamar<FlashCampaign>('/campanhas', 'POST', {
+    chamarMutacaoEstado<FlashCampaign>('/campanhas', 'POST', {
       ...draft,
       ...(triggerOrigin !== undefined ? { triggerOrigin } : {}),
     }),
-  alterarCampanha: (id: string, active: boolean) => chamar(`/campanhas/${id}`, 'PATCH', { active }),
-  removerCampanha: (id: string) => chamar(`/campanhas/${id}`, 'DELETE'),
+  alterarCampanha: (id: string, active: boolean) =>
+    chamarMutacaoEstado(`/campanhas/${id}`, 'PATCH', { active }),
+  removerCampanha: (id: string) => chamarMutacaoEstado(`/campanhas/${id}`, 'DELETE'),
   crowdDrop: (ala: ZoneId) =>
     chamar<CrowdDropState>(`/vitrine/crowd-drop?ala=${encodeURIComponent(ala)}`),
   auditarVitrine: (payload: VitrineAuditPayload) =>
