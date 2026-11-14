@@ -23,14 +23,14 @@
   * Feche no **Modo Balcão**: aperte **Voz 4s** (*"Cliente desistiu porque acabou o tênis 41"*) mostrando classificação e **Fila Offline** resiliente.
 
 ### 3. Engenharia de Produção, Segurança & Artigo 6 (`02:45 – 03:35` | 50s)
-> *"Por trás dessa interface, entregamos engenharia auditada em **`9.8 / 10`**: frontend React 19 + TypeScript + Three.js modularizado, API Python FastAPI com auth HMAC e troca de senha (`PATCH /api/auth/senha`), cabeçalhos CSP/HSTS estritos na Vercel, auditoria SHA-256 e fallback heurístico em `< 300ms`. São **`157` testes automatizados verdes** (`50` Vitest + `107` pytest) além de pipeline CI/CD com **Playwright E2E** e auditoria **WCAG (`axe-core`)**, em total conformidade com o **Artigo 6**."*
+> *"Por trás dessa interface, entregamos engenharia auditada em **`9.8 / 10`**: frontend React 19 + TypeScript + Three.js modularizado, API Python FastAPI com auth HMAC e troca de senha (`PATCH /api/auth/senha`), cabeçalhos CSP/HSTS estritos na Vercel, auditoria SHA-256 e fallback heurístico em `< 300ms`. São **`158` testes automatizados verdes** (`51` Vitest + `107` pytest) além de pipeline CI/CD com **Playwright E2E** e auditoria **WCAG (`axe-core`)**, em total conformidade com o **Artigo 6**."*
 
 ### 4. Modelo de Negócio, Viabilidade & ROI B2B (`03:35 – 04:35` | 1m00s)
 * **Receita 1 — SaaS por Loja (Zero CapEx):** Roda usando uma webcam comum já conectada ao caixa/tablet. Recuperar poucas vendas perdidas por semana já paga a assinatura mensal com sobra.
 * **Receita 2 — Inteligência de Mix para o Shopping:** Visão agregada anônima de efeito halo entre âncoras (`Cinemark`, `Morofit` → `Moda` / `Praça L2`) e evidência concreta de fluxo para acelerar locação das lojas vagas.
 
 ### 5. Fechamento Executivo (`04:35 – 05:00` | 25s)
-> *"Em 24 horas, não fizemos slides sobre o futuro do varejo. Colocamos no ar o gêmeo digital vivo das 188 lojas deste shopping, com 157 verificações automáticas e 100% dentro da LGPD. O VitrineIQ está pronto para rodar um piloto na segunda-feira em uma ala do Capim Dourado Shopping. Muito obrigado!"*
+> *"Em 24 horas, não fizemos slides sobre o futuro do varejo. Colocamos no ar o gêmeo digital vivo das 188 lojas deste shopping, com 158 verificações automáticas e 100% dentro da LGPD. O VitrineIQ está pronto para rodar um piloto na segunda-feira em uma ala do Capim Dourado Shopping. Muito obrigado!"*
 
 ---
 

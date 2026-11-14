@@ -387,6 +387,7 @@ export function App() {
         onSelectTab={setActiveTab}
         getTabNumber={getTabNumber}
         selectedTelemetry={selectedTelemetry}
+        onOpenStories={() => setStoriesOpen(true)}
       />
 
       <div className="flex-1 min-w-0 max-w-full overflow-x-clip flex flex-col">
