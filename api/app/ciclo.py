@@ -11,7 +11,7 @@ import hmac
 import os
 from collections import Counter
 from datetime import datetime, timedelta
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, get_args
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, Field, StringConstraints
@@ -69,6 +69,7 @@ class CampanhaIn(BaseModel):
     whatsappCopy: str = Field(default="", max_length=500)
     expiresInMinutes: int = Field(default=60, ge=1, le=24 * 60)
     segmento: Optional[str] = Field(default=None, max_length=40)
+    triggerOrigin: Optional[str] = Field(default=None, max_length=60)
 
 
 class CampanhaPatch(BaseModel):
@@ -114,6 +115,15 @@ class BuscaIn(BaseModel):
     query: str = Field(min_length=3, max_length=200)
     budget: Budget = "80_200"
     segmento: Optional[str] = Field(default=None, max_length=40)
+    originZone: Optional[ZoneId] = None
+
+
+def _combina_origem(campanha: dict[str, Any], origin_zone: Optional[str], zone_id: str) -> bool:
+    trigger = (campanha.get("triggerOrigin") or "").strip().lower()
+    if not trigger:
+        return False
+    alvos = [z.lower() for z in (origin_zone, zone_id) if z]
+    return any(trigger == alvo or (len(trigger) >= 4 and trigger in alvo) for alvo in alvos)
 
 
 @router.post("/concierge/busca", status_code=201)
@@ -125,15 +135,31 @@ def buscar_oferta(body: BuscaIn) -> dict[str, Any]:
         ativas_seg = [c for c in ativas if (c.get("segmento") or "").strip().lower() == seg]
         if ativas_seg:
             ativas = ativas_seg
-    oferta = next((c for c in ativas if c["zoneId"] == body.zoneId), None) or (ativas[0] if ativas else None)
+
+    ativas_rota = [c for c in ativas if _combina_origem(c, body.originZone, body.zoneId)]
+    bonus_rota = False
+    if ativas_rota:
+        oferta = next((c for c in ativas_rota if c["zoneId"] == body.zoneId), ativas_rota[0])
+        bonus_rota = True
+    else:
+        gerais = [c for c in ativas if not (c.get("triggerOrigin") or "").strip()]
+        pool = gerais or ativas
+        oferta = next((c for c in pool if c["zoneId"] == body.zoneId), None) or (pool[0] if pool else None)
+
+    matched = f"{oferta['storeName']} — {oferta['title']} ({oferta['discountBadge']})" if oferta else ""
+    if bonus_rota and matched:
+        matched = f"🎁 Bônus de Rota • {matched}"
+
     dados = {
         "zoneId": body.zoneId,
+        "originZone": body.originZone or "",
         "query": mascarar_dados_pessoais(sanitize_input(body.query)),
         "budget": body.budget,
         "segmento": sanitize_input(body.segmento) if body.segmento else "",
         "preference": "",
         "couponCode": oferta["couponCode"] if oferta else "",
-        "matchedOffer": f"{oferta['storeName']} — {oferta['title']} ({oferta['discountBadge']})" if oferta else "",
+        "matchedOffer": matched,
+        "bonusRota": bonus_rota,
     }
     return db.inserir("busca", body.zoneId, dados)
 
@@ -275,9 +301,46 @@ def perfil_por_hora(vitrine_regs: list[dict[str, Any]], balcao: list[dict[str, A
     return {z: {h: {c: horas[h][c] for c in campos} for h in sorted(horas, key=int)} for z, horas in perfil.items()}
 
 
+def compute_crowd_drop(regs: list[dict[str, Any]], zone_id: str) -> dict[str, Any]:
+    """Calcula o tier dinâmico de desconto coletivo (Crowd-Drop) pelos eventos recentes da ala."""
+    recentes = regs[-6:]
+    olharam = sum(r.get("olharam", 0) for r in recentes)
+    chegaram_perto = sum(r.get("chegaram_perto", 0) for r in recentes)
+    people_now = max((r.get("pico_simultaneo", 0) for r in recentes), default=0)
+    if people_now == 0 and olharam > 0:
+        people_now = min(6, max(1, olharam // 10))
+
+    if people_now >= 5:
+        tier, discount_pct, next_target, label = 3, 30, 5, "CROWD-DROP MÁXIMO (30% OFF)"
+    elif people_now >= 3:
+        tier, discount_pct, next_target, label = 2, 20, 5, "Combo Coletivo Ativo (20% OFF)"
+    elif people_now >= 1:
+        tier, discount_pct, next_target, label = 1, 10, 3, "Vitrine Despertada (10% OFF)"
+    else:
+        tier, discount_pct, next_target, label = 0, 5, 1, "Aguardando Fluxo na Vitrine"
+
+    return {
+        "zoneId": zone_id,
+        "peopleNow": people_now,
+        "tier": tier,
+        "discountPct": discount_pct,
+        "nextTarget": next_target,
+        "label": label,
+        "couponCode": f"CROWD-{zone_id.split('-')[0].upper()}-{discount_pct}",
+        "olharamRecentes": olharam,
+        "chegaramPerto": chegaram_perto,
+    }
+
+
 @router.get("/vitrine/resumo")
 def vitrine_resumo(ala: ZoneId) -> dict[str, Any]:
     return resumo_vitrine([r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala])
+
+
+@router.get("/vitrine/crowd-drop")
+def vitrine_crowd_drop(ala: ZoneId) -> dict[str, Any]:
+    regs = [r for r in db.listar("vitrine", 5000, _hoje()) if r["zona"] == ala]
+    return compute_crowd_drop(regs, ala)
 
 
 # ---------- Estado completo para o painel ----------
@@ -311,6 +374,11 @@ def estado(loja: Optional[str] = None, ala: Optional[ZoneId] = None) -> dict[str
     vendas: Counter[str] = Counter(r["zoneId"] for r in balcao if r["tipo"] == "venda")
     vitrine = {z: resumo_vitrine([r for r in vitrine_regs if r["zona"] == z])
                for z in sorted({r["zona"] for r in vitrine_regs})}
+    zonas_crowd = (ala,) if ala else get_args(ZoneId)
+    crowd_drop = {
+        z: compute_crowd_drop([r for r in vitrine_regs if r["zona"] == z], z)
+        for z in zonas_crowd
+    }
     return {
         "porHora": perfil_por_hora(vitrine_regs, balcao, buscas_hoje),
         "lostSales": [r for r in balcao if r["tipo"] == "perdida"],
@@ -318,6 +386,7 @@ def estado(loja: Optional[str] = None, ala: Optional[ZoneId] = None) -> dict[str
         "signals": buscas_recentes,
         "campaigns": campanhas,
         "vitrine": vitrine,
+        "crowdDrop": crowd_drop,
         "alertas": alertas,
         "agora": db.agora().isoformat(),
     }

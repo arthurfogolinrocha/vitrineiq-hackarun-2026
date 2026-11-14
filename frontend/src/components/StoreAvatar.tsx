@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { resolveApiUrl } from '../services/ai';
+
+export type StoreAvatarVariant = 'square' | 'wide' | 'hero';
 
 interface StoreAvatarProps {
   storeName: string;
   logoUrl?: string;
   sizeClass?: string;
   roundedClass?: string;
+  variant?: StoreAvatarVariant;
 }
+
+const VARIANT_SIZE_CLASSES: Record<StoreAvatarVariant, string> = {
+  square: 'w-14 h-14',
+  wide: 'h-14 min-w-[5.25rem] max-w-[7.5rem] px-1.5',
+  hero: 'w-28 h-20 sm:w-32 sm:h-24',
+};
 
 /** Retorna URL segura via proxy CORS do backend quando for imagem externa HTTP(S). */
 export function buildProxiedLogoUrl(logoUrl?: string): string | undefined {
@@ -16,16 +25,24 @@ export function buildProxiedLogoUrl(logoUrl?: string): string | undefined {
 }
 
 /**
- * Miniatura da marca da loja com fallback elegante em monograma dourado
- * caso a imagem oficial falhe no carregamento.
+ * Miniatura da marca da loja em destaque com fundo branco limpo e borda dourada,
+ * com fallback proporcional em monograma dourado caso a imagem falhe no carregamento.
  */
 export const StoreAvatar: React.FC<StoreAvatarProps> = ({
   storeName,
   logoUrl,
-  sizeClass = 'w-9 h-9',
+  sizeClass,
   roundedClass = 'rounded-xl',
+  variant = 'square',
 }) => {
   const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
+  const resolvedSizeClass = sizeClass ?? VARIANT_SIZE_CLASSES[variant];
+  const fallbackTextClass = variant === 'hero' ? 'text-base sm:text-lg' : 'text-sm';
 
   const initials = storeName
     .split(/\s+/)
@@ -37,7 +54,7 @@ export const StoreAvatar: React.FC<StoreAvatarProps> = ({
   if (logoUrl && !failed) {
     return (
       <span
-        className={`${sizeClass} ${roundedClass} bg-white border border-[#E2A83B]/45 overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-xs`}
+        className={`${resolvedSizeClass} ${roundedClass} bg-white border-2 border-[#E2A83B]/75 overflow-hidden flex items-center justify-center shrink-0 p-1 shadow-md`}
       >
         <img
           src={logoUrl}
@@ -54,9 +71,10 @@ export const StoreAvatar: React.FC<StoreAvatarProps> = ({
   return (
     <span
       aria-hidden="true"
-      className={`${sizeClass} ${roundedClass} gold-pill-metallic font-black text-xs flex items-center justify-center shrink-0 tracking-tight`}
+      className={`${resolvedSizeClass} ${roundedClass} gold-pill-metallic font-black ${fallbackTextClass} flex items-center justify-center shrink-0 tracking-tight shadow-md`}
     >
       {initials || 'VQ'}
     </span>
   );
 };
+

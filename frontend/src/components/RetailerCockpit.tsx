@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import {
   AIAnalysisResponse,
+  CrowdDropState,
   FlashCampaign,
   MallEvent,
   ShopContextFactors,
@@ -48,6 +49,51 @@ import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario
 import { SpotlightCard } from './SpotlightCard';
 import { StoreAvatar } from './StoreAvatar';
 import { PosterDraft, PromoPosterModal } from './PromoPosterModal';
+import { VitrineCrowdDropModal } from './VitrineCrowdDropModal';
+
+/** Hook tático de count-up numérico suave via requestAnimationFrame (respeita reduced-motion). */
+function useAnimatedNumber(target: number, durationMs = 420): number {
+  const [display, setDisplay] = useState(target);
+  const currentRef = useRef(target);
+
+  useEffect(() => {
+    const startVal = currentRef.current;
+    if (startVal === target) return;
+    const reduce =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      currentRef.current = target;
+      setDisplay(target);
+      return;
+    }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - t0) / durationMs);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = Math.round(startVal + (target - startVal) * eased);
+      currentRef.current = next;
+      setDisplay(next);
+      if (progress < 1) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]);
+
+  return display;
+}
+
+const ALLIANCE_ORIGINS: { value: string; label: string }[] = [
+  { value: '', label: 'Sem vínculo de origem (oferta geral)' },
+  { value: 'ala-lazer-cinema', label: 'Aliança Pós-Cinemark / Lazer (Ala Norte)' },
+  { value: 'praca-alimentacao-l2', label: 'Aliança Praça de Alimentação (2º Piso)' },
+  { value: 'ala-sul-esporte', label: 'Aliança Detran / Polícia Federal (Ala Sul)' },
+  { value: 'ala-central-ancoras', label: 'Aliança Portaria P1 / Galeria Central' },
+];
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -61,6 +107,7 @@ interface RetailerCockpitProps {
   onSyncLiveContext?: () => void;
   activeTenant?: StoreTenant | null;
   vitrineResumo?: VitrineResumo;
+  crowdDrop?: CrowdDropState;
   lastPointedPart?: 'esquerda' | 'centro' | 'direita' | null;
   onSimulatePointGesture?: (part: 'esquerda' | 'centro' | 'direita') => void;
   campaigns: FlashCampaign[];
@@ -125,6 +172,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   onSyncLiveContext,
   activeTenant,
   vitrineResumo,
+  crowdDrop,
   lastPointedPart,
   onSimulatePointGesture,
   campaigns,
@@ -147,6 +195,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     activeTenant?.storeName || current.zone.anchors[0] || 'Loja Âncora'
   );
   const [segmento, setSegmento] = useState<string>(activeTenant?.segment || 'todos');
+  const [triggerOrigin, setTriggerOrigin] = useState<string>('');
   const [title, setTitle] = useState('Combo Pós-Cinema 2h Relâmpago');
   const [discountBadge, setDiscountBadge] = useState('15% OFF');
   const [couponCode, setCouponCode] = useState('CAPIM15');
@@ -158,6 +207,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [posterDraft, setPosterDraft] = useState<PosterDraft | null>(null);
   const [publishedNotice, setPublishedNotice] = useState<PosterDraft | null>(null);
+  const [crowdDropOpen, setCrowdDropOpen] = useState(false);
 
   // Fator de escala horária baseado na barra clicada (User Story #01)
   const selectedHourBar = HOURLY_PROFILE.find((b) => b.slot === factors.timeSlot);
@@ -225,6 +275,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       zoneId: current.zone.id,
       storeName: cleanStore,
       segmento: segmento !== 'todos' ? segmento : activeTenant?.segment,
+      triggerOrigin: triggerOrigin || undefined,
       title: cleanTitle,
       discountBadge: cleanBadge,
       couponCode: cleanCoupon,
@@ -293,11 +344,16 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   const avgTicket = activeTenant?.avgTicket ?? 185;
   const peopleNotEntered = Math.max(0, corridorTotal - entriesTotal);
   const opportunityLossHour = Math.round(peopleNotEntered * 0.14 * avgTicket);
+  const animatedScore = useAnimatedNumber(clampedScore);
+  const animatedFootTraffic = useAnimatedNumber(effectiveFootTraffic);
+  const animatedLossHour = useAnimatedNumber(opportunityLossHour);
   const tercos = vitrineResumo?.olharesPorZona ?? { esquerda: 0, centro: 0, direita: 0 };
   const apontaramCount = vitrineResumo?.apontaram ?? 0;
   const noCelularCount = vitrineResumo?.noCelular ?? 0;
   const voltaramCount = vitrineResumo?.voltaramOlhar ?? 0;
   const maxTerco = Math.max(1, tercos.esquerda, tercos.centro, tercos.direita);
+  const activeDisplayStoreName = activeTenant?.storeName ?? storeName;
+  const activeDisplayStoreLogo = (activeTenant ?? findStoreByName(activeDisplayStoreName))?.logoUrl;
 
   const handleRescueVitrine = (part: 'esquerda' | 'centro' | 'direita') => {
     const partLabel =
@@ -355,17 +411,17 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       {activeTenant ? (
         <div
           role="status"
-          className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3"
+          className="rounded-2xl px-4 py-3.5 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3"
         >
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3.5 text-xs">
             <StoreAvatar
               storeName={activeTenant.storeName}
               logoUrl={activeTenant.logoUrl}
-              sizeClass="w-10 h-10"
+              variant="wide"
               roundedClass="rounded-xl"
             />
             <div>
-              <strong className="text-[#F5C76B] flex items-center gap-1.5">
+              <strong className="text-[#F5C76B] flex items-center gap-1.5 text-sm">
                 <Lock className="w-3.5 h-3.5" aria-hidden="true" />
                 Painel Exclusivo da Loja: {activeTenant.storeName}
               </strong>
@@ -397,7 +453,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       {/* LINHA 1: HERO BENTO (8 cols Obsidian + 4 cols Funil Físico) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* HERO CARD OBSIDIAN & CHAMPAGNE GOLD */}
-        <section className="xl:col-span-8 bento-card-obsidian grain-overlay text-white rounded-3xl p-6 sm:p-7 flex flex-col justify-between gap-6 relative overflow-hidden">
+        <SpotlightCard
+          tilt3d
+          beam={effectiveScore >= 75}
+          hudCorners
+          className="xl:col-span-8 bento-card-obsidian grain-overlay text-white rounded-3xl p-6 sm:p-7 flex flex-col justify-between gap-6 relative overflow-hidden"
+        >
           <div
             className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-20"
             style={{
@@ -409,9 +470,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             <div className="space-y-3 max-w-xl">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2.5 py-1 rounded-full bg-[#E2A83B]/15 text-[#E2A83B] border border-[#E2A83B]/30 text-[11px] font-bold uppercase tracking-wider">
-                  {current.zone.floor === 'L1' ? 'Térreo • L1' : '2º Piso • L2'} — {current.zone.segment}
+                  {activeTenant
+                    ? `${activeTenant.floorLabel} • ${SEGMENT_LABELS[activeTenant.segment]}`
+                    : `${current.zone.floor === 'L1' ? 'Térreo • L1' : '2º Piso • L2'} — ${current.zone.segment}`}
                 </span>
-                <span className="px-2.5 py-1 rounded-full bg-white/10 text-stone-200 text-[11px] font-semibold">
+                <span className="px-2.5 py-1 rounded-full bg-white/10 text-stone-200 text-[11px] font-semibold font-mono">
                   Contexto {current.multiplier}x
                 </span>
                 {isCamActiveHere ? (
@@ -433,14 +496,35 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 )}
               </div>
 
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-                  {current.zone.name}
-                </h2>
-                <p className="text-xs sm:text-sm text-stone-300 mt-1">
-                  Lojas âncoras monitoradas:{' '}
-                  <strong className="text-white">{current.zone.anchors.join(' • ')}</strong>
-                </p>
+              <div className="flex items-center gap-4">
+                {activeTenant && (
+                  <StoreAvatar
+                    storeName={activeTenant.storeName}
+                    logoUrl={activeTenant.logoUrl}
+                    variant="hero"
+                    roundedClass="rounded-2xl"
+                  />
+                )}
+                <div className="min-w-0">
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                    {activeTenant ? activeTenant.storeName : current.zone.name}
+                  </h2>
+                  {activeTenant ? (
+                    <p className="text-xs sm:text-sm text-stone-300 mt-1">
+                      Vitrine exclusiva em{' '}
+                      <strong className="text-[#F5C76B]">
+                        {current.zone.shortName.replace(/\s*\([^)]*\)/g, '').trim()}
+                      </strong>{' '}
+                      • Ticket médio{' '}
+                      <strong className="text-white">R$ {activeTenant.avgTicket}</strong>
+                    </p>
+                  ) : (
+                    <p className="text-xs sm:text-sm text-stone-300 mt-1">
+                      Lojas âncoras monitoradas:{' '}
+                      <strong className="text-white">{current.zone.anchors.join(' • ')}</strong>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Ações Principais */}
@@ -462,40 +546,88 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                   <Megaphone className="w-4 h-4 text-[#E2A83B]" aria-hidden="true" />
                   <span>Lançar Oferta Relâmpago</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setCrowdDropOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-[#E2A83B]/15 hover:bg-[#E2A83B]/30 text-[#F5C76B] border border-[#E2A83B]/45 text-xs font-extrabold flex items-center gap-2"
+                >
+                  <Flame className="w-4 h-4" aria-hidden="true" />
+                  <span>Telão Crowd-Drop</span>
+                </button>
               </div>
             </div>
 
-            {/* CIRCULAR SVG GAUGE: SCORE IQ */}
-            <div className="flex items-center gap-4 md:flex-col md:text-center bg-white/5 border border-white/10 rounded-2xl p-4 shrink-0">
-              <div className="relative w-28 h-28 flex items-center justify-center">
-                <svg className="w-28 h-28 -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+            {/* CIRCULAR SVG RADAR ORBITAL GAUGE: SCORE IQ */}
+            <div className="flex items-center gap-4 md:flex-col md:text-center bg-white/5 border border-[#E2A83B]/25 rounded-2xl p-4 shrink-0">
+              <div className="relative w-32 h-32 flex items-center justify-center">
+                <svg className="w-32 h-32" viewBox="0 0 136 136" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="iqGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#F5C76B" />
+                      <stop offset="55%" stopColor="#E2A83B" />
+                      <stop offset="100%" stopColor="#D97706" />
+                    </linearGradient>
+                  </defs>
+                  {/* 24 Ticks de Radar Externo */}
+                  {Array.from({ length: 24 }).map((_, idx) => {
+                    const angle = (idx * 360) / 24;
+                    const activeTick = idx / 24 <= clampedScore / 100;
+                    return (
+                      <line
+                        key={idx}
+                        x1="68"
+                        y1="5"
+                        x2="68"
+                        y2={idx % 6 === 0 ? '11' : '9'}
+                        stroke={activeTick ? '#F5C76B' : 'rgba(255,255,255,0.16)'}
+                        strokeWidth={idx % 6 === 0 ? '2' : '1.2'}
+                        transform={`rotate(${angle} 68 68)`}
+                      />
+                    );
+                  })}
+                  {/* Anel orbital pontilhado sutil */}
                   <circle
-                    cx="60"
-                    cy="60"
-                    r={radius}
+                    cx="68"
+                    cy="68"
+                    r="58"
                     fill="none"
-                    stroke="rgba(255,255,255,0.12)"
-                    strokeWidth="10"
+                    stroke="rgba(226,168,59,0.28)"
+                    strokeWidth="1"
+                    strokeDasharray="3 5"
+                    className="origin-center animate-[spin_20s_linear_infinite]"
                   />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r={radius}
-                    fill="none"
-                    stroke="#E2A83B"
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={strokeOffset}
-                    style={{ transition: 'stroke-dashoffset 450ms ease-out' }}
-                  />
+                  <g transform="rotate(-90 68 68)">
+                    <circle
+                      cx="68"
+                      cy="68"
+                      r={radius}
+                      fill="none"
+                      stroke="rgba(255,255,255,0.12)"
+                      strokeWidth="10"
+                    />
+                    <circle
+                      cx="68"
+                      cy="68"
+                      r={radius}
+                      fill="none"
+                      stroke="url(#iqGoldGrad)"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeOffset}
+                      style={{
+                        transition: 'stroke-dashoffset 450ms ease-out',
+                        filter: 'drop-shadow(0 0 8px rgba(226,168,59,0.55))',
+                      }}
+                    />
+                  </g>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
                     IQ Score
                   </span>
-                  <strong className="text-3xl font-black text-white leading-none">
-                    {effectiveScore}
+                  <strong className="text-3xl font-black text-white leading-none kpi-metric">
+                    {animatedScore}
                   </strong>
                 </div>
               </div>
@@ -520,7 +652,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 Fluxo Corredor
               </span>
               <strong className="text-xl font-extrabold text-white mt-1 block kpi-metric">
-                {effectiveFootTraffic}
+                {animatedFootTraffic}
                 <span className="text-xs font-normal text-stone-400">/h</span>
               </strong>
             </div>
@@ -557,7 +689,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               </strong>
             </div>
           </div>
-        </section>
+        </SpotlightCard>
 
         {/* RIGHT BENTO: FUNIL FÍSICO DE VITRINE */}
         <section className="xl:col-span-4 bento-card-cream rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-4">
@@ -648,10 +780,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
         </section>
       </div>
 
-      {/* DIFERENCIAL: VITRINE VIVA + TAXÍMETRO DINHEIRO NA MESA (R$/h) + MICRO-HEATMAP 3 TERÇOS */}
+      {/* DIFERENCIAL: VITRINE VIVA + TAXÍMETRO DINHEIRO NA MESA (R$/h) + RADAR 3 TERÇOS + CROWD-DROP */}
       <SpotlightCard
         tilt3d
-        className="bento-card-obsidian grain-overlay text-white rounded-3xl p-5 sm:p-6 border border-[#E2A83B]/30"
+        beam
+        hudCorners
+        className="bento-card-obsidian grain-overlay text-white rounded-3xl p-5 sm:p-6 border border-[#E2A83B]/35"
       >
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-center">
           {/* Taxímetro R$/h */}
@@ -662,7 +796,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             </span>
             <div className="flex items-baseline gap-2">
               <strong className="text-3xl sm:text-4xl font-black text-white kpi-metric">
-                R$ {opportunityLossHour.toLocaleString('pt-BR')}
+                R$ {animatedLossHour.toLocaleString('pt-BR')}
               </strong>
               <span className="text-xs font-bold text-[#F5C76B]">/ hora</span>
             </div>
@@ -685,14 +819,63 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             </div>
           </div>
 
-          {/* Micro-Heatmap 3 Terços */}
+          {/* Micro-Heatmap 3 Terços + Radar Visual da Vitrine */}
           <div className="xl:col-span-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-extrabold text-white">
-                Micro-Heatmap da Vitrine (Esquerda • Centro • Direita)
+                Radar de Vitrine (Esquerda • Centro • Direita)
               </h3>
-              <span className="text-[11px] text-stone-400">Onde o olhar e o gesto se concentram</span>
+              <span className="text-[11px] font-mono text-[#F5C76B]">
+                {crowdDrop ? `CROWD ${crowdDrop.peopleNow}P • ${crowdDrop.discountPct}%` : 'LIVE FOV 110°'}
+              </span>
             </div>
+
+            {/* Radar SVG em Perspectiva com Feixes + Scanline */}
+            <div className="relative rounded-2xl bg-[#07090D] border border-[#E2A83B]/25 overflow-hidden px-3 py-2">
+              <div className="hud-scanline" aria-hidden="true" />
+              <svg viewBox="0 0 360 72" className="w-full h-16" aria-hidden="true">
+                {(['esquerda', 'centro', 'direita'] as const).map((part, idx) => {
+                  const xCenter = idx === 0 ? 64 : idx === 1 ? 180 : 296;
+                  const count = tercos[part];
+                  const isPointed = lastPointedPart === part;
+                  const fillOpacity = isPointed ? 0.36 : Math.max(0.08, (count / maxTerco) * 0.24);
+                  return (
+                    <g key={part}>
+                      <polygon
+                        points={`180,66 ${xCenter - 46},8 ${xCenter + 46},8`}
+                        fill={isPointed ? '#F5C76B' : '#E2A83B'}
+                        fillOpacity={fillOpacity}
+                        stroke={isPointed ? '#F5C76B' : 'rgba(226,168,59,0.35)'}
+                        strokeWidth={isPointed ? 1.5 : 0.8}
+                      />
+                      <rect
+                        x={xCenter - 42}
+                        y="6"
+                        width="84"
+                        height="16"
+                        rx="6"
+                        fill={isPointed ? 'rgba(226,168,59,0.28)' : 'rgba(255,255,255,0.06)'}
+                      />
+                      <text
+                        x={xCenter}
+                        y="17"
+                        textAnchor="middle"
+                        fill={isPointed ? '#F5C76B' : '#d6d3d1'}
+                        fontSize="9"
+                        fontWeight="700"
+                      >
+                        {part.toUpperCase()} ({count})
+                      </text>
+                    </g>
+                  );
+                })}
+                <circle cx="180" cy="64" r="4.5" fill="#10b981" />
+                <text x="192" y="67" fill="#6ee7b7" fontSize="8" fontWeight="700">
+                  CÂMERA BORDA
+                </text>
+              </svg>
+            </div>
+
             <div className="grid grid-cols-3 gap-2.5">
               {(
                 [
@@ -735,7 +918,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
             </div>
           </div>
 
-          {/* Gatilho Demo Ao Vivo + CTA Resgate */}
+          {/* Gatilho Demo Ao Vivo + CTA Resgate + Crowd-Drop */}
           <div className="xl:col-span-3 flex flex-col gap-2.5">
             {onSimulatePointGesture && (
               <div className="space-y-1.5">
@@ -764,6 +947,14 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <Zap className="w-4 h-4" aria-hidden="true" />
               <span>Resgatar Agora ({lastPointedPart ?? 'Centro'})</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setCrowdDropOpen(true)}
+              className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-[#E2A83B]/40 text-[#F5C76B] text-xs font-extrabold flex items-center justify-center gap-2 transition"
+            >
+              <Flame className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Abrir Telão Crowd-Drop</span>
+            </button>
           </div>
         </div>
       </SpotlightCard>
@@ -771,7 +962,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       {/* LINHA 2: GRÁFICO DE HORÁRIO DE PICO (7 cols) + SIMULADOR TÁTIL DE CONTEXTO (5 cols) */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* CURVA DE HORÁRIO DE PICO DO SEGMENTO */}
-        <section className="xl:col-span-7 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between gap-4">
+        <section className="xl:col-span-7 bento-card-cream rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#B45309] flex items-center gap-1.5">
@@ -779,9 +970,14 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 User Story #01 • Horário de Pico do Segmento
               </span>
               <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
-                {temDadoReal
-                  ? `Movimento real por hora, hoje (${current.zone.shortName})`
-                  : `Fluxo Estimado de Clientes ao Longo do Dia (${current.zone.shortName})`}
+                {(() => {
+                  const zoneTitle = activeTenant
+                    ? current.zone.shortName.replace(/\s*\([^)]*\)/g, '').trim()
+                    : current.zone.shortName;
+                  return temDadoReal
+                    ? `Movimento real por hora, hoje (${zoneTitle})`
+                    : `Fluxo Estimado de Clientes ao Longo do Dia (${zoneTitle})`;
+                })()}
               </h3>
             </div>
             <span
@@ -941,7 +1137,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
         </section>
 
         {/* CONTROLES TÁTEIS DE ALA, CLIMA E EVENTO */}
-        <section className="xl:col-span-5 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+        <section className="xl:col-span-5 bento-card-cream rounded-3xl p-5 sm:p-6 space-y-4">
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
@@ -1018,8 +1214,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
           {/* Seletor Tátil de Ala */}
           <div className="space-y-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 block">
-              Ala / Loja Monitorada
+            <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
+              {activeTenant && <Lock className="w-3 h-3 text-[#7A4B0A]" aria-hidden="true" />}
+              {activeTenant ? `Ala Isolada de ${activeTenant.storeName}` : 'Ala / Loja Monitorada'}
             </span>
             <div className="flex flex-wrap gap-1.5">
               {zonesTelemetry.map((z) => {
@@ -1035,7 +1232,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                         : 'bg-[#FAF8F5] border-stone-200 text-stone-700 hover:border-stone-400'
                     }`}
                   >
-                    {z.zone.shortName}
+                    {activeTenant
+                      ? `${activeTenant.storeName} • ${z.zone.shortName.replace(/\s*\([^)]*\)/g, '').trim()}`
+                      : z.zone.shortName}
                   </button>
                 );
               })}
@@ -1102,7 +1301,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       {/* LINHA 3: COPILOTO IA + BUSCAS QUENTES QR + CAMPANHAS RELÂMPAGO */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Plano Estratégico IA (6 cols) */}
-        <section className="lg:col-span-6 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+        <section className="lg:col-span-6 bento-card-cream rounded-3xl p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-[#111318] text-[#E2A83B] flex items-center justify-center">
@@ -1202,7 +1401,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
         </section>
 
         {/* Campanhas Relâmpago Ativas (6 cols) */}
-        <section className="lg:col-span-6 bg-white border border-stone-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+        <section className="lg:col-span-6 bento-card-cream rounded-3xl p-5 sm:p-6 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-amber-100 text-[#B45309] flex items-center justify-center">
@@ -1243,12 +1442,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3">
                     <StoreAvatar
                       storeName={camp.storeName}
                       logoUrl={storeMeta?.logoUrl}
-                      sizeClass="w-8 h-8"
-                      roundedClass="rounded-lg"
+                      variant="wide"
+                      roundedClass="rounded-xl"
                     />
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1261,6 +1460,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                         >
                           {camp.active ? camp.discountBadge : 'PAUSADA'}
                         </span>
+                        {camp.triggerOrigin && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-[#7A4B0A] border border-[#E2A83B]/40">
+                            🎁 Aliança de Corredor
+                          </span>
+                        )}
                         <span className="text-xs font-extrabold text-[#111318]">{camp.storeName}</span>
                       </div>
                       <h4 className="text-sm font-bold text-[#111318] mt-1">{camp.title}</h4>
@@ -1374,11 +1578,11 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       >
         <form onSubmit={handleSubmitCampaign} className="p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <StoreAvatar
                 storeName={storeName}
                 logoUrl={(activeTenant ?? findStoreByName(storeName))?.logoUrl}
-                sizeClass="w-9 h-9"
+                variant="wide"
                 roundedClass="rounded-xl"
               />
               <div>
@@ -1446,6 +1650,21 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               {Object.entries(SEGMENT_LABELS).map(([id, label]) => (
                 <option key={id} value={id}>
                   {label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="text-xs font-bold text-[#111318] space-y-1 block">
+            <span>Aliança de Corredor (Puxar Fluxo de Outra Âncora no Mapa 3D)</span>
+            <select
+              value={triggerOrigin}
+              onChange={(e) => setTriggerOrigin(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-stone-300 bg-[#FAF8F5] text-sm font-medium"
+            >
+              {ALLIANCE_ORIGINS.map((item) => (
+                <option key={item.value || 'none'} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
@@ -1522,6 +1741,20 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       </dialog>
 
       <PromoPosterModal draft={posterDraft} onClose={() => setPosterDraft(null)} />
+
+      <VitrineCrowdDropModal
+        open={crowdDropOpen}
+        onClose={() => setCrowdDropOpen(false)}
+        zoneId={current.zone.id}
+        zoneLabel={activeTenant?.floorLabel || current.zone.shortName}
+        storeName={activeDisplayStoreName}
+        activeTenant={activeTenant}
+        logoUrl={activeDisplayStoreLogo}
+        initialPeople={crowdDrop?.peopleNow ?? vitrineResumo?.picoSimultaneo ?? 2}
+        onPublishCrowdDrop={(draft) => {
+          onLaunchCampaign(draft);
+        }}
+      />
     </div>
   );
 };

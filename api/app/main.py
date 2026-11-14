@@ -17,7 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
-from .ai_agent import generate_plan
+from .ai_agent import audit_storefront_image, generate_plan
 from .ciclo import router as ciclo_router
 from .contexto import get_live_context
 from .engine import (
@@ -33,6 +33,8 @@ from .schemas import (
     PlanResponse,
     ScoreRequest,
     ScoreResponse,
+    VitrineAuditRequest,
+    VitrineAuditResponse,
 )
 from .security import contains_restricted_patterns, generate_audit_hash, sanitize_input
 
@@ -42,7 +44,14 @@ app = FastAPI(
     description="Backend do VitrineIQ: Score de Oportunidade, Agente de IA e hash encadeado para apontar alterações nos registros.",
 )
 
-_default_origins = "http://localhost:3000,https://vitrineiq-capim-dourado.vercel.app"
+_default_origins = (
+    "http://localhost:3000,"
+    "http://localhost:5173,"
+    "http://127.0.0.1:5173,"
+    "http://localhost:4173,"
+    "http://127.0.0.1:4173,"
+    "https://vitrineiq-capim-dourado.vercel.app"
+)
 allowed_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
 
 app.add_middleware(
@@ -146,6 +155,53 @@ def ia_plano(body: PlanRequest) -> PlanResponse:
         source=result.source,  # type: ignore[arg-type]
         latency_ms=int((time.perf_counter() - start) * 1000),
         audit_hash=generate_audit_hash(f"IA_PLANO:{result.source}", timestamp=_now()),
+    )
+
+
+@app.post(
+    "/api/ia/auditar-vitrine",
+    response_model=VitrineAuditResponse,
+    dependencies=[Depends(limitar_ia)],
+)
+def ia_auditar_vitrine(body: VitrineAuditRequest) -> VitrineAuditResponse:
+    """Raio-X Multimodal da Vitrine (sem persistência nem log da imagem - LGPD)."""
+    start = time.perf_counter()
+    raw_store_name = body.store_name
+    store_name = sanitize_input(raw_store_name)
+
+    if contains_restricted_patterns(raw_store_name) or contains_restricted_patterns(store_name) or not store_name:
+        return VitrineAuditResponse(
+            success=False,
+            score=0,
+            headline="Aviso de Segurança: o nome da loja contém padrões restritos de segurança ou injeção.",
+            defects=["Entrada bloqueada pelo guardrail de segurança."],
+            zone_moves=[],
+            quick_win="Remova instruções ou scripts suspeitos do nome da loja e tente novamente.",
+            source="BLOCKED",
+            latency_ms=int((time.perf_counter() - start) * 1000),
+            audit_hash=generate_audit_hash("IA_AUDITORIA_BLOQUEADA", timestamp=_now()),
+        )
+
+    result = audit_storefront_image(
+        image_base64=body.image_base64,
+        zone_id=body.zone_id,
+        store_name=store_name,
+        olhares_por_zona=body.olhares_por_zona,
+        taxa_atencao=body.taxa_atencao,
+    )
+    return VitrineAuditResponse(
+        success=True,
+        score=result.score,
+        headline=result.headline,
+        defects=result.defects,
+        zone_moves=result.zone_moves,
+        quick_win=result.quick_win,
+        source=result.source,  # type: ignore[arg-type]
+        latency_ms=int((time.perf_counter() - start) * 1000),
+        audit_hash=generate_audit_hash(
+            f"IA_AUDITORIA:{body.zone_id}:{store_name}:{result.score}:{result.source}",
+            timestamp=_now(),
+        ),
     )
 
 

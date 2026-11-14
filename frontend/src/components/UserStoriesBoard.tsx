@@ -119,6 +119,23 @@ const VITRINEIQ_STORIES: UserStoryItem[] = [
     targetLabel: 'Abrir Mapa 3D',
     icon: <Compass className="w-4 h-4 text-amber-600" aria-hidden="true" />,
   },
+  {
+    id: 'US-06',
+    priority: 'SHOULD HAVE',
+    persona: 'Lojista em Horário de Movimento + Vizinhos de Corredor',
+    title: 'Vitrine Crowd-Drop, Aliança de Corredor & Voz 4s',
+    asA: 'Como lojista conectado ao VitrineIQ',
+    iWant: 'quero transformar aglomeração na vitrine em desconto coletivo dinâmico, criar rotas cruzadas com lojas âncoras e ditar objeções por voz',
+    soThat: 'para converter grupos indecisos em tempo real e integrar o mix do shopping em aliança.',
+    kpi: 'Crowd-Drop 10%→30% • Balcão Voz 4s',
+    acceptance: [
+      'Telão Crowd-Drop ajusta o cupom (10% / 20% / 30%) pelo nº de pessoas detectadas na vitrine.',
+      'Aliança de Corredor desbloqueia Bônus de Rota no Concierge quando o cliente vem de outra ala.',
+    ],
+    targetTab: 'cockpit',
+    targetLabel: 'Abrir Telão Crowd-Drop',
+    icon: <Sparkles className="w-4 h-4 text-[#B45309]" aria-hidden="true" />,
+  },
 ];
 
 export const UserStoriesBoard: React.FC<UserStoriesBoardProps> = ({ onNavigateTab }) => {

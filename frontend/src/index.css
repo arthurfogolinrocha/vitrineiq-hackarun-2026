@@ -14,6 +14,12 @@
   initial-value: 0px;
 }
 
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
 :root {
   color-scheme: light;
   --gold-primary: #E2A83B;
@@ -314,7 +320,8 @@ dialog::backdrop {
 
 @media (forced-colors: active) {
   .bento-card-obsidian,
-  .bento-card-cream {
+  .bento-card-cream,
+  .bento-glass-obsidian {
     border: 1px solid CanvasText;
     box-shadow: none;
   }
@@ -334,4 +341,183 @@ dialog::backdrop {
   overscroll-behavior: contain;
   background-color: rgba(11, 13, 18, 0.72);
   backdrop-filter: blur(4px);
+}
+
+/* ============================================================
+   VitrineIQ Design System Futurista (Obsidian HUD & Gold Beam)
+   ============================================================ */
+
+.spotlight-border-glow {
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    260px circle at var(--mouse-x) var(--mouse-y),
+    rgba(245, 199, 107, 0.7),
+    rgba(226, 168, 59, 0.22) 45%,
+    transparent 75%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.spotlight-card:hover .spotlight-border-glow {
+  opacity: 1;
+}
+
+@keyframes beamSpin {
+  from {
+    --beam-angle: 0deg;
+  }
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+.border-beam-gold {
+  position: relative;
+}
+
+.border-beam-gold::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 18;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    rgba(226, 168, 59, 0.14) 225deg,
+    rgba(245, 199, 107, 0.95) 295deg,
+    #fffbeb 318deg,
+    rgba(226, 168, 59, 0.4) 342deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: beamSpin 5s linear infinite;
+}
+
+/* Cantoneiras Táticas HUD (┌ ┐ └ ┘) em #E2A83B/70 */
+.hud-corners {
+  position: relative;
+}
+
+.hud-corners-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.hud-corners::before,
+.hud-corners-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 20;
+  --hud-corner-color: rgba(226, 168, 59, 0.7);
+  background-image:
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color)),
+    linear-gradient(var(--hud-corner-color), var(--hud-corner-color));
+  background-position:
+    top left, top left,
+    top right, top right,
+    bottom left, bottom left,
+    bottom right, bottom right;
+  background-size:
+    12px 1.5px, 1.5px 12px,
+    12px 1.5px, 1.5px 12px,
+    12px 1.5px, 1.5px 12px,
+    12px 1.5px, 1.5px 12px;
+  background-repeat: no-repeat;
+}
+
+/* Linha de varredura sutil para o Radar da Vitrine */
+@keyframes hudScanlineSweep {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.75;
+  }
+  85% {
+    opacity: 0.75;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.hud-scanline {
+  position: relative;
+  overflow: hidden;
+}
+
+.hud-scanline::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 15;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(226, 168, 59, 0.04) 44%,
+    rgba(245, 199, 107, 0.28) 50%,
+    rgba(226, 168, 59, 0.04) 56%,
+    transparent 100%
+  );
+  animation: hudScanlineSweep 3.8s ease-in-out infinite;
+}
+
+/* Superfície Glass Obsidian */
+.bento-glass-obsidian {
+  position: relative;
+  background: rgba(11, 13, 18, 0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(226, 168, 59, 0.28);
+  box-shadow:
+    0 14px 36px -10px rgba(11, 13, 18, 0.55),
+    inset 0 1px 0 rgba(245, 199, 107, 0.24);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .border-beam-gold::after,
+  .hud-scanline::after {
+    animation: none;
+  }
+  .spotlight-border-glow {
+    transition: none;
+  }
 }

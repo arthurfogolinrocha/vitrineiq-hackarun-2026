@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Building2, Lock, Search } from 'lucide-react';
 import { AccessRole, StoreTenant } from '../types';
-import { CAPIM_DOURADO_STORES } from '../data/shoppingData';
+import { CAPIM_DOURADO_STORES, CAPIM_DOURADO_ZONES } from '../data/shoppingData';
 import { StoreAvatar } from './StoreAvatar';
 
 interface StoreTenantSwitcherProps {
@@ -35,15 +35,23 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
     );
   }, [search]);
 
+  const activeZoneLabel = useMemo(() => {
+    if (!activeTenant) return '';
+    const raw =
+      CAPIM_DOURADO_ZONES.find((z) => z.id === activeTenant.zoneId)?.shortName ??
+      activeTenant.zoneId;
+    return raw.replace(/\s*\([^)]*\)/g, '').trim();
+  }, [activeTenant]);
+
   if (variant === 'compact') {
     return (
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => onChangeRole(accessRole === 'admin' ? 'store' : 'admin')}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-2 border transition ${
+          className={`px-2.5 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-2.5 border transition ${
             activeTenant
-              ? 'bg-[#0B0D12] border-[#E2A83B]/45 text-[#F5C76B]'
+              ? 'bg-[#0B0D12] border-[#E2A83B]/55 text-[#F5C76B]'
               : 'bg-white border-stone-200 text-[#0B0D12] hover:border-[#E2A83B]'
           }`}
           title="Alternar entre visão Admin do Shopping e visão isolada da Loja"
@@ -53,14 +61,16 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
               <StoreAvatar
                 storeName={activeTenant.storeName}
                 logoUrl={activeTenant.logoUrl}
-                sizeClass="w-5 h-5"
-                roundedClass="rounded-md"
+                sizeClass="h-10 min-w-[3.5rem] max-w-[5rem] px-1"
+                roundedClass="rounded-lg"
               />
-              <span>Loja: {activeTenant.storeName}</span>
+              <span className="truncate max-w-[10rem] sm:max-w-none">
+                Loja: {activeTenant.storeName}
+              </span>
             </>
           ) : (
             <>
-              <Building2 className="w-3.5 h-3.5 text-[#7A4B0A]" aria-hidden="true" />
+              <Building2 className="w-4 h-4 text-[#7A4B0A]" aria-hidden="true" />
               <span>Admin ({CAPIM_DOURADO_STORES.length} lojas)</span>
             </>
           )}
@@ -71,23 +81,23 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
             <button
               type="button"
               onClick={() => setOpenPicker((v) => !v)}
-              className="px-2.5 py-1.5 rounded-xl bg-amber-50 border border-[#E2A83B]/50 text-[#7A4B0A] text-xs font-bold"
+              className="px-3 py-2 rounded-xl bg-amber-50 border border-[#E2A83B]/50 text-[#7A4B0A] text-xs font-bold"
             >
               Trocar Loja ({CAPIM_DOURADO_STORES.length})
             </button>
             {openPicker && (
-              <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#0B0D12] border border-[#E2A83B]/40 p-3 shadow-2xl z-50 space-y-2 text-white">
+              <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-[#0B0D12] border border-[#E2A83B]/45 p-3 shadow-2xl z-50 space-y-2.5 text-white">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-2.5" aria-hidden="true" />
                   <input
                     type="search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar entre 188 lojas..."
+                    placeholder={`Buscar entre ${CAPIM_DOURADO_STORES.length} lojas...`}
                     className="w-full rounded-lg bg-[#12151D] border border-white/15 pl-8 pr-2.5 py-1.5 text-xs text-white placeholder-stone-400"
                   />
                 </div>
-                <ul className="max-h-56 overflow-y-auto space-y-1">
+                <ul className="max-h-72 overflow-y-auto space-y-1.5">
                   {filteredStores.slice(0, 60).map((st) => (
                     <li key={st.id}>
                       <button
@@ -96,19 +106,24 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
                           onSelectStore(st.id);
                           setOpenPicker(false);
                         }}
-                        className={`w-full px-2 py-1.5 rounded-lg text-left text-xs flex items-center gap-2 transition ${
+                        className={`w-full px-2.5 py-2 rounded-xl text-left text-xs flex items-center gap-3 transition ${
                           st.id === activeStoreId
-                            ? 'bg-[#E2A83B]/20 text-[#F5C76B] font-bold'
-                            : 'hover:bg-white/10 text-stone-200'
+                            ? 'bg-[#E2A83B]/20 text-[#F5C76B] font-bold border border-[#E2A83B]/40'
+                            : 'hover:bg-white/10 text-stone-200 border border-transparent'
                         }`}
                       >
                         <StoreAvatar
                           storeName={st.storeName}
                           logoUrl={st.logoUrl}
-                          sizeClass="w-6 h-6"
-                          roundedClass="rounded-md"
+                          sizeClass="w-11 h-11"
+                          roundedClass="rounded-lg"
                         />
-                        <span className="truncate flex-1">{st.storeName}</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate block font-semibold">{st.storeName}</span>
+                          <span className="truncate block text-[10px] text-stone-400">
+                            {st.floorLabel}
+                          </span>
+                        </div>
                       </button>
                     </li>
                   ))}
@@ -159,21 +174,24 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
       </div>
 
       {accessRole === 'store' && (
-        <div className="space-y-2 pt-0.5">
+        <div className="space-y-2.5 pt-0.5">
           {activeTenant && (
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[#0B0D12] border border-[#E2A83B]/35">
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0B0D12] border border-[#E2A83B]/45 shadow-md">
               <StoreAvatar
                 storeName={activeTenant.storeName}
                 logoUrl={activeTenant.logoUrl}
-                sizeClass="w-9 h-9"
-                roundedClass="rounded-lg"
+                sizeClass="w-16 h-12"
+                roundedClass="rounded-xl"
               />
-              <div className="min-w-0">
-                <strong className="text-xs font-extrabold text-[#F5C76B] block truncate">
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <strong className="text-sm font-extrabold text-[#F5C76B] block leading-tight truncate">
                   {activeTenant.storeName}
                 </strong>
-                <span className="text-[10px] text-stone-400 block truncate">
+                <span className="text-[11px] font-semibold text-stone-200 block truncate">
                   {activeTenant.floorLabel}
+                </span>
+                <span className="text-[10px] font-medium text-stone-400 block truncate">
+                  {activeZoneLabel}
                 </span>
               </div>
             </div>
@@ -193,7 +211,7 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
 
           <ul
             aria-label="Lista de lojas do shopping"
-            className="max-h-40 overflow-y-auto space-y-1 pr-0.5"
+            className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5"
           >
             {filteredStores.map((st) => {
               const selected = st.id === activeStoreId;
@@ -202,19 +220,24 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
                   <button
                     type="button"
                     onClick={() => onSelectStore(st.id)}
-                    className={`w-full px-2 py-1.5 rounded-lg text-left text-[11px] flex items-center gap-2 transition ${
+                    className={`w-full px-2 py-1.5 rounded-xl text-left text-xs flex items-center gap-2.5 transition ${
                       selected
-                        ? 'bg-[#E2A83B]/20 text-[#F5C76B] font-bold border border-[#E2A83B]/40'
-                        : 'text-stone-300 hover:bg-white/5 hover:text-white border border-transparent'
+                        ? 'bg-[#E2A83B]/20 text-[#F5C76B] font-bold border border-[#E2A83B]/45'
+                        : 'text-stone-200 hover:bg-white/5 hover:text-white border border-transparent'
                     }`}
                   >
                     <StoreAvatar
                       storeName={st.storeName}
                       logoUrl={st.logoUrl}
-                      sizeClass="w-6 h-6"
-                      roundedClass="rounded-md"
+                      sizeClass="w-14 h-11"
+                      roundedClass="rounded-lg"
                     />
-                    <span className="truncate flex-1">{st.storeName}</span>
+                    <div className="min-w-0 flex-1">
+                      <span className="truncate block font-semibold">{st.storeName}</span>
+                      <span className="truncate block text-[10px] text-stone-400">
+                        {st.floorLabel}
+                      </span>
+                    </div>
                   </button>
                 </li>
               );
@@ -230,3 +253,4 @@ export const StoreTenantSwitcher: React.FC<StoreTenantSwitcherProps> = ({
     </div>
   );
 };
+

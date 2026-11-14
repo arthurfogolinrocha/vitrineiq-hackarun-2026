@@ -1,17 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
   Clock,
   Lock,
+  Mic,
+  MicOff,
   PackageX,
   Search,
   Tag,
   Undo2,
   Users,
+  Zap,
 } from 'lucide-react';
-import { LostSaleEvent, LostSaleReason, ShoppingZone, ZoneId } from '../types';
-import { LOST_SALE_LABELS } from '../data/shoppingData';
+import { LostSaleEvent, LostSaleReason, ShoppingZone, StoreTenant, ZoneId } from '../types';
+import { LOST_SALE_LABELS, findStoreByName } from '../data/shoppingData';
+import { StoreAvatar } from './StoreAvatar';
 
 interface CounterQuickLogProps {
   zones: ShoppingZone[];
@@ -19,10 +23,77 @@ interface CounterQuickLogProps {
   onSelectZone: (zoneId: ZoneId) => void;
   lostSales: LostSaleEvent[];
   lockedStoreName?: string;
+  activeTenant?: StoreTenant | null;
   onLogLostSale: (zoneId: ZoneId, storeName: string, reason: LostSaleReason, note?: string) => void;
   onUndoLostSale?: () => void;
   onLogCompletedSale: (zoneId: ZoneId, storeName: string) => void;
   completedSalesCount: number;
+  onQuickFlashFromVoice?: (note: string, reason: LostSaleReason) => void;
+}
+
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionInstanceLike {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  continuous: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstanceLike;
+
+const VOICE_EXAMPLES: { text: string; hint: string }[] = [
+  { text: 'Cliente achou o tênis caro e pediu desconto à vista', hint: 'Preço' },
+  { text: 'Procurou camisa branca M e não tinha na grade', hint: 'Estoque' },
+  { text: 'Desistiu pela fila grande no caixa agora', hint: 'Fila' },
+  { text: 'Só olhando a vitrine para presente de aniversário', hint: 'Pesquisando' },
+];
+
+function classifyVoiceReason(transcript: string): LostSaleReason {
+  const norm = transcript
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    /\b(tamanho|numeracao|numero|grade|estoque|acabou|faltou|falta|cor|modelo|pp|gg|3[5-9]|4[0-5]|nao tinha|sem)\b/.test(
+      norm
+    )
+  ) {
+    return 'estoque_grade';
+  }
+  if (
+    /\b(fila|demora|demorando|espera|esperando|atendente|atendimento|caixa|lotado|lento|ninguem)\b/.test(
+      norm
+    )
+  ) {
+    return 'fila_atendimento';
+  }
+  if (
+    /\b(caro|preco|valor|desconto|parcela|parcelamento|juros|barato|orcamento|promocao|reais)\b/.test(
+      norm
+    ) ||
+    norm.includes('r$')
+  ) {
+    return 'preco';
+  }
+  return 'pesquisando';
 }
 
 const REASON_BUTTONS: {
@@ -73,24 +144,209 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   onSelectZone,
   lostSales,
   lockedStoreName,
+  activeTenant,
   onLogLostSale,
   onUndoLostSale,
   onLogCompletedSale,
   completedSalesCount,
+  onQuickFlashFromVoice,
 }) => {
-  const [storeName, setStoreName] = useState(lockedStoreName || 'Loja Piloto Capim Dourado');
+  const effectiveLockedStore = activeTenant?.storeName || lockedStoreName;
+  const effectiveZoneId: ZoneId = activeTenant ? activeTenant.zoneId : selectedZoneId;
+  const resolvedStore =
+    activeTenant ?? (effectiveLockedStore ? findStoreByName(effectiveLockedStore) : undefined);
+
+  const [storeName, setStoreName] = useState(effectiveLockedStore || 'Loja Piloto Capim Dourado');
   const [note, setNote] = useState('');
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (lockedStoreName) {
-      setStoreName(lockedStoreName);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSecondsLeft, setVoiceSecondsLeft] = useState(4);
+  const [voiceTranscript, setVoiceTranscript] = useState<string | null>(null);
+  const [voiceReason, setVoiceReason] = useState<LostSaleReason | null>(null);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const [showVoiceFallback, setShowVoiceFallback] = useState(false);
+  const [flashTriggered, setFlashTriggered] = useState(false);
+
+  const recognitionRef = useRef<SpeechRecognitionInstanceLike | null>(null);
+  const stopTimerRef = useRef<number | null>(null);
+  const countdownTimerRef = useRef<number | null>(null);
+  const latestTranscriptRef = useRef<string>('');
+  const processedVoiceRef = useRef<boolean>(false);
+
+  const clearVoiceTimers = () => {
+    if (stopTimerRef.current !== null) {
+      window.clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
     }
-  }, [lockedStoreName]);
+    if (countdownTimerRef.current !== null) {
+      window.clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (effectiveLockedStore) {
+      setStoreName(effectiveLockedStore);
+    }
+  }, [effectiveLockedStore]);
+
+  useEffect(() => {
+    if (activeTenant && selectedZoneId !== activeTenant.zoneId) {
+      onSelectZone(activeTenant.zoneId);
+    }
+  }, [activeTenant, selectedZoneId, onSelectZone]);
+
+  useEffect(() => {
+    return () => {
+      clearVoiceTimers();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore stop errors on unmount
+      }
+    };
+  }, []);
+
+  const getCleanStoreName = () =>
+    (effectiveLockedStore || storeName).trim() || 'Loja Piloto Capim Dourado';
+
+  const commitVoiceLog = (rawText: string) => {
+    const cleanText = rawText.trim();
+    if (!cleanText || processedVoiceRef.current) return;
+    processedVoiceRef.current = true;
+    const classified = classifyVoiceReason(cleanText);
+    const cleanStore = getCleanStoreName();
+
+    onLogLostSale(effectiveZoneId, cleanStore, classified, cleanText);
+    setVoiceTranscript(cleanText);
+    setVoiceReason(classified);
+    setFlashTriggered(false);
+    setVoiceNotice(null);
+    setFeedbackBanner(
+      `Voz registrada automaticamente em "${LOST_SALE_LABELS[classified]}" — Painel e Mapa atualizados!`
+    );
+  };
+
+  const handleToggleVoiceCapture = () => {
+    if (isListening) {
+      clearVoiceTimers();
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // ignore
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const win = window as unknown as {
+      SpeechRecognition?: SpeechRecognitionCtor;
+      webkitSpeechRecognition?: SpeechRecognitionCtor;
+    };
+    const RecognitionCtor = win.SpeechRecognition || win.webkitSpeechRecognition;
+
+    if (!RecognitionCtor) {
+      setShowVoiceFallback(true);
+      setVoiceNotice(
+        'Navegador sem Web Speech API nativa — toque em um dos comandos de voz rápidos abaixo para testar a classificação automática.'
+      );
+      return;
+    }
+
+    try {
+      clearVoiceTimers();
+      latestTranscriptRef.current = '';
+      processedVoiceRef.current = false;
+      setVoiceNotice(null);
+      setVoiceSecondsLeft(4);
+      setIsListening(true);
+
+      const rec = new RecognitionCtor();
+      rec.lang = 'pt-BR';
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.continuous = false;
+
+      rec.onresult = (event) => {
+        let combined = '';
+        let hasFinal = false;
+        for (let i = 0; i < event.results.length; i++) {
+          const r = event.results[i];
+          combined += `${r[0]?.transcript ?? ''} `;
+          if (r.isFinal) hasFinal = true;
+        }
+        const trimmed = combined.trim();
+        if (trimmed) {
+          latestTranscriptRef.current = trimmed;
+        }
+        if (hasFinal && trimmed) {
+          clearVoiceTimers();
+          setIsListening(false);
+          commitVoiceLog(trimmed);
+          try {
+            rec.stop();
+          } catch {
+            // ignore
+          }
+        }
+      };
+
+      rec.onerror = (evt) => {
+        clearVoiceTimers();
+        setIsListening(false);
+        setShowVoiceFallback(true);
+        if (evt.error === 'not-allowed' || evt.error === 'service-not-allowed') {
+          setVoiceNotice(
+            'Permissão de microfone negada — use um dos comandos de voz clicáveis abaixo.'
+          );
+        } else {
+          setVoiceNotice(
+            'Não captamos áudio claro nos 4s — fale mais perto ou use um exemplo clicável abaixo.'
+          );
+        }
+      };
+
+      rec.onend = () => {
+        clearVoiceTimers();
+        setIsListening(false);
+        if (latestTranscriptRef.current && !processedVoiceRef.current) {
+          commitVoiceLog(latestTranscriptRef.current);
+        }
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+
+      countdownTimerRef.current = window.setInterval(() => {
+        setVoiceSecondsLeft((prev) => (prev > 1 ? prev - 1 : 1));
+      }, 1000);
+
+      stopTimerRef.current = window.setTimeout(() => {
+        try {
+          rec.stop();
+        } catch {
+          // ignore
+        }
+      }, 4000);
+    } catch {
+      clearVoiceTimers();
+      setIsListening(false);
+      setShowVoiceFallback(true);
+      setVoiceNotice(
+        'Não foi possível iniciar o microfone — use um dos comandos de voz rápidos abaixo.'
+      );
+    }
+  };
+
+  const handleSimulatedVoiceExample = (text: string) => {
+    processedVoiceRef.current = false;
+    commitVoiceLog(text);
+  };
 
   const handleQuickTap = (reason: LostSaleReason) => {
-    const cleanStore = (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
-    onLogLostSale(selectedZoneId, cleanStore, reason, note.trim() || undefined);
+    const cleanStore = getCleanStoreName();
+    onLogLostSale(effectiveZoneId, cleanStore, reason, note.trim() || undefined);
     setNote('');
     setFeedbackBanner(
       `Registrado em 1 toque (${LOST_SALE_LABELS[reason]}) — Painel e Mapa atualizados!`
@@ -98,8 +354,8 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
   };
 
   const handleCompletedSale = () => {
-    const cleanStore = (lockedStoreName || storeName).trim() || 'Loja Piloto Capim Dourado';
-    onLogCompletedSale(selectedZoneId, cleanStore);
+    const cleanStore = getCleanStoreName();
+    onLogCompletedSale(effectiveZoneId, cleanStore);
     setFeedbackBanner('Venda concluída registrada — funil do Painel atualizado!');
   };
 
@@ -107,21 +363,153 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 panel-enter">
       {/* Botões de 1 Toque do Vendedor */}
       <div className="lg:col-span-2 bento-card-cream rounded-3xl p-6 space-y-5">
+        {effectiveLockedStore && (
+          <div className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <StoreAvatar
+                storeName={effectiveLockedStore}
+                logoUrl={resolvedStore?.logoUrl}
+                variant="wide"
+              />
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#F5C76B] block">
+                  Balcão Exclusivo da Loja
+                </span>
+                <strong className="text-sm sm:text-base font-extrabold text-white block truncate">
+                  {effectiveLockedStore}
+                </strong>
+                {resolvedStore?.floorLabel && (
+                  <span className="text-xs text-stone-300 block truncate">
+                    {resolvedStore.floorLabel}
+                  </span>
+                )}
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E2A83B]/15 text-[#F5C76B] border border-[#E2A83B]/40 text-[11px] font-bold shrink-0">
+              <Lock className="w-3 h-3" aria-hidden="true" />
+              Modo Lojista: {effectiveLockedStore}
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-extrabold text-[#0B0D12] flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-rose-600" aria-hidden="true" />
-              Modo Balcão — Registro em 1 Toque
+              Modo Balcão — Registro em 1 Toque &amp; Voz 4s
             </h2>
             <p className="text-xs text-stone-600 mt-1">
-              Registre em 2 segundos por que o cliente saiu sem comprar e alimente o Copiloto IA na hora.
+              Registre em 2 segundos (por toque ou falando por 4s) por que o cliente saiu sem comprar.
             </p>
           </div>
-          {lockedStoreName && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0B0D12] text-[#F5C76B] border border-[#E2A83B]/40 text-[11px] font-bold">
-              <Lock className="w-3 h-3" aria-hidden="true" />
-              Modo Lojista: {lockedStoreName}
-            </span>
+        </div>
+
+        {/* Balcão por Voz 4s */}
+        <div className="rounded-2xl bg-white border border-[#E2A83B]/40 p-4 space-y-3 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <strong className="text-xs font-extrabold text-[#0B0D12] block">
+                Atalho de Balcão por Voz (4 segundos)
+              </strong>
+              <span className="text-[11px] text-stone-500">
+                Fale a objeção do cliente — a IA classifica automaticamente e registra na hora.
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleVoiceCapture}
+                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition shadow-sm ${
+                  isListening
+                    ? 'bg-rose-600 hover:bg-rose-700 text-white animate-pulse'
+                    : 'gold-pill-metallic'
+                }`}
+              >
+                {isListening ? (
+                  <>
+                    <MicOff className="w-4 h-4" aria-hidden="true" />
+                    <span>Ouvindo ({voiceSecondsLeft}s)... Toque p/ parar</span>
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4" aria-hidden="true" />
+                    <span>Registrar por Voz (4s)</span>
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVoiceFallback((s) => !s)}
+                className="px-3 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-[11px] font-bold text-stone-700"
+              >
+                {showVoiceFallback ? 'Ocultar Exemplos' : 'Exemplos de Voz'}
+              </button>
+            </div>
+          </div>
+
+          {voiceNotice && (
+            <p role="status" className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 font-medium">
+              {voiceNotice}
+            </p>
+          )}
+
+          {showVoiceFallback && (
+            <div className="space-y-1.5 pt-1">
+              <span className="block text-[11px] font-bold text-stone-600">
+                Toque para simular comando de voz em 1 clique:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {VOICE_EXAMPLES.map((ex) => (
+                  <button
+                    key={ex.text}
+                    type="button"
+                    onClick={() => handleSimulatedVoiceExample(ex.text)}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] hover:bg-amber-50 border border-stone-300 hover:border-[#E2A83B] text-[11px] text-[#0B0D12] font-medium text-left transition"
+                  >
+                    <span className="font-extrabold text-[#7A4B0A] mr-1">[{ex.hint}]</span>
+                    &ldquo;{ex.text}&rdquo;
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {voiceTranscript && voiceReason && (
+            <div className="rounded-xl bg-[#0B0D12] text-white border border-[#E2A83B]/45 p-3.5 flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#F5C76B]">
+                    Transcrição de Voz
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-200 border border-rose-400/35 text-[10px] font-bold">
+                    {LOST_SALE_LABELS[voiceReason]}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-white">
+                  &ldquo;{voiceTranscript}&rdquo;
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onQuickFlashFromVoice?.(voiceTranscript, voiceReason);
+                  setFlashTriggered(true);
+                  setFeedbackBanner(
+                    `Oferta Relâmpago disparada para "${voiceTranscript}" (${LOST_SALE_LABELS[voiceReason]})!`
+                  );
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shrink-0 transition ${
+                  flashTriggered
+                    ? 'bg-emerald-500 text-white'
+                    : 'gold-pill-metallic'
+                }`}
+              >
+                <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>
+                  {flashTriggered ? 'Oferta Relâmpago Pronta!' : 'Transformar em Oferta Relâmpago'}
+                </span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -132,14 +520,14 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
             </label>
             <select
               id="counter-zone"
-              value={selectedZoneId}
+              value={effectiveZoneId}
               onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-              disabled={Boolean(lockedStoreName)}
+              disabled={Boolean(effectiveLockedStore)}
               className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-medium disabled:opacity-75 disabled:cursor-not-allowed"
             >
-              {zones.map((z) => (
+              {(activeTenant ? zones.filter((z) => z.id === activeTenant.zoneId) : zones).map((z) => (
                 <option key={z.id} value={z.id}>
-                  {z.shortName}
+                  {activeTenant ? z.shortName.replace(/\s*\([^)]*\)/g, '').trim() : z.shortName}
                 </option>
               ))}
             </select>
@@ -147,13 +535,13 @@ export const CounterQuickLog: React.FC<CounterQuickLogProps> = ({
 
           <div>
             <label htmlFor="counter-store" className="block text-xs font-bold text-stone-700 mb-1.5">
-              {lockedStoreName ? 'Loja Isolada (Tenant Ativo)' : 'Nome da Loja (Demo)'}
+              {effectiveLockedStore ? 'Loja Isolada (Tenant Ativo)' : 'Nome da Loja (Demo)'}
             </label>
             <input
               id="counter-store"
               type="text"
               value={storeName}
-              readOnly={Boolean(lockedStoreName)}
+              readOnly={Boolean(effectiveLockedStore)}
               onChange={(e) => setStoreName(e.target.value)}
               className="w-full bg-[#FAF8F5] border border-stone-300 rounded-xl px-3 py-2.5 text-xs text-[#0B0D12] font-semibold read-only:bg-amber-50/60 read-only:border-[#E2A83B]/50"
             />

@@ -11,10 +11,11 @@ import {
   Store,
   TrendingUp,
 } from 'lucide-react';
-import { CrossSegmentRoute, FloorId, ZoneId } from '../types';
+import { CrossSegmentRoute, FlashCampaign, FloorId, StoreTenant, ZoneId } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LOST_SALE_LABELS } from '../data/shoppingData';
 import { ShoppingMap3D } from './ShoppingMap3D';
+import { StoreAvatar } from './StoreAvatar';
 
 interface ShoppingMapProps {
   floor: FloorId;
@@ -25,6 +26,8 @@ interface ShoppingMapProps {
   routes: CrossSegmentRoute[];
   selectedStoreName?: string | null;
   onSelectStoreName?: (name: string | null) => void;
+  campaigns?: FlashCampaign[];
+  activeTenant?: StoreTenant | null;
 }
 
 export const ShoppingMap: React.FC<ShoppingMapProps> = ({
@@ -36,6 +39,8 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
   routes,
   selectedStoreName,
   onSelectStoreName,
+  campaigns,
+  activeTenant,
 }) => {
   const [renderMode, setRenderMode] = useState<'3d' | '2d'>('3d');
 
@@ -143,6 +148,9 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
               onSelectZone={onSelectZone}
               selectedStoreName={selectedStoreName}
               onSelectStoreName={onSelectStoreName}
+              routes={routes}
+              campaigns={campaigns}
+              activeTenant={activeTenant}
             />
           ) : (
             <div className="bg-white border border-stone-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
@@ -507,6 +515,39 @@ export const ShoppingMap: React.FC<ShoppingMapProps> = ({
         <aside className="xl:col-span-4 space-y-4">
           {/* Card Escuro Destacado da Ala Selecionada */}
           <div className="bg-[#111318] text-white rounded-2xl p-5 shadow-sm border border-white/10 space-y-4">
+            {activeTenant && (
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 border border-[#E2A83B]/35">
+                <div className="flex items-center gap-3 min-w-0">
+                  <StoreAvatar
+                    storeName={activeTenant.storeName}
+                    logoUrl={activeTenant.logoUrl}
+                    sizeClass="w-12 h-12"
+                    roundedClass="rounded-xl"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#E2A83B] block">
+                      Operação em Foco
+                    </span>
+                    <h4 className="text-sm font-extrabold text-white truncate">
+                      {activeTenant.storeName}
+                    </h4>
+                    <span className="text-[11px] text-stone-300 block truncate">
+                      {activeTenant.floorLabel}
+                    </span>
+                  </div>
+                </div>
+                {onSelectStoreName && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectStoreName(activeTenant.storeName)}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#E2A83B]/20 hover:bg-[#E2A83B] text-[#E2A83B] hover:text-[#111318] text-[10px] font-extrabold border border-[#E2A83B]/40 transition shrink-0"
+                  >
+                    Focar 3D
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">

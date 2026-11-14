@@ -118,6 +118,8 @@ export interface ConsumerSignal {
   couponCode: string;
   matchedOffer: string;
   timestamp: string;
+  originZone?: ZoneId;
+  bonusRota?: boolean;
 }
 
 export interface LostSaleEvent {
@@ -139,8 +141,31 @@ export interface FlashCampaign {
   whatsappCopy: string;
   expiresInMinutes: number;
   segmento?: string;
+  triggerOrigin?: string;
   active: boolean;
   createdAt: string;
+}
+
+export interface CrowdDropState {
+  zoneId: ZoneId;
+  tier: number;
+  discountPct: number;
+  peopleNow: number;
+  nextTarget: number;
+  label: string;
+  couponCode: string;
+}
+
+export interface VitrineAuditResult {
+  success: boolean;
+  score: number;
+  headline: string;
+  defects: string[];
+  zone_moves: string[];
+  quick_win: string;
+  source: 'GEMINI_API' | 'FALLBACK_LOCAL' | 'BLOCKED';
+  latency_ms: number;
+  audit_hash: string;
 }
 
 export interface VisionFunnelSnapshot {

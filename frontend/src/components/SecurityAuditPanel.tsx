@@ -31,7 +31,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
             Privacidade (LGPD)
           </div>
           <p className="text-slate-600 leading-relaxed">
-            Não pedimos nome, CPF nem contato. A câmera processa a imagem no próprio aparelho, não grava nem envia imagem, pixeliza rostos no preview e envia só contagens. O Concierge QR não pede cadastro.
+            Não pedimos nome, CPF nem contato. A webcam processa contagem e auditoria de vitrine (<code>/api/ia/auditar-vitrine</code>) em memória RAM sem gravar vídeo nem salvar fotos. O Concierge QR não pede cadastro e cada lojista enxerga apenas seu tenant isolado.
           </p>
         </div>
 
@@ -41,7 +41,7 @@ export const SecurityAuditPanel: React.FC<SecurityAuditPanelProps> = ({ auditLog
             Backend Python (FastAPI) &amp; Espelho TypeScript
           </div>
           <p className="text-slate-600 leading-relaxed">
-            O backend em Python (<code>api/app/engine.py</code>, rotas <code>/api/score</code> e <code>/api/ia/plano</code>) é a fonte de verdade do cálculo. A interface web usa o espelho TypeScript com <strong>paridade validada em testes</strong>. Exemplo calibrado: <strong>{sampleScore} pts</strong>.
+            O backend em Python (<code>api/app/engine.py</code>, rotas <code>/api/score</code>, <code>/api/vitrine/crowd-drop</code>, <code>/api/ia/plano</code> e <code>/api/ia/auditar-vitrine</code>) é a fonte de verdade. O frontend espelha o cálculo com <strong>paridade validada</strong> ({sampleScore} pts).
           </p>
         </div>
 

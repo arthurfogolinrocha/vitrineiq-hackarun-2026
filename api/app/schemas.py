@@ -68,3 +68,23 @@ class ContextoResponse(BaseModel):
     sources: dict[str, str]
 
 
+class VitrineAuditRequest(BaseModel):
+    image_base64: str = Field(min_length=20, max_length=3_000_000)
+    zone_id: ZoneId
+    store_name: str = Field(min_length=1, max_length=80)
+    olhares_por_zona: dict[str, int] = Field(default_factory=dict)
+    taxa_atencao: Optional[int] = None
+
+
+class VitrineAuditResponse(BaseModel):
+    success: bool
+    score: int
+    headline: str
+    defects: list[str]
+    zone_moves: list[str]
+    quick_win: str
+    source: Literal["GEMINI_API", "FALLBACK_LOCAL", "BLOCKED"]
+    latency_ms: int
+    audit_hash: str
+
+

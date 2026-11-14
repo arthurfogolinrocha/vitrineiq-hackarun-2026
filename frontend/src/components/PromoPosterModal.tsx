@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { Download, Monitor, Smartphone, Sparkles, X } from 'lucide-react';
 import { ZoneId } from '../types';
-import { buildProxiedLogoUrl } from './StoreAvatar';
+import { buildProxiedLogoUrl, StoreAvatar } from './StoreAvatar';
 
 export interface PosterDraft {
   storeName: string;
@@ -189,32 +189,36 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
         ctx.fillText(draft.floorLabel || draft.sourceLabel || '', width / 2, 155);
       }
 
-      // Selo da Logo da Loja (com imagem real via proxy CORS ou monograma)
-      const logoBoxY = format === 'stories' ? 235 : 195;
-      const logoBoxSize = 200;
+      // Selo da Logo da Loja em destaque (retângulo amplo para logos horizontais e quadradas)
+      const logoBoxY = format === 'stories' ? 225 : 185;
+      const logoBoxW = 320;
+      const logoBoxH = 190;
+      const logoBoxX = width / 2 - logoBoxW / 2;
       const proxiedLogo = buildProxiedLogoUrl(draft.logoUrl);
       const loadedLogo = proxiedLogo ? await loadCorsImage(proxiedLogo) : null;
       if (cancelled) return;
 
       ctx.save();
-      drawRoundedRect(ctx, width / 2 - logoBoxSize / 2, logoBoxY, logoBoxSize, logoBoxSize, 36);
+      drawRoundedRect(ctx, logoBoxX, logoBoxY, logoBoxW, logoBoxH, 34);
       ctx.fillStyle = loadedLogo ? '#FFFFFF' : '#181C26';
       ctx.fill();
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 5;
       ctx.strokeStyle = '#E2A83B';
       ctx.stroke();
 
       if (loadedLogo) {
         ctx.clip();
-        const pad = 22;
-        const maxSide = logoBoxSize - pad * 2;
-        const scale = Math.min(maxSide / loadedLogo.width, maxSide / loadedLogo.height);
+        const padX = 24;
+        const padY = 18;
+        const maxW = logoBoxW - padX * 2;
+        const maxH = logoBoxH - padY * 2;
+        const scale = Math.min(maxW / loadedLogo.width, maxH / loadedLogo.height);
         const drawW = loadedLogo.width * scale;
         const drawH = loadedLogo.height * scale;
         ctx.drawImage(
           loadedLogo,
           width / 2 - drawW / 2,
-          logoBoxY + logoBoxSize / 2 - drawH / 2,
+          logoBoxY + logoBoxH / 2 - drawH / 2,
           drawW,
           drawH
         );
@@ -226,15 +230,15 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
           .map((w) => w[0]?.toUpperCase() ?? '')
           .join('');
         ctx.fillStyle = '#F5C76B';
-        ctx.font = '800 72px "Plus Jakarta Sans", sans-serif';
+        ctx.font = '800 76px "Plus Jakarta Sans", sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(initials || 'VQ', width / 2, logoBoxY + logoBoxSize / 2);
+        ctx.fillText(initials || 'VQ', width / 2, logoBoxY + logoBoxH / 2);
       }
       ctx.restore();
 
       // Nome da loja
-      const storeNameY = logoBoxY + logoBoxSize + 58;
+      const storeNameY = logoBoxY + logoBoxH + 54;
       ctx.fillStyle = '#FFFFFF';
       ctx.font = '800 42px "Plus Jakarta Sans", sans-serif';
       ctx.textAlign = 'center';
@@ -244,7 +248,7 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       // Pílula de Desconto Dourada Metálica
       const badgeW = 540;
       const badgeH = 112;
-      const badgeY = storeNameY + 46;
+      const badgeY = storeNameY + 42;
       const grad = ctx.createLinearGradient(width / 2 - badgeW / 2, badgeY, width / 2 + badgeW / 2, badgeY + badgeH);
       grad.addColorStop(0, '#D49421');
       grad.addColorStop(0.5, '#F9DC87');
@@ -260,7 +264,7 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       ctx.textBaseline = 'alphabetic';
 
       // Título da Oferta
-      const titleY = badgeY + badgeH + 86;
+      const titleY = badgeY + badgeH + 80;
       ctx.fillStyle = '#FAF8F5';
       ctx.font = '800 48px "Plus Jakarta Sans", sans-serif';
       const titleLines = wrapLines(ctx, draft.title, width - 170, 2);
@@ -269,7 +273,7 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       });
 
       // Texto de Copy / Estratégia
-      const copyY = titleY + titleLines.length * 58 + 26;
+      const copyY = titleY + titleLines.length * 58 + 24;
       ctx.fillStyle = '#D6D3D1';
       ctx.font = '500 28px Inter, sans-serif';
       const copyLines = wrapLines(ctx, draft.copyText, width - 180, format === 'stories' ? 5 : 3);
@@ -335,24 +339,37 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
       ref={dialogRef}
       closedby="any"
       aria-labelledby="poster-modal-title"
-      className="w-[min(100%-2rem,56rem)] m-auto rounded-3xl border border-[#E2A83B]/40 bg-[#0B0D12] text-white p-0 shadow-2xl"
+      className="w-[min(100%-2rem,60rem)] m-auto rounded-3xl border border-[#E2A83B]/45 bg-[#0B0D12] text-white p-0 shadow-2xl"
     >
       <div className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3.5">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#F5C76B] flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              Cartaz &amp; Arte Promocional com Logo da Loja
-            </span>
-            <h3 id="poster-modal-title" className="text-lg font-extrabold text-white mt-0.5">
-              Pronto para Stories, WhatsApp ou TV da Vitrine
-            </h3>
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3.5 min-w-0">
+            {draft && (
+              <StoreAvatar
+                storeName={draft.storeName}
+                logoUrl={draft.logoUrl}
+                variant="hero"
+                roundedClass="rounded-2xl"
+              />
+            )}
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#F5C76B] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                Cartaz &amp; Arte Promocional com Logo da Loja
+              </span>
+              <h3 id="poster-modal-title" className="text-lg font-extrabold text-white mt-0.5 truncate">
+                {draft ? `${draft.storeName} — ` : ''}Stories, WhatsApp ou TV da Vitrine
+              </h3>
+              {draft?.floorLabel && (
+                <p className="text-xs text-stone-400 truncate">{draft.floorLabel}</p>
+              )}
+            </div>
           </div>
           <button
             type="button"
             onClick={() => dialogRef.current?.close()}
             aria-label="Fechar gerador de cartaz"
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition shrink-0"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -360,13 +377,13 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
           {/* Preview em tempo real */}
-          <div className="md:col-span-7 flex items-center justify-center bg-[#12151D] rounded-2xl border border-white/10 p-3 min-h-[340px]">
+          <div className="md:col-span-7 flex items-center justify-center bg-[#12151D] rounded-2xl border border-[#E2A83B]/25 p-3.5 min-h-[380px]">
             <canvas ref={canvasRef} className="hidden" />
             {previewUrl ? (
               <img
                 src={previewUrl}
                 alt={`Cartaz promocional de ${draft?.storeName ?? 'VitrineIQ'}`}
-                className="max-h-[460px] w-auto rounded-xl shadow-xl border border-[#E2A83B]/30 object-contain"
+                className="max-h-[500px] w-auto rounded-xl shadow-xl border border-[#E2A83B]/35 object-contain"
               />
             ) : (
               <span className="text-xs text-stone-400">
@@ -434,3 +451,4 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
     </dialog>
   );
 };
+
