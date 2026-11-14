@@ -11,6 +11,7 @@ import {
   Flame,
   Footprints,
   Hand,
+  Image as ImageIcon,
   Lock,
   Megaphone,
   Pause,
@@ -41,10 +42,12 @@ import {
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import { LiveContextPayload, VitrineResumo } from '../services/api';
-import { LOST_SALE_LABELS, SEGMENT_LABELS } from '../data/shoppingData';
+import { LOST_SALE_LABELS, SEGMENT_LABELS, findStoreByName } from '../data/shoppingData';
 import { stripMarkdown } from '../services/ai';
 import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
 import { SpotlightCard } from './SpotlightCard';
+import { StoreAvatar } from './StoreAvatar';
+import { PosterDraft, PromoPosterModal } from './PromoPosterModal';
 
 interface RetailerCockpitProps {
   zonesTelemetry: ZoneLiveTelemetry[];
@@ -156,6 +159,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   const [expiresInMinutes, setExpiresInMinutes] = useState(120);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [posterDraft, setPosterDraft] = useState<PosterDraft | null>(null);
+  const [publishedNotice, setPublishedNotice] = useState<PosterDraft | null>(null);
 
   // Fator de escala horária baseado na barra clicada (User Story #01)
   const selectedHourBar = HOURLY_PROFILE.find((b) => b.slot === factors.timeSlot);
@@ -215,17 +220,39 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       return;
     }
     setValidationError(null);
+    const cleanStore = lojaCampanha; // lojista: sempre a loja do login, nunca a digitada
+    const cleanTitle = title.trim();
+    const cleanBadge = discountBadge.trim() || 'OFERTA';
+    const cleanCoupon = couponCode.trim().toUpperCase();
+    const cleanCopy = whatsappCopy.trim();
+
     onLaunchCampaign({
       zoneId: current.zone.id,
-      storeName: lojaCampanha,
+      storeName: cleanStore,
       segmento: segmento !== 'todos' ? segmento : activeTenant?.segment,
-      title: title.trim(),
-      discountBadge: discountBadge.trim() || 'OFERTA',
-      couponCode: couponCode.trim().toUpperCase(),
-      whatsappCopy: whatsappCopy.trim(),
+      title: cleanTitle,
+      discountBadge: cleanBadge,
+      couponCode: cleanCoupon,
+      whatsappCopy: cleanCopy,
       expiresInMinutes,
     });
+
+    const matchedStore = activeTenant ?? findStoreByName(cleanStore);
+    const generatedPoster: PosterDraft = {
+      storeName: cleanStore,
+      logoUrl: matchedStore?.logoUrl,
+      floorLabel: matchedStore?.floorLabel || current.zone.shortName,
+      zoneId: current.zone.id,
+      title: cleanTitle,
+      discountBadge: cleanBadge,
+      couponCode: cleanCoupon,
+      copyText: cleanCopy,
+      expiresInMinutes,
+    };
+
     closeModal();
+    setPublishedNotice(generatedPoster);
+    setPosterDraft(generatedPoster);
   };
 
   const handleCopyCopywriting = async (id: string, text: string) => {
@@ -293,21 +320,62 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
   return (
     <div className="space-y-5">
+      {publishedNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl px-4 py-3 bg-emerald-50 border border-emerald-300 text-emerald-950 shadow-sm flex flex-wrap items-center justify-between gap-3"
+        >
+          <div className="flex items-center gap-2.5 text-xs">
+            <Check className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+            <span>
+              <strong>Oferta publicada no Shopping e no Concierge QR!</strong> Cupom{' '}
+              <span className="font-mono font-extrabold bg-emerald-100 px-1.5 py-0.5 rounded">
+                {publishedNotice.couponCode}
+              </span>{' '}
+              ativo para <strong>{publishedNotice.storeName}</strong>.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPosterDraft(publishedNotice)}
+              className="px-3 py-1.5 rounded-xl bg-[#0B0D12] text-[#F5C76B] text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Abrir Cartaz com Logo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPublishedNotice(null)}
+              aria-label="Fechar aviso"
+              className="p-1 rounded-lg text-emerald-700 hover:bg-emerald-100"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {activeTenant ? (
         <div
           role="status"
           className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3"
         >
-          <div className="flex items-center gap-2.5 text-xs">
-            <span className="w-7 h-7 rounded-lg bg-[#E2A83B]/15 border border-[#E2A83B]/40 text-[#F5C76B] flex items-center justify-center shrink-0">
-              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-            </span>
+          <div className="flex items-center gap-3 text-xs">
+            <StoreAvatar
+              storeName={activeTenant.storeName}
+              logoUrl={activeTenant.logoUrl}
+              sizeClass="w-10 h-10"
+              roundedClass="rounded-xl"
+            />
             <div>
-              <strong className="text-[#F5C76B]">
+              <strong className="text-[#F5C76B] flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" aria-hidden="true" />
                 Painel Exclusivo da Loja: {activeTenant.storeName}
               </strong>
-              <span className="text-stone-300 block sm:inline sm:ml-2">
-                ({activeTenant.floorLabel} • Ticket médio R$ {activeTenant.avgTicket}) — Dados de lojas concorrentes ocultos por isolamento multi-tenant.
+              <span className="text-stone-300 block sm:inline">
+                {activeTenant.floorLabel} • Ticket médio R$ {activeTenant.avgTicket} — Concorrentes ocultos por isolamento multi-tenant.
               </span>
             </div>
           </div>
@@ -1087,6 +1155,35 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
               <div className="text-xs sm:text-sm text-[#111318] leading-relaxed whitespace-pre-line font-medium">
                 {stripMarkdown(lastAnalysis.content)}
               </div>
+              <div className="pt-2 border-t border-stone-200 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetStore = activeTenant ?? findStoreByName(storeName);
+                    const cleanSummary = stripMarkdown(lastAnalysis.content)
+                      .split('\n')
+                      .filter(Boolean)
+                      .slice(0, 3)
+                      .join(' • ');
+                    setPosterDraft({
+                      storeName: targetStore?.storeName || storeName,
+                      logoUrl: targetStore?.logoUrl,
+                      floorLabel: targetStore?.floorLabel || current.zone.shortName,
+                      zoneId: current.zone.id,
+                      title: `Estratégia Ativa • ${current.zone.shortName}`,
+                      discountBadge: discountBadge || '15% OFF',
+                      couponCode: couponCode || 'CAPIM15',
+                      copyText: cleanSummary || whatsappCopy,
+                      expiresInMinutes,
+                      sourceLabel: 'Plano gerado pelo Copiloto IA VitrineIQ',
+                    });
+                  }}
+                  className="px-3 py-2 rounded-xl gold-pill-metallic text-xs font-extrabold flex items-center gap-1.5 transition"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Criar Cartaz desta Estratégia (com Logo)</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="bg-[#FAF8F5] border border-dashed border-stone-300 rounded-2xl p-5 text-center space-y-2">
@@ -1142,7 +1239,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           </div>
 
           <div className="space-y-3">
-            {campaigns.map((camp) => (
+            {campaigns.map((camp) => {
+              const storeMeta =
+                activeTenant && activeTenant.storeName.toLowerCase() === camp.storeName.toLowerCase()
+                  ? activeTenant
+                  : findStoreByName(camp.storeName);
+              return (
               <div
                 key={camp.id}
                 className={`rounded-2xl border p-4 flex flex-col gap-2 transition ${
@@ -1152,20 +1254,28 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
-                          camp.active
-                            ? 'bg-[#111318] text-[#E2A83B]'
-                            : 'bg-stone-200 text-stone-600'
-                        }`}
-                      >
-                        {camp.active ? camp.discountBadge : 'PAUSADA'}
-                      </span>
-                      <span className="text-xs font-extrabold text-[#111318]">{camp.storeName}</span>
+                  <div className="flex items-start gap-2.5">
+                    <StoreAvatar
+                      storeName={camp.storeName}
+                      logoUrl={storeMeta?.logoUrl}
+                      sizeClass="w-8 h-8"
+                      roundedClass="rounded-lg"
+                    />
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                            camp.active
+                              ? 'bg-[#111318] text-[#E2A83B]'
+                              : 'bg-stone-200 text-stone-600'
+                          }`}
+                        >
+                          {camp.active ? camp.discountBadge : 'PAUSADA'}
+                        </span>
+                        <span className="text-xs font-extrabold text-[#111318]">{camp.storeName}</span>
+                      </div>
+                      <h4 className="text-sm font-bold text-[#111318] mt-1">{camp.title}</h4>
                     </div>
-                    <h4 className="text-sm font-bold text-[#111318] mt-1">{camp.title}</h4>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 font-mono text-xs font-extrabold text-[#111318]">
@@ -1206,28 +1316,51 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
                 <p className="text-xs text-stone-600 leading-relaxed">{camp.whatsappCopy}</p>
 
-                <div className="flex items-center justify-between pt-2 border-t border-stone-200/80 text-[11px] text-stone-500">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-stone-200/80 text-[11px] text-stone-500">
                   <span>Expira em {camp.expiresInMinutes} min</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCopywriting(camp.id, camp.whatsappCopy)}
-                    className="font-bold text-[#111318] hover:text-[#B45309] flex items-center gap-1"
-                  >
-                    {copiedId === camp.id ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                        <span>Copiado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Copiar Texto WhatsApp</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPosterDraft({
+                          storeName: camp.storeName,
+                          logoUrl: storeMeta?.logoUrl,
+                          floorLabel: storeMeta?.floorLabel || current.zone.shortName,
+                          zoneId: camp.zoneId,
+                          title: camp.title,
+                          discountBadge: camp.discountBadge,
+                          couponCode: camp.couponCode,
+                          copyText: camp.whatsappCopy,
+                          expiresInMinutes: camp.expiresInMinutes,
+                        })
+                      }
+                      className="font-extrabold text-[#7A4B0A] hover:text-[#0B0D12] flex items-center gap-1"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Gerar Cartaz</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCopywriting(camp.id, camp.whatsappCopy)}
+                      className="font-bold text-[#111318] hover:text-[#B45309] flex items-center gap-1"
+                    >
+                      {copiedId === camp.id ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                          <span>Copiado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Copiar Texto WhatsApp</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       </div>
@@ -1235,18 +1368,38 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
       {/* MODAL NATIVO <dialog> PARA NOVA CAMPANHA RELÂMPAGO */}
       <dialog
         ref={dialogRef}
+        closedby="any"
+        aria-labelledby="campaign-modal-title"
         onClick={(e) => {
-          if (e.target === dialogRef.current) closeModal();
+          const dialog = dialogRef.current;
+          if (!dialog || e.target !== dialog || 'closedBy' in HTMLDialogElement.prototype) return;
+          const r = dialog.getBoundingClientRect();
+          const inside =
+            r.top <= e.clientY &&
+            e.clientY <= r.top + r.height &&
+            r.left <= e.clientX &&
+            e.clientX <= r.left + r.width;
+          if (!inside) closeModal();
         }}
         className="w-[min(100%-2rem,32rem)] m-auto rounded-3xl border border-stone-200 bg-white p-0 shadow-2xl"
       >
         <form onSubmit={handleSubmitCampaign} className="p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-            <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#B45309]">
-                Ativação Imediata no Shopping
-              </span>
-              <h3 className="text-lg font-extrabold text-[#111318]">Nova Oferta Relâmpago</h3>
+            <div className="flex items-center gap-2.5">
+              <StoreAvatar
+                storeName={storeName}
+                logoUrl={(activeTenant ?? findStoreByName(storeName))?.logoUrl}
+                sizeClass="w-9 h-9"
+                roundedClass="rounded-xl"
+              />
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B45309]">
+                  Ativação Imediata no Shopping + Cartaz com Logo
+                </span>
+                <h3 id="campaign-modal-title" className="text-lg font-extrabold text-[#111318]">
+                  Nova Oferta Relâmpago
+                </h3>
+              </div>
             </div>
             <button
               type="button"
@@ -1378,6 +1531,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           </div>
         </form>
       </dialog>
+
+      <PromoPosterModal draft={posterDraft} onClose={() => setPosterDraft(null)} />
     </div>
   );
 };

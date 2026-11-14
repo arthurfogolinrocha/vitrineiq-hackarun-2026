@@ -323,3 +323,15 @@ dialog::backdrop {
     box-shadow: none;
   }
 }
+
+/* Previne scroll vazado sob dialogs modais nativos e aplica backdrop elegante */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background-color: rgba(11, 13, 18, 0.72);
+  backdrop-filter: blur(4px);
+}

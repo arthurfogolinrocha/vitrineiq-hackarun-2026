@@ -1,12 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Building2,
   Camera,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
-  Lock,
   QrCode,
   ShieldCheck,
   Store,
@@ -62,6 +60,7 @@ import { ConsumerConcierge } from './components/ConsumerConcierge';
 import { SecurityAuditPanel } from './components/SecurityAuditPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { LojistasAdmin } from './components/LojistasAdmin';
+import { StoreTenantSwitcher } from './components/StoreTenantSwitcher';
 
 const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; subtitle: string }> = {
   cockpit: {
@@ -212,6 +211,10 @@ export function App() {
     setFactors(next);
   }, []);
 
+  const pendingCampaignsRef = useRef<FlashCampaign[]>([]);
+  const toggledCampaignsRef = useRef<Record<string, boolean>>({});
+  const deletedCampaignIdsRef = useRef<Set<string>>(new Set());
+
   const refresh = useCallback(async () => {
     try {
       if (conciergePublico) {
@@ -225,7 +228,22 @@ export function App() {
         setLostSales(e.lostSales);
         setCompletedSalesByZone(e.completedSalesByZone);
         setSignals(e.signals);
-        setCampaigns(e.campaigns);
+
+        // Mescla campanhas do servidor com publicações locais recentes (evita sumiço entre containers /tmp sem Postgres)
+        const deleted = deletedCampaignIdsRef.current;
+        const toggled = toggledCampaignsRef.current;
+        const serverFiltered = e.campaigns
+          .filter((c) => !deleted.has(c.id))
+          .map((c) => (c.id in toggled ? { ...c, active: toggled[c.id] } : c));
+        const extras = pendingCampaignsRef.current.filter((p) => {
+          if (deleted.has(p.id)) return false;
+          const alreadyOnServer = serverFiltered.some(
+            (s) => s.id === p.id || (s.couponCode === p.couponCode && s.storeName === p.storeName)
+          );
+          return !alreadyOnServer;
+        });
+        setCampaigns([...extras, ...serverFiltered]);
+
         setVitrine(e.vitrine);
         setAlertas(e.alertas);
         setPorHora(e.porHora ?? {});
@@ -551,7 +569,23 @@ export function App() {
       active: true,
       createdAt: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
-    viaApi(() => api.publicarCampanha(draft), () => setCampaigns((prev) => [created, ...prev]));
+    pendingCampaignsRef.current = [created, ...pendingCampaignsRef.current.slice(0, 19)];
+    setCampaigns((prev) => [created, ...prev]);
+
+    if (online) {
+      api
+        .publicarCampanha(draft)
+        .then((saved) => {
+          pendingCampaignsRef.current = pendingCampaignsRef.current.map((c) =>
+            c.id === created.id ? saved : c
+          );
+          setCampaigns((prev) => prev.map((c) => (c.id === created.id ? saved : c)));
+          refresh();
+        })
+        .catch(() => {
+          setOnline(false);
+        });
+    }
     appendAudit(
       'FLASH_CAMPAIGN_PUBLISHED',
       `Oferta "${created.title}" publicada para ${created.storeName} (${created.couponCode})`
@@ -560,29 +594,31 @@ export function App() {
 
   const handleToggleCampaign = (id: string) => {
     const alvo = campaigns.find((c) => c.id === id);
-    if (online && alvo) {
-      viaApi(() => api.alterarCampanha(id, !alvo.active), () => undefined);
-      return;
-    }
-    setCampaigns((prev) =>
-      prev.map((c) => {
-        if (c.id === id) {
-          const nextActive = !c.active;
-          appendAudit(
-            nextActive ? 'FLASH_CAMPAIGN_RESUMED' : 'FLASH_CAMPAIGN_PAUSED',
-            `Campanha "${c.title}" ${nextActive ? 'retomada' : 'pausada'} (${c.couponCode})`,
-            'SUCCESS'
-          );
-          return { ...c, active: nextActive };
-        }
-        return c;
-      })
+    if (!alvo) return;
+    const nextActive = !alvo.active;
+    toggledCampaignsRef.current[id] = nextActive;
+    pendingCampaignsRef.current = pendingCampaignsRef.current.map((c) =>
+      c.id === id ? { ...c, active: nextActive } : c
     );
+    setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, active: nextActive } : c)));
+    appendAudit(
+      nextActive ? 'FLASH_CAMPAIGN_RESUMED' : 'FLASH_CAMPAIGN_PAUSED',
+      `Campanha "${alvo.title}" ${nextActive ? 'retomada' : 'pausada'} (${alvo.couponCode})`,
+      'SUCCESS'
+    );
+    if (online && /^\d+$/.test(id)) {
+      api.alterarCampanha(id, nextActive).catch(() => setOnline(false));
+    }
   };
 
   const handleDeleteCampaign = (id: string) => {
     const target = campaigns.find((c) => c.id === id);
-    viaApi(() => api.removerCampanha(id), () => setCampaigns((prev) => prev.filter((c) => c.id !== id)));
+    deletedCampaignIdsRef.current.add(id);
+    pendingCampaignsRef.current = pendingCampaignsRef.current.filter((c) => c.id !== id);
+    setCampaigns((prev) => prev.filter((c) => c.id !== id));
+    if (online && /^\d+$/.test(id)) {
+      api.removerCampanha(id).catch(() => setOnline(false));
+    }
     if (target) {
       appendAudit(
         'FLASH_CAMPAIGN_DELETED',
@@ -748,60 +784,14 @@ export function App() {
 
           {/* Seletor Multi-Tenant: admin/demo podem ver como uma loja (o lojista já vem fixo pelo login) */}
           {papel !== 'lojista' && (
-          <div className="rounded-2xl bg-[#12151D] border border-[#E2A83B]/25 p-3 space-y-2.5">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[#F5C76B]">
-              <span className="flex items-center gap-1.5">
-                {activeTenant ? <Lock className="w-3 h-3" aria-hidden="true" /> : <Building2 className="w-3 h-3" aria-hidden="true" />}
-                {activeTenant ? 'Modo Lojista Isolado' : 'Admin Shopping'}
-              </span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-stone-300">
-                Multi-Tenant
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => setAccessRole('admin')}
-                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                  accessRole === 'admin'
-                    ? 'gold-pill-metallic'
-                    : 'bg-white/5 text-stone-300 hover:bg-white/10'
-                }`}
-              >
-                Admin Geral
-              </button>
-              <button
-                type="button"
-                onClick={() => setAccessRole('store')}
-                className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition ${
-                  accessRole === 'store'
-                    ? 'gold-pill-metallic'
-                    : 'bg-white/5 text-stone-300 hover:bg-white/10'
-                }`}
-              >
-                Ver como loja
-              </button>
-            </div>
-            {accessRole === 'store' && (
-              <div className="space-y-1">
-                <label htmlFor="tenant-store-select" className="text-[10px] text-stone-400 block">
-                  Loja (filtro da visão do admin):
-                </label>
-                <select
-                  id="tenant-store-select"
-                  value={activeStoreId}
-                  onChange={(e) => setActiveStoreId(e.target.value)}
-                  className="w-full rounded-lg bg-[#0B0D12] border border-[#E2A83B]/30 px-2.5 py-1.5 text-xs font-bold text-[#F5C76B]"
-                >
-                  {CAPIM_DOURADO_STORES.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.storeName} ({st.floorLabel.split('•')[1]?.trim() ?? st.zoneId})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+            <StoreTenantSwitcher
+              accessRole={accessRole}
+              activeStoreId={activeStoreId}
+              activeTenant={activeTenant}
+              onChangeRole={setAccessRole}
+              onSelectStore={setActiveStoreId}
+              variant="sidebar"
+            />
           )}
 
           {/* Navegação Numerada Principal */}
@@ -896,28 +886,14 @@ export function App() {
             {/* Atalhos Rápidos + visão da conta */}
             <div className="flex flex-wrap items-center gap-2">
               {!kioskTab && papel !== 'lojista' && (
-                <button
-                  type="button"
-                  onClick={() => setAccessRole(accessRole === 'admin' ? 'store' : 'admin')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border transition ${
-                    activeTenant
-                      ? 'bg-[#0B0D12] border-[#E2A83B]/40 text-[#F5C76B]'
-                      : 'bg-white border-stone-200 text-[#0B0D12] hover:border-[#E2A83B]'
-                  }`}
-                  title="Alternar entre visão Admin do Shopping e visão isolada da Loja"
-                >
-                  {activeTenant ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-[#E2A83B]" aria-hidden="true" />
-                      <span>Loja: {activeTenant.storeName}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Building2 className="w-3.5 h-3.5 text-[#7A4B0A]" aria-hidden="true" />
-                      <span>Visão Admin (Todas as Lojas)</span>
-                    </>
-                  )}
-                </button>
+                <StoreTenantSwitcher
+                  accessRole={accessRole}
+                  activeStoreId={activeStoreId}
+                  activeTenant={activeTenant}
+                  onChangeRole={setAccessRole}
+                  onSelectStore={setActiveStoreId}
+                  variant="compact"
+                />
               )}
               {abas.includes('map') && aba !== 'map' && (
                 <button
