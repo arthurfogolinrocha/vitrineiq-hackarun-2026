@@ -90,3 +90,33 @@ def test_envio_manda_token_so_quando_definido(monkeypatch):
     monkeypatch.setattr(envio, "TOKEN", "segredo")
     envio._post("eventos", {})
     assert chamadas == [None, {"X-Vitrine-Token": "segredo"}]
+
+
+def test_sem_rostos_desfoca_quem_o_tracker_ainda_nao_confirmou():
+    import numpy as np
+    import torch
+
+    img = np.random.default_rng(0).integers(0, 256, (120, 120, 3), dtype=np.uint8)
+    rastreado = SimpleNamespace(orig_img=img, boxes=None, keypoints=None)  # tracker escondeu a pessoa nova
+    cru = SimpleNamespace(boxes=SimpleNamespace(xyxy=torch.tensor([[30.0, 30.0, 90.0, 120.0]])),
+                          keypoints=SimpleNamespace(xy=torch.zeros(1, 17, 2), conf=torch.zeros(1, 17)))
+    assert (camera.sem_rostos(rastreado) == img).all()
+    saida = camera.sem_rostos(rastreado, cru)
+    cabeca = (slice(30, 60), slice(30, 90))  # sem pontos da cabeça: terço de cima da caixa
+    assert (saida[cabeca] != img[cabeca]).any()
+    saida[cabeca] = img[cabeca]
+    assert (saida == img).all()  # fora da cabeça, nada muda
+
+
+def test_callback_das_deteccoes_cruas_roda_antes_do_tracker():
+    """Garante a ordem em que camera.main confia; quebra se a Ultralytics passar a pôr o tracker na frente."""
+    from collections import defaultdict
+
+    from ultralytics.trackers.track import on_predict_postprocess_end, register_tracker
+
+    model = SimpleNamespace(callbacks=defaultdict(list))
+    model.add_callback = lambda evento, f: model.callbacks[evento].append(f)
+    model.add_callback("on_predict_postprocess_end", "guardar_crus")
+    register_tracker(model, persist=True)
+    callbacks = model.callbacks["on_predict_postprocess_end"]
+    assert callbacks[0] == "guardar_crus" and callbacks[1].func is on_predict_postprocess_end
