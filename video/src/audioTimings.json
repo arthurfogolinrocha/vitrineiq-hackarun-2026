@@ -1,0 +1,37 @@
+[
+  {
+    "id": "01_hook",
+    "durationSec": 5.895,
+    "frames": 354
+  },
+  {
+    "id": "02_dor",
+    "durationSec": 5.865,
+    "frames": 352
+  },
+  {
+    "id": "03_revelacao",
+    "durationSec": 7.01,
+    "frames": 421
+  },
+  {
+    "id": "04_raiox_lgpd",
+    "durationSec": 7.112,
+    "frames": 427
+  },
+  {
+    "id": "05_crowddrop",
+    "durationSec": 6.644,
+    "frames": 399
+  },
+  {
+    "id": "06_concierge_balcao",
+    "durationSec": 6.5,
+    "frames": 391
+  },
+  {
+    "id": "07_cta",
+    "durationSec": 7.655,
+    "frames": 460
+  }
+]

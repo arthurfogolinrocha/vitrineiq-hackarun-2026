@@ -8,4 +8,4 @@
 | [`pitch-e-entrega-final/`](./pitch-e-entrega-final/) | Fontes da Missão 3: roteiro do pitch, vídeos, legenda, declaração de IA e checklist final |
 | [`GUIA_HACKARUN_2026.md`](./GUIA_HACKARUN_2026.md) | Guia do evento usado pelo time |
 
-O código do protótipo (Missão 2) continua em [`missao-2/`](../../missao-2/), na raiz do repositório, porque a publicação na Vercel e os scripts de teste dependem desse caminho.
+O código do protótipo (Missão 2) fica organizado em [`frontend/`](../../frontend/), [`api/`](../../api/) e [`computer-vision/`](../../computer-vision/) na raiz do repositório, pois o deploy na Vercel, o Docker Compose e a suíte de CI dependem dessa estrutura.
