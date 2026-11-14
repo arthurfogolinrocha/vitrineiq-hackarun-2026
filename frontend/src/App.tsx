@@ -14,6 +14,7 @@ import {
   AIAnalysisResponse,
   AccessRole,
   ConsumerSignal,
+  CrowdDropState,
   FlashCampaign,
   FloorId,
   LostSaleEvent,
@@ -62,6 +63,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { LojistasAdmin } from './components/LojistasAdmin';
 import { StoreTenantSwitcher } from './components/StoreTenantSwitcher';
 import { SextaFeira13 } from './components/SextaFeira13';
+import { StoreAvatar } from './components/StoreAvatar';
 
 const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; subtitle: string }> = {
   cockpit: {
@@ -182,6 +184,7 @@ export function App() {
   // lojista) a cada 3 s; no QR público, só as ofertas da ala. Na demonstração offline nada é enviado.
   const [online, setOnline] = useState(false);
   const [vitrine, setVitrine] = useState<Partial<Record<ZoneId, VitrineResumo>>>({});
+  const [crowdDropByZone, setCrowdDropByZone] = useState<Partial<Record<ZoneId, CrowdDropState>>>({});
   const [alertas, setAlertas] = useState<VitrineAlerta[]>([]);
   const [porHora, setPorHora] = useState<CicloEstado['porHora']>({});
   const [alertasVistos, setAlertasVistos] = useState<string[]>([]);
@@ -246,6 +249,7 @@ export function App() {
         setCampaigns([...extras, ...serverFiltered]);
 
         setVitrine(e.vitrine);
+        setCrowdDropByZone(e.crowdDrop ?? {});
         setAlertas(e.alertas);
         setPorHora(e.porHora ?? {});
       } else {
@@ -260,8 +264,12 @@ export function App() {
   useEffect(() => {
     if (activeTenant) {
       setSelectedZoneId(activeTenant.zoneId);
+      setSelectedStoreName(activeTenant.storeName);
+      setVisionSnapshot((prev) => ({ ...prev, zoneId: activeTenant.zoneId }));
       const z = CAPIM_DOURADO_ZONES.find((item) => item.id === activeTenant.zoneId);
       if (z) setFloor(z.floor);
+    } else {
+      setSelectedStoreName(null);
     }
   }, [activeTenant]);
 
@@ -586,7 +594,7 @@ export function App() {
 
     if (online) {
       api
-        .publicarCampanha(draft)
+        .publicarCampanha(draft, draft.triggerOrigin)
         .then((saved) => {
           pendingCampaignsRef.current = pendingCampaignsRef.current.map((c) =>
             c.id === created.id ? saved : c
@@ -692,11 +700,12 @@ export function App() {
     zoneId: ZoneId,
     query: string,
     budget: ConsumerSignal['budget'],
-    segmento?: string
+    segmento?: string,
+    originZone?: ZoneId
   ): Promise<ConsumerSignal> => {
     if (online) {
       try {
-        const salvo = await api.buscar(zoneId, query, budget, segmento);
+        const salvo = await api.buscar(zoneId, query, budget, segmento, originZone);
         refresh();
         return salvo;
       } catch {
@@ -704,24 +713,33 @@ export function App() {
       }
     }
     const zone = CAPIM_DOURADO_ZONES.find((z) => z.id === zoneId) ?? CAPIM_DOURADO_ZONES[0];
-    const filteredCampaigns =
+    const filteredBySegment =
       segmento && segmento !== 'todos'
         ? campaigns.filter((c) => !c.segmento || c.segmento === segmento)
         : campaigns;
+    const allianceCampaign = originZone
+      ? filteredBySegment.find((c) => c.active && c.triggerOrigin === originZone)
+      : undefined;
+    const pool = allianceCampaign
+      ? [allianceCampaign, ...filteredBySegment.filter((c) => c.id !== allianceCampaign.id)]
+      : filteredBySegment;
     const match = matchConsumerOffer(
       query,
       zone,
-      filteredCampaigns.length ? filteredCampaigns : campaigns
+      pool.length ? pool : campaigns
     );
+    const hasAllianceBonus = Boolean(allianceCampaign && match.couponCode === allianceCampaign.couponCode);
     const signal: ConsumerSignal = {
       id: `sig-${Date.now()}`,
       zoneId,
       query,
       budget,
       segmento,
+      originZone,
+      bonusRota: hasAllianceBonus,
       preference: zone.segment,
       couponCode: match.couponCode,
-      matchedOffer: match.matchedOffer,
+      matchedOffer: hasAllianceBonus ? `🎁 Bônus de Rota • ${match.matchedOffer}` : match.matchedOffer,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     };
     setSignals((prev) => [signal, ...prev]);
@@ -730,6 +748,24 @@ export function App() {
       `Busca anônima em ${zone.shortName}: "${query}" -> cupom ${match.couponCode}`
     );
     return signal;
+  };
+
+  const handleQuickFlashFromVoice = (voiceNote: string, reason: LostSaleReason) => {
+    const targetStore = activeTenant?.storeName || selectedTelemetry.zone.anchors[0] || 'VitrineIQ';
+    const zoneId = activeTenant?.zoneId ?? selectedZoneId;
+    const discountBadge = reason === 'preco' ? '15% OFF VOZ' : reason === 'estoque_grade' ? 'RESERVA EXPRESSA' : 'ATENDIMENTO VIP';
+    const couponCode = `VOZ${Math.floor(100 + Math.random() * 899)}`;
+    handleLaunchCampaign({
+      zoneId,
+      storeName: targetStore,
+      segmento: activeTenant?.segment,
+      title: `Ação Imediata de Balcão: ${voiceNote.slice(0, 48)}`,
+      discountBadge,
+      couponCode,
+      whatsappCopy: `⚡ Oferta gerada pelo balcão da ${targetStore}: apresente ${couponCode} hoje e aproveite ${discountBadge}!`,
+      expiresInMinutes: 60,
+    });
+    setActiveTab('cockpit');
   };
 
   const handleNavigateToStore = (storeName: string, targetFloor: FloorId = 'L1') => {
@@ -774,7 +810,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F6F2EA] text-[#0B0D12] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#F6F2EA] text-[#0B0D12] flex flex-col lg:flex-row overflow-x-clip">
       {/* SIDEBAR EXECUTIVA OBSIDIAN + CAPIM DOURADO (DESKTOP) */}
       <aside className={`${kioskTab ? 'hidden' : 'hidden lg:flex'} lg:w-72 lg:shrink-0 lg:flex-col lg:justify-between bg-[#0B0D12] text-white border-r border-[#E2A83B]/20 p-5 sticky top-0 h-screen overflow-y-auto`}>
         <div className="space-y-5">
@@ -827,7 +863,7 @@ export function App() {
                         aria-current={active ? 'page' : undefined}
                         className={`w-full px-3 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 transition ${
                           active
-                            ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
+                            ? 'gold-pill-metallic'
                             : 'text-stone-300 hover:bg-white/5 hover:text-white'
                         }`}
                       >
@@ -837,7 +873,7 @@ export function App() {
                         </span>
                         <span
                           className={`text-[10px] font-mono ${
-                            active ? 'text-[#111318]/75 font-extrabold' : 'text-stone-500'
+                            active ? 'text-[#111318]/80 font-extrabold' : 'text-stone-500'
                           }`}
                         >
                           {numero(item.id)}
@@ -851,23 +887,42 @@ export function App() {
           </nav>
         </div>
 
-        {/* Cartão de Contexto da Ala Ativa no Rodapé da Sidebar */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 space-y-2">
+        {/* Cartão de Contexto da Loja ou Ala Ativa no Rodapé da Sidebar */}
+        <div className="bg-white/5 border border-[#E2A83B]/25 rounded-2xl p-3.5 space-y-2.5">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-stone-400">
             <span className="flex items-center gap-1">
               <Store className="w-3 h-3 text-[#E2A83B]" aria-hidden="true" />
-              Ala Selecionada
+              {activeTenant ? 'Loja Isolada' : 'Ala Selecionada'}
             </span>
-            <span className="text-[#E2A83B]">
+            <span className="text-[#E2A83B] font-mono">
               {selectedTelemetry.semDados ? 'Sem dados hoje' : `IQ ${selectedTelemetry.opportunityScore}`}
             </span>
           </div>
-          <p className="text-xs font-bold text-white leading-snug truncate">
-            {selectedTelemetry.zone.shortName}
-          </p>
-          <div className="flex items-center justify-between text-[11px] text-stone-400">
+          {activeTenant ? (
+            <div className="flex items-center gap-2.5">
+              <StoreAvatar
+                storeName={activeTenant.storeName}
+                logoUrl={activeTenant.logoUrl}
+                variant="wide"
+                roundedClass="rounded-xl"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold text-white leading-snug truncate">
+                  {activeTenant.storeName}
+                </p>
+                <span className="text-[10px] text-[#F5C76B] block truncate">
+                  {activeTenant.floorLabel}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs font-bold text-white leading-snug truncate">
+              {selectedTelemetry.zone.shortName}
+            </p>
+          )}
+          <div className="flex items-center justify-between text-[11px] text-stone-400 pt-1 border-t border-white/10">
             <span>{selectedTelemetry.zone.floor === 'L1' ? 'Térreo (L1)' : '2º Piso (L2)'}</span>
-            <span className="text-emerald-400 font-semibold">
+            <span className="text-emerald-400 font-semibold kpi-metric">
               {selectedTelemetry.footTraffic}{selectedTelemetry.medido ? ' passaram hoje' : '/h fluxo'}
             </span>
           </div>
@@ -875,7 +930,7 @@ export function App() {
       </aside>
 
       {/* COLUNA DE CONTEÚDO PRINCIPAL */}
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 max-w-full overflow-x-clip flex flex-col">
         {/* TOPBAR COMPACTA (MOBILE NAV + CONTEXTO EXECUTIVO NO DESKTOP) */}
         <header className="sticky top-0 z-30 bg-[#F4F2EE]/90 backdrop-blur-md border-b border-stone-200/80 px-4 sm:px-6 lg:px-8 py-3.5">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -1051,6 +1106,7 @@ export function App() {
                 onSyncLiveContext={() => syncLiveContext(true)}
                 activeTenant={activeTenant}
                 vitrineResumo={mergedVitrineResumo}
+                crowdDrop={crowdDropByZone[selectedZoneId]}
                 lastPointedPart={
                   demoCameraOverlay?.zoneId === selectedZoneId
                     ? demoCameraOverlay.lastPointedPart
@@ -1082,6 +1138,8 @@ export function App() {
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
                 routes={CROSS_SEGMENT_ROUTES}
+                campaigns={campaigns}
+                activeTenant={activeTenant}
                 selectedStoreName={selectedStoreName}
                 onSelectStoreName={setSelectedStoreName}
               />
@@ -1089,12 +1147,25 @@ export function App() {
 
             {aba === 'vision' && (
               <EdgeVisionSensor
-                zones={CAPIM_DOURADO_ZONES}
+                zones={
+                  activeTenant
+                    ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
+                    : CAPIM_DOURADO_ZONES
+                }
                 selectedZoneId={selectedZoneId}
                 onSelectZone={handleSelectZone}
                 snapshot={visionSnapshot}
                 onUpdateSnapshot={setVisionSnapshot}
                 onAnalyzeWithVision={handleAnalyzeWithVision}
+                activeTenant={activeTenant}
+                olharesPorZona={mergedVitrineResumo?.olharesPorZona}
+                onAuditComplete={(res) =>
+                  appendAudit(
+                    'VITRINE_VISION_AUDIT',
+                    `Raio-X Multimodal (${activeTenant?.storeName ?? selectedTelemetry.zone.shortName}): Nota ${res.score}/100 [${res.source}]`,
+                    res.source === 'BLOCKED' ? 'WARNING' : 'SUCCESS'
+                  )
+                }
               />
             )}
 
@@ -1109,9 +1180,11 @@ export function App() {
                 onSelectZone={handleSelectZone}
                 lostSales={scopedLostSales}
                 lockedStoreName={activeTenant?.storeName}
+                activeTenant={activeTenant}
                 onLogLostSale={handleLogLostSale}
                 onUndoLostSale={handleUndoLostSale}
                 onLogCompletedSale={handleLogCompletedSale}
+                onQuickFlashFromVoice={handleQuickFlashFromVoice}
                 completedSalesCount={completedSalesByZone[selectedZoneId] ?? 0}
                 lojaFixa={lojaFixa}
               />
@@ -1124,6 +1197,7 @@ export function App() {
                 onSelectZone={handleSelectZone}
                 campaigns={campaigns}
                 signals={signals}
+                activeTenant={activeTenant}
                 onSubmitConsumerSignal={handleSubmitConsumerSignal}
                 onNavigateToStore={abas.includes('map') ? handleNavigateToStore : undefined}
               />

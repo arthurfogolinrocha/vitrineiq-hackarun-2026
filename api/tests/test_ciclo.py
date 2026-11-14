@@ -220,3 +220,70 @@ def test_resumo_mostra_quem_esta_na_frente_agora():
                                                   "fim": fim.isoformat(), "passantes": 0, "olharam": 0,
                                                   "pico_simultaneo": pico})
     assert client.get("/api/estado").json()["vitrine"][ALA]["agora"] == 2
+
+
+def test_crowd_drop_tiers_e_endpoints():
+    from app.ciclo import compute_crowd_drop
+
+    cd0 = compute_crowd_drop([], ALA)
+    assert (cd0["tier"], cd0["discountPct"], cd0["nextTarget"], cd0["couponCode"]) == (0, 5, 1, "CROWD-ALA-5")
+    assert cd0["label"] == "Aguardando Fluxo na Vitrine"
+
+    cd_est = compute_crowd_drop([{"pico_simultaneo": 0, "olharam": 35, "chegaram_perto": 4}], "praca-alimentacao-l2")
+    assert (cd_est["peopleNow"], cd_est["tier"], cd_est["discountPct"], cd_est["couponCode"]) == (3, 2, 20, "CROWD-PRACA-20")
+
+    cd1 = compute_crowd_drop([{"pico_simultaneo": 2, "olharam": 5}], ALA)
+    assert (cd1["tier"], cd1["discountPct"], cd1["nextTarget"], cd1["label"]) == (1, 10, 3, "Vitrine Despertada (10% OFF)")
+
+    cd2 = compute_crowd_drop([{"pico_simultaneo": 4, "olharam": 10}], ALA)
+    assert (cd2["tier"], cd2["discountPct"], cd2["nextTarget"], cd2["label"]) == (2, 20, 5, "Combo Coletivo Ativo (20% OFF)")
+
+    client.post("/api/vitrine/eventos", json={**EVENTO, "pico_simultaneo": 6, "olharam": 12, "chegaram_perto": 3})
+    cd_api = client.get(f"/api/vitrine/crowd-drop?ala={ALA}").json()
+    assert (cd_api["tier"], cd_api["discountPct"], cd_api["couponCode"]) == (3, 30, "CROWD-ALA-30")
+    assert cd_api["label"] == "CROWD-DROP MÁXIMO (30% OFF)"
+
+    estado = client.get("/api/estado").json()
+    assert estado["crowdDrop"][ALA]["tier"] == 3
+    assert estado["crowdDrop"]["ala-sul-esporte"]["tier"] == 0
+
+
+def test_alianca_de_corredor_prioriza_trigger_origin_e_entrega_bonus_rota():
+    client.post(
+        "/api/campanhas",
+        json={
+            "zoneId": "ala-sul-esporte",
+            "storeName": "Loja Padrão",
+            "title": "Desconto Comum",
+            "discountBadge": "10% OFF",
+            "couponCode": "COMUM10",
+        },
+    )
+    client.post(
+        "/api/campanhas",
+        json={
+            "zoneId": "ala-sul-esporte",
+            "storeName": "Centauro",
+            "title": "Combo Pós-Cinema",
+            "discountBadge": "25% OFF",
+            "couponCode": "ROTA25",
+            "triggerOrigin": "ala-lazer-cinema",
+        },
+    )
+
+    sem_origem = client.post(
+        "/api/concierge/busca",
+        json={"zoneId": "ala-sul-esporte", "query": "tênis corrida"},
+    ).json()
+    assert sem_origem["couponCode"] == "COMUM10"
+    assert sem_origem["bonusRota"] is False
+    assert not sem_origem["matchedOffer"].startswith("🎁 Bônus de Rota • ")
+
+    com_origem = client.post(
+        "/api/concierge/busca",
+        json={"zoneId": "ala-sul-esporte", "originZone": "ala-lazer-cinema", "query": "tênis corrida"},
+    ).json()
+    assert com_origem["couponCode"] == "ROTA25"
+    assert com_origem["bonusRota"] is True
+    assert com_origem["matchedOffer"].startswith("🎁 Bônus de Rota • Centauro")
+

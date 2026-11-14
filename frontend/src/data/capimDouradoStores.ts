@@ -62,7 +62,7 @@ export const CAPIM_DOURADO_STORES: StoreTenant[] = [
     "zoneId": "praca-alimentacao-l2",
     "segment": "alimentacao",
     "avgTicket": 98,
-    "floorLabel": "Térreo • Praça de Alimentação L2",
+    "floorLabel": "2º Piso • Praça de Alimentação L2",
     "logoUrl": "https://www.intranetmall.com/esperienza/imgShopping/48/loja/174-29-4-2024-FDMOD31MTU.png?v=ZDKYW"
   },
   {
@@ -304,7 +304,7 @@ export const CAPIM_DOURADO_STORES: StoreTenant[] = [
     "zoneId": "praca-alimentacao-l2",
     "segment": "alimentacao",
     "avgTicket": 78,
-    "floorLabel": "Térreo • Praça de Alimentação L2",
+    "floorLabel": "2º Piso • Praça de Alimentação L2",
     "logoUrl": "https://www.intranetmall.com/esperienza/imgShopping/48/loja/130-29-4-2024-Z52YJH7BAU.png?v=ZDKYW"
   },
   {
@@ -1006,7 +1006,7 @@ export const CAPIM_DOURADO_STORES: StoreTenant[] = [
     "zoneId": "praca-alimentacao-l2",
     "segment": "alimentacao",
     "avgTicket": 78,
-    "floorLabel": "Térreo • Praça de Alimentação L2",
+    "floorLabel": "2º Piso • Praça de Alimentação L2",
     "logoUrl": "https://www.intranetmall.com/esperienza/imgShopping/48/loja/147-29-4-2024-F8GUNWVNBR.png?v=ZDKYW"
   },
   {

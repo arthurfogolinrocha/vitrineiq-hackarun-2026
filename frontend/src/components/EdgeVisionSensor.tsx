@@ -1,18 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Camera,
+  CheckCircle2,
   EyeOff,
+  Lock,
+  MoveHorizontal,
   Pause,
   Play,
   RotateCcw,
+  Scan,
   ShieldCheck,
   Sparkles,
   UserCheck,
   UserMinus,
   VideoOff,
 } from 'lucide-react';
-import { ShoppingZone, VisionFunnelSnapshot, ZoneId } from '../types';
+import {
+  ShoppingZone,
+  StoreTenant,
+  VisionFunnelSnapshot,
+  VitrineAuditResult,
+  ZoneId,
+} from '../types';
+import { api } from '../services/api';
 import { SpotlightCard } from './SpotlightCard';
+import { StoreAvatar } from './StoreAvatar';
 
 interface EdgeVisionSensorProps {
   zones: ShoppingZone[];
@@ -21,6 +34,9 @@ interface EdgeVisionSensorProps {
   snapshot: VisionFunnelSnapshot;
   onUpdateSnapshot: (next: VisionFunnelSnapshot) => void;
   onAnalyzeWithVision: (snapshot: VisionFunnelSnapshot) => void;
+  activeTenant?: StoreTenant | null;
+  olharesPorZona?: Record<string, number>;
+  onAuditComplete?: (res: VitrineAuditResult) => void;
 }
 
 interface SimulatedVisitor {
@@ -43,6 +59,9 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
   snapshot,
   onUpdateSnapshot,
   onAnalyzeWithVision,
+  activeTenant,
+  olharesPorZona,
+  onAuditComplete,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -56,7 +75,25 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
   const privacyBlur = true; // RNF03: desfoque da webcam no navegador sempre ligado, sem opção de desligar
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
-  const selectedZone = zones.find((z) => z.id === selectedZoneId) || zones[0];
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState<VitrineAuditResult | null>(null);
+  const [auditSourceMode, setAuditSourceMode] = useState<'webcam' | 'simulator' | null>(null);
+  const [auditNotice, setAuditNotice] = useState<string | null>(null);
+
+  const effectiveZoneId: ZoneId = activeTenant ? activeTenant.zoneId : selectedZoneId;
+  const selectedZone = zones.find((z) => z.id === effectiveZoneId) || zones[0];
+  const vitrineLabel = activeTenant ? activeTenant.storeName : selectedZone.shortName;
+
+  useEffect(() => {
+    if (activeTenant && selectedZoneId !== activeTenant.zoneId) {
+      onSelectZone(activeTenant.zoneId);
+    }
+  }, [activeTenant, selectedZoneId, onSelectZone]);
+
+  useEffect(() => {
+    setAuditResult(null);
+    setAuditNotice(null);
+  }, [activeTenant?.id, effectiveZoneId]);
 
   // Gerenciamento da Webcam Real (processamento em RAM na borda, zero gravação)
   useEffect(() => {
@@ -276,7 +313,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               passersBy > 0 ? Number(((entries / passersBy) * 100).toFixed(1)) : 0;
             onUpdateSnapshot({
               ...cur,
-              zoneId: selectedZoneId,
+              zoneId: effectiveZoneId,
               passersBy,
               vitrineStops,
               entries,
@@ -293,7 +330,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         ctx.fillStyle = '#065f46';
         ctx.fillText('ZONA PORTA — ENTRADA / SAÍDA', 202, 34);
         ctx.fillStyle = '#92400e';
-        ctx.fillText(`VITRINE ${selectedZone.shortName.toUpperCase()} — ATRAÇÃO`, 72, 142);
+        ctx.fillText(`VITRINE ${vitrineLabel.toUpperCase()} — ATRAÇÃO`, 72, 142);
         ctx.fillStyle = '#1e40af';
         ctx.fillText('CORREDOR DO SHOPPING — PASSANTES', 32, 244);
       } else {
@@ -325,7 +362,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
         ctx.font = '700 11px Inter, sans-serif';
         ctx.fillStyle = '#065f46';
-        ctx.fillText(`INTERIOR DA LOJA (${selectedZone.shortName})`, 56, 40);
+        ctx.fillText(`INTERIOR DA LOJA (${vitrineLabel})`, 56, 40);
         ctx.fillStyle = '#b45309';
         ctx.fillText('PORTA / LINHA DE ENTRADA-SAÍDA', 274, 126);
         ctx.fillStyle = '#1d4ed8';
@@ -426,7 +463,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
               passersBy > 0 ? Number(((entries / passersBy) * 100).toFixed(1)) : 0;
             onUpdateSnapshot({
               ...cur,
-              zoneId: selectedZoneId,
+              zoneId: effectiveZoneId,
               passersBy,
               vitrineStops,
               entries,
@@ -496,8 +533,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [
     isPaused,
-    selectedZoneId,
-    selectedZone.shortName,
+    effectiveZoneId,
+    vitrineLabel,
     webcamActive,
     privacyBlur,
     onUpdateSnapshot,
@@ -515,7 +552,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     visitorsRef.current = [];
     nextIdRef.current = 1;
     onUpdateSnapshot({
-      zoneId: selectedZoneId,
+      zoneId: effectiveZoneId,
       passersBy: 0,
       vitrineStops: 0,
       entries: 0,
@@ -527,16 +564,126 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
     });
   };
 
+  const handleRunMultimodalAudit = async () => {
+    setIsAuditing(true);
+    setAuditNotice(null);
+
+    try {
+      const videoEl = videoRef.current;
+      const hasLiveVideo = Boolean(webcamActive && videoEl && videoEl.readyState >= 2);
+      let frameDataUrl = '';
+
+      if (hasLiveVideo && videoEl) {
+        const offscreen = document.createElement('canvas');
+        offscreen.width = 640;
+        offscreen.height = 360;
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {
+          offCtx.drawImage(videoEl, 0, 0, 640, 360);
+          frameDataUrl = offscreen.toDataURL('image/jpeg', 0.7);
+        }
+        setAuditSourceMode('webcam');
+      } else if (canvasRef.current) {
+        frameDataUrl = canvasRef.current.toDataURL('image/jpeg', 0.7);
+        setAuditSourceMode('simulator');
+        setAuditNotice(
+          'Webcam real desligada: analisamos 1 frame do Simulador de Borda. Conecte a webcam física para auditar os produtos reais da vitrine.'
+        );
+      }
+
+      if (!frameDataUrl) {
+        setAuditNotice('Não foi possível capturar um frame da vitrine no momento.');
+        return;
+      }
+
+      try {
+        const res = await api.auditarVitrine({
+          image_base64: frameDataUrl,
+          zone_id: effectiveZoneId,
+          store_name: vitrineLabel,
+          olhares_por_zona: olharesPorZona ?? {},
+          taxa_atencao: Math.round(snapshot.attractionRate),
+        });
+        setAuditResult(res);
+        onAuditComplete?.(res);
+      } catch {
+        const esq = olharesPorZona?.esquerda ?? 0;
+        const cen = olharesPorZona?.centro ?? 0;
+        const dir = olharesPorZona?.direita ?? 0;
+        const fallbackScore = Math.max(
+          48,
+          Math.min(86, Math.round(58 + snapshot.attractionRate * 0.6))
+        );
+        const fallbackRes: VitrineAuditResult = {
+          success: true,
+          score: fallbackScore,
+          headline: `Vitrine de ${vitrineLabel} com ponto cego na faixa de altura dos olhos`,
+          defects: [
+            'Contraste insuficiente entre o item âncora e o fundo da vitrine reduz parada de quem passa rápido.',
+            'Ausência de placa de preço/parcelamento visível a 3 metros gera objeção antes da entrada.',
+            `Distribuição desigual de olhares (Esquerda ${esq} • Centro ${cen} • Direita ${dir}) desperdiça lateral mais fria.`,
+          ],
+          zone_moves: [
+            `Esquerda: posicionar kit de entrada / oferta âncora com etiqueta grande (olhares atuais: ${esq}).`,
+            `Centro: destacar lançamento de maior margem na linha do olhar (1,45m) com iluminação focal (olhares atuais: ${cen}).`,
+            `Direita: inserir totem QR do Concierge para resgate imediato sem fila (olhares atuais: ${dir}).`,
+          ],
+          quick_win: `Fixar QR Code de cupom relâmpago na altura de 1,40m da porta de ${vitrineLabel} nos próximos 15 min.`,
+          source: 'FALLBACK_LOCAL',
+          latency_ms: 42,
+          audit_hash: 'LOCAL-RAM-AUDIT',
+        };
+        setAuditResult(fallbackRes);
+        setAuditNotice(
+          'API Gemini Vision indisponível no momento — exibindo auditoria heurística local (frame descartado em RAM).'
+        );
+        onAuditComplete?.(fallbackRes);
+      }
+    } finally {
+      setIsAuditing(false);
+    }
+  };
+
   return (
     <div className="space-y-6 panel-enter">
       <video ref={videoRef} muted playsInline className="hidden" />
 
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+        {activeTenant && (
+          <div
+            role="status"
+            className="rounded-2xl px-4 py-3 bg-[#0B0D12] text-white border border-[#E2A83B]/45 shadow-sm flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <StoreAvatar
+                storeName={activeTenant.storeName}
+                logoUrl={activeTenant.logoUrl}
+                variant="wide"
+              />
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#F5C76B] block">
+                  Sensor Dedicado da Vitrine
+                </span>
+                <strong className="text-sm sm:text-base font-extrabold text-white block truncate">
+                  {activeTenant.storeName}
+                </strong>
+                <span className="text-xs text-stone-300 block truncate">
+                  {activeTenant.floorLabel} • Ticket médio R$ {activeTenant.avgTicket}
+                </span>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#E2A83B]/15 text-[#F5C76B] border border-[#E2A83B]/40 text-[11px] font-bold shrink-0">
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+              Vitrine Isolada: {activeTenant.storeName}
+            </span>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div>
             <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
               <Camera className="w-5 h-5 text-emerald-600" aria-hidden="true" />
-              Câmera na Vitrine — Entrada, Saída &amp; Fluxo
+              Câmera na Vitrine — {activeTenant ? activeTenant.storeName : 'Entrada, Saída & Fluxo'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Conecte a webcam para alimentar o Painel do Lojista ao vivo sem gravar vídeo nem reconhecer rostos: a imagem fica no aparelho e só as contagens vão para a API.
@@ -612,20 +759,32 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
           <div className="xl:col-span-8 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <label htmlFor="vision-zone" className="font-bold text-slate-700">
-                Ala vinculada no Painel Lojista:
+              <label htmlFor="vision-zone" className="font-bold text-slate-700 flex items-center gap-1.5">
+                {activeTenant && <Lock className="w-3.5 h-3.5 text-amber-600" aria-hidden="true" />}
+                <span>
+                  {activeTenant
+                    ? `Vitrine Isolada: ${activeTenant.storeName}`
+                    : 'Ala vinculada no Painel Lojista:'}
+                </span>
               </label>
               <select
                 id="vision-zone"
-                value={selectedZoneId}
+                value={effectiveZoneId}
+                disabled={Boolean(activeTenant)}
                 onChange={(e) => onSelectZone(e.target.value as ZoneId)}
-                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-medium"
+                className="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-slate-900 font-medium disabled:opacity-80 disabled:cursor-not-allowed disabled:bg-amber-50/70 disabled:border-amber-300"
               >
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.shortName}
+                {activeTenant ? (
+                  <option value={activeTenant.zoneId}>
+                    {activeTenant.storeName} — {activeTenant.floorLabel}
                   </option>
-                ))}
+                ) : (
+                  zones.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.shortName}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -687,7 +846,21 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
             <button
               type="button"
-              onClick={() => onAnalyzeWithVision(snapshot)}
+              onClick={handleRunMultimodalAudit}
+              disabled={isAuditing}
+              className="w-full py-3 px-4 rounded-2xl bg-[#0B0D12] hover:bg-slate-900 text-[#F5C76B] border border-[#E2A83B]/50 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition disabled:opacity-60"
+            >
+              <Scan className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span>
+                {isAuditing
+                  ? 'Analisando frame com Gemini Vision...'
+                  : 'Raio-X Multimodal da Vitrine (Gemini Vision)'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onAnalyzeWithVision({ ...snapshot, zoneId: effectiveZoneId })}
               className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 shadow-sm transition"
             >
               <Sparkles className="w-4 h-4" aria-hidden="true" />
@@ -702,6 +875,129 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
             </div>
           </div>
         </div>
+
+        {auditNotice && (
+          <div
+            role="status"
+            className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium"
+          >
+            {auditNotice}
+          </div>
+        )}
+
+        {auditResult && (
+          <section
+            aria-label="Resultado do Raio-X Multimodal da Vitrine"
+            className="bento-card-obsidian rounded-3xl p-6 text-white space-y-5"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/35 text-[11px] font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                    LGPD: imagem descartada em RAM
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-white/10 text-stone-200 text-[11px] font-mono font-semibold">
+                    {auditResult.source === 'GEMINI_API' ? 'Gemini Vision' : 'Heurística Local'} •{' '}
+                    {auditResult.latency_ms}ms
+                  </span>
+                  {auditSourceMode === 'simulator' && (
+                    <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-[#F5C76B] border border-[#E2A83B]/40 text-[11px] font-semibold">
+                      Frame do Simulador de Borda
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-base sm:text-lg font-extrabold text-white pt-1">
+                  Raio-X Multimodal — {vitrineLabel}
+                </h3>
+                <p className="text-xs text-stone-300">{auditResult.headline}</p>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 border border-[#E2A83B]/45 px-4 py-3 text-center min-w-[128px]">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[#F5C76B] block">
+                  Nota Visual
+                </span>
+                <strong className="text-3xl font-black text-white kpi-metric">
+                  {auditResult.score}
+                  <span className="text-sm text-stone-400 font-bold">/100</span>
+                </strong>
+                <div className="mt-1.5 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#D99B26] to-[#F5C76B]"
+                    style={{ width: `${Math.max(5, Math.min(100, auditResult.score))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {/* 3 Defeitos Invisíveis */}
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-4 space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+                  3 Defeitos Invisíveis Detectados
+                </h4>
+                <ul className="space-y-2.5">
+                  {auditResult.defects.slice(0, 3).map((defect, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 text-xs text-stone-200">
+                      <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-400/30 font-mono text-[10px] font-bold shrink-0">
+                        0{idx + 1}
+                      </span>
+                      <span>{defect}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Reposicionamento Esquerda / Centro / Direita */}
+              <div className="rounded-2xl bg-white/5 border border-white/10 p-4 space-y-3">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#F5C76B] flex items-center gap-1.5">
+                  <MoveHorizontal className="w-4 h-4" aria-hidden="true" />
+                  Reposicionamento Esquerda / Centro / Direita
+                </h4>
+                <div className="grid grid-cols-1 gap-2">
+                  {['Esquerda', 'Centro', 'Direita'].map((zonaLabel, idx) => {
+                    const moveText =
+                      auditResult.zone_moves.find((m) =>
+                        m.toLowerCase().includes(zonaLabel.toLowerCase())
+                      ) ||
+                      auditResult.zone_moves[idx] ||
+                      `${zonaLabel}: ajustar exposição na altura do olhar.`;
+                    const lookCount = olharesPorZona?.[zonaLabel.toLowerCase()];
+                    return (
+                      <div
+                        key={zonaLabel}
+                        className="rounded-xl bg-[#0B0D12]/80 border border-white/10 px-3 py-2.5 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="font-extrabold text-[#F5C76B] uppercase text-[10px] tracking-wider">
+                            Zona {zonaLabel}
+                          </span>
+                          {typeof lookCount === 'number' && (
+                            <span className="text-[10px] font-mono text-stone-400">
+                              {lookCount} olhares
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-stone-200 leading-relaxed">{moveText}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {auditResult.quick_win && (
+              <div className="rounded-2xl bg-[#E2A83B]/15 border border-[#E2A83B]/45 px-4 py-3 flex items-start gap-2.5 text-xs text-amber-100">
+                <CheckCircle2 className="w-4 h-4 text-[#F5C76B] shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <strong className="text-[#F5C76B] block">Ação Rápida (Quick Win):</strong>
+                  <span>{auditResult.quick_win}</span>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

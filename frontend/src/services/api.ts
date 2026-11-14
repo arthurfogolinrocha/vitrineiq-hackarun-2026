@@ -1,10 +1,12 @@
 import {
   ConsumerSignal,
+  CrowdDropState,
   FlashCampaign,
   LostSaleEvent,
   LostSaleReason,
   MallEvent,
   TimeSlot,
+  VitrineAuditResult,
   WeatherCondition,
   ZoneId,
 } from '../types';
@@ -161,13 +163,19 @@ export interface CicloEstado {
   vitrine: Partial<Record<ZoneId, VitrineResumo>>;
   alertas: VitrineAlerta[];
   porHora: Partial<Record<ZoneId, PerfilPorHora>>;
+  crowdDrop?: Partial<Record<ZoneId, CrowdDropState>>;
 }
 
 const TIMEOUT_MS = 5000;
 
-async function chamar<T>(caminho: string, method = 'GET', body?: unknown): Promise<T> {
+async function chamar<T>(
+  caminho: string,
+  method = 'GET',
+  body?: unknown,
+  timeoutMs = TIMEOUT_MS
+): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${resolveApiUrl()}/api${caminho}`, {
       method,
@@ -187,6 +195,14 @@ async function chamar<T>(caminho: string, method = 'GET', body?: unknown): Promi
   } finally {
     clearTimeout(timer);
   }
+}
+
+export interface VitrineAuditPayload {
+  image_base64: string;
+  zone_id: ZoneId;
+  store_name: string;
+  olhares_por_zona?: Record<string, number>;
+  taxa_atencao?: number;
 }
 
 export const api = {
@@ -216,10 +232,28 @@ export const api = {
     zoneId: ZoneId,
     query: string,
     budget: ConsumerSignal['budget'],
-    segmento?: string
-  ) => chamar<ConsumerSignal>('/concierge/busca', 'POST', { zoneId, query, budget, segmento }),
-  publicarCampanha: (draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) =>
-    chamar<FlashCampaign>('/campanhas', 'POST', draft),
+    segmento?: string,
+    originZone?: ZoneId
+  ) =>
+    chamar<ConsumerSignal>('/concierge/busca', 'POST', {
+      zoneId,
+      query,
+      budget,
+      segmento,
+      ...(originZone ? { originZone } : {}),
+    }),
+  publicarCampanha: (
+    draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>,
+    triggerOrigin?: string
+  ) =>
+    chamar<FlashCampaign>('/campanhas', 'POST', {
+      ...draft,
+      ...(triggerOrigin !== undefined ? { triggerOrigin } : {}),
+    }),
   alterarCampanha: (id: string, active: boolean) => chamar(`/campanhas/${id}`, 'PATCH', { active }),
   removerCampanha: (id: string) => chamar(`/campanhas/${id}`, 'DELETE'),
+  crowdDrop: (ala: ZoneId) =>
+    chamar<CrowdDropState>(`/vitrine/crowd-drop?ala=${encodeURIComponent(ala)}`),
+  auditarVitrine: (payload: VitrineAuditPayload) =>
+    chamar<VitrineAuditResult>('/ia/auditar-vitrine', 'POST', payload, 15000),
 };

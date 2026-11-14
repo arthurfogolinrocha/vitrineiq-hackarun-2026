@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import {
   ArrowDown,
   ArrowUp,
@@ -8,6 +13,7 @@ import {
   Eye,
   Footprints,
   MapPin,
+  Moon,
   MoveDown,
   MoveUp,
   Pause,
@@ -15,11 +21,12 @@ import {
   RotateCcw,
   Search,
   Sparkles,
+  Sun,
   X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { FloorId, ZoneId } from '../types';
+import { CrossSegmentRoute, FlashCampaign, FloorId, StoreTenant, ZoneId } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
 import {
   CAMERA_PRESETS,
@@ -35,6 +42,9 @@ import {
   StoreTier,
 } from '../data/capimDourado3DLayout';
 
+type VisualTheme = 'obsidian' | 'day';
+type CampaignWithOrigin = FlashCampaign & { triggerOrigin?: string };
+
 interface ShoppingMap3DProps {
   floor: FloorId;
   onFloorChange: (floor: FloorId) => void;
@@ -43,6 +53,9 @@ interface ShoppingMap3DProps {
   onSelectZone: (zoneId: ZoneId) => void;
   selectedStoreName?: string | null;
   onSelectStoreName?: (name: string | null) => void;
+  routes?: CrossSegmentRoute[];
+  campaigns?: FlashCampaign[];
+  activeTenant?: StoreTenant | null;
 }
 
 interface SearchHit {
@@ -58,24 +71,147 @@ interface SearchHit {
   isKiosk?: boolean;
 }
 
+function normalizeStoreKey(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function createSoftParticleTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.72)');
+    grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.16)');
+    grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function resolveZoneAnchor(zoneId: ZoneId, labelHint?: string): THREE.Vector3 {
+  const hint = normalizeStoreKey(labelHint ?? '');
+  if (hint.includes('morofit')) return new THREE.Vector3(24.5, 4.2, -28.0);
+  if (hint.includes('cinemark') || hint.includes('wow')) {
+    return new THREE.Vector3(24.5, 4.8, 7.5);
+  }
+  if (hint.includes('outback') || hint.includes('madero')) {
+    return new THREE.Vector3(6.8, 3.8, 10.2);
+  }
+  switch (zoneId) {
+    case 'ala-lazer-cinema':
+      return new THREE.Vector3(24.5, 4.6, 3.0);
+    case 'praca-alimentacao-l2':
+      return new THREE.Vector3(-21.5, L2_DECK_Y + 3.2, 0.2);
+    case 'ala-central-ancoras':
+      return new THREE.Vector3(0.5, 4.2, -5.5);
+    case 'ala-sul-esporte':
+      return new THREE.Vector3(-21.0, 4.2, 5.5);
+    case 'alameda-gourmet':
+      return new THREE.Vector3(6.8, 3.8, 10.2);
+  }
+}
+
+function resolveCampaignOrigin(origin: string): THREE.Vector3 | null {
+  const key = normalizeStoreKey(origin);
+  if (!key) return null;
+
+  const zoneIds: ZoneId[] = [
+    'ala-lazer-cinema',
+    'praca-alimentacao-l2',
+    'ala-central-ancoras',
+    'ala-sul-esporte',
+    'alameda-gourmet',
+  ];
+  const exactZone = zoneIds.find((z) => z === origin);
+  if (exactZone) return resolveZoneAnchor(exactZone);
+
+  const matchedStore = CAPIM_STORES_3D.find((st) => {
+    const stKey = normalizeStoreKey(st.name);
+    return stKey === key || stKey.includes(key) || key.includes(stKey);
+  });
+  if (matchedStore) {
+    const yBase =
+      matchedStore.floor === 'L2' ? L2_DECK_Y : matchedStore.floor === 'SS1' ? -5.0 : 0;
+    return new THREE.Vector3(matchedStore.x, yBase + matchedStore.h + 0.5, matchedStore.z);
+  }
+
+  if (key.includes('cinema') || key.includes('lazer') || key.includes('morofit')) {
+    return resolveZoneAnchor('ala-lazer-cinema', origin);
+  }
+  if (key.includes('praca') || key.includes('l2') || key.includes('alimentacao')) {
+    return resolveZoneAnchor('praca-alimentacao-l2');
+  }
+  if (key.includes('central') || key.includes('ancora') || key.includes('c&a') || key.includes('riachuelo')) {
+    return resolveZoneAnchor('ala-central-ancoras');
+  }
+  if (key.includes('sul') || key.includes('esporte') || key.includes('renner') || key.includes('centauro')) {
+    return resolveZoneAnchor('ala-sul-esporte');
+  }
+  if (key.includes('gourmet') || key.includes('outback') || key.includes('madero')) {
+    return resolveZoneAnchor('alameda-gourmet');
+  }
+  return null;
+}
+
+function disposeMaterial(mat: THREE.Material) {
+  const rec = mat as THREE.Material & {
+    map?: THREE.Texture | null;
+    emissiveMap?: THREE.Texture | null;
+    alphaMap?: THREE.Texture | null;
+  };
+  rec.map?.dispose();
+  rec.emissiveMap?.dispose();
+  rec.alphaMap?.dispose();
+  mat.dispose();
+}
+
+function disposeObjectResources(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    const meshLike = obj as THREE.Mesh & {
+      geometry?: THREE.BufferGeometry;
+      material?: THREE.Material | THREE.Material[];
+    };
+    meshLike.geometry?.dispose();
+    if (Array.isArray(meshLike.material)) {
+      meshLike.material.forEach(disposeMaterial);
+    } else if (meshLike.material) {
+      disposeMaterial(meshLike.material);
+    }
+  });
+}
+
 function createSignTexture(
   title: string,
   badge: string,
   accent: string,
   tier: StoreTier,
   isVacant?: boolean,
-  isHighlighted?: boolean
+  isHighlighted?: boolean,
+  theme: VisualTheme = 'obsidian'
 ): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 148;
   const ctx = canvas.getContext('2d');
   if (ctx) {
+    const darkCard = theme === 'obsidian' || isHighlighted || tier === 'anchor';
     ctx.fillStyle = isVacant
-      ? '#fff1f2'
+      ? theme === 'obsidian'
+        ? '#2d0d16'
+        : '#fff1f2'
       : isHighlighted
-      ? '#111318'
-      : tier === 'anchor'
+      ? '#0b0d12'
+      : darkCard
       ? '#0f172a'
       : '#ffffff';
     ctx.beginPath();
@@ -90,17 +226,23 @@ function createSignTexture(
     ctx.fillRect(22, 24, 14, 100);
 
     ctx.fillStyle = isVacant
-      ? '#be123c'
-      : isHighlighted || tier === 'anchor'
-      ? '#ffffff'
+      ? theme === 'obsidian'
+        ? '#fda4af'
+        : '#be123c'
+      : darkCard
+      ? '#f1f5f9'
       : '#0f172a';
     ctx.font = '800 30px Inter, system-ui, sans-serif';
     ctx.fillText(title, 52, 66);
 
     ctx.fillStyle = isVacant
-      ? '#e11d48'
+      ? theme === 'obsidian'
+        ? '#fecdd3'
+        : '#e11d48'
       : isHighlighted || tier === 'anchor'
       ? '#fde68a'
+      : theme === 'obsidian'
+      ? '#cbd5e1'
       : '#475569';
     ctx.font = '700 21px Inter, system-ui, sans-serif';
     ctx.fillText(badge, 52, 108);
@@ -231,10 +373,14 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   onSelectZone,
   selectedStoreName,
   onSelectStoreName,
+  routes = [],
+  campaigns = [],
+  activeTenant = null,
 }) => {
   const activeZone = zonesTelemetry.find((z) => z.zone.id === selectedZoneId);
   const mountRef = useRef<HTMLDivElement>(null);
 
+  const [visualTheme, setVisualTheme] = useState<VisualTheme>('obsidian');
   const [viewMode, setViewMode] = useState<'orbit' | 'walk'>('orbit');
   const [showSubsoloXray, setShowSubsoloXray] = useState<boolean>(false);
   const [activeSegment, setActiveSegment] = useState<SegmentFilter>('all');
@@ -244,6 +390,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   const [tourStepIndex, setTourStepIndex] = useState(0);
   const [webglUnsupported, setWebglUnsupported] = useState(false);
 
+  const visualThemeRef = useRef<VisualTheme>('obsidian');
+  visualThemeRef.current = visualTheme;
   const viewModeRef = useRef<'orbit' | 'walk'>('orbit');
   viewModeRef.current = viewMode;
   const floorRef = useRef<FloorId>(floor);
@@ -258,27 +406,61 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   selectedZoneRef.current = selectedZoneId;
   const selectedStoreNameRef = useRef<string | null>(null);
   selectedStoreNameRef.current = selectedStore?.label ?? null;
+  const dismissedTenantIdRef = useRef<string | null>(null);
+  const prevTenantIdRef = useRef<string | null>(null);
 
   const onSelectZoneRef = useRef(onSelectZone);
   onSelectZoneRef.current = onSelectZone;
   const onFloorChangeRef = useRef(onFloorChange);
   onFloorChangeRef.current = onFloorChange;
+  const onSelectStoreNameRef = useRef(onSelectStoreName);
+  onSelectStoreNameRef.current = onSelectStoreName;
 
   const sceneRefs = useRef<{
+    renderer: THREE.WebGLRenderer | null;
+    scene: THREE.Scene | null;
+    hemiLight: THREE.HemisphereLight | null;
+    dirLight: THREE.DirectionalLight | null;
+    bloomPass: UnrealBloomPass | null;
     l1DeckMat: THREE.MeshStandardMaterial | null;
     subsoloCover: THREE.Mesh | null;
     groundMat: THREE.MeshStandardMaterial | null;
+    ovalPlazaMat: THREE.MeshStandardMaterial | null;
+    l2FoodSlabMat: THREE.MeshStandardMaterial | null;
+    l2ExtraDeckMats: THREE.MeshStandardMaterial[];
+    obsidianGridGroup: THREE.Group | null;
     beaconGroup: THREE.Group | null;
     beaconHalo: THREE.Mesh | null;
     beaconCone: THREE.Mesh | null;
     l2Materials: THREE.MeshStandardMaterial[];
     l2Objects: THREE.Object3D[];
     subsoloObjects: THREE.Object3D[];
+    heatmapGeo: THREE.BufferGeometry | null;
+    heatmapMat: THREE.PointsMaterial | null;
+    heatmapMeta: Array<{
+      zoneId: ZoneId;
+      baseX: number;
+      baseY: number;
+      baseZ: number;
+      phase: number;
+      speed: number;
+      ampY: number;
+      ampXZ: number;
+    }>;
+    allianceGroup: THREE.Group | null;
+    alliancePulses: Array<{
+      mesh: THREE.Mesh;
+      curve: THREE.QuadraticBezierCurve3;
+      t: number;
+      speed: number;
+    }>;
     storeEntries: Array<{
       def: Store3DDef;
       mesh: THREE.Mesh;
       mat: THREE.MeshStandardMaterial;
       trimMat: THREE.MeshStandardMaterial;
+      edges: THREE.LineSegments;
+      edgesMat: THREE.LineBasicMaterial;
       sprite: THREE.Sprite;
     }>;
     kioskEntries: Array<{
@@ -293,15 +475,29 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     routeGroups: Record<Exclude<SegmentFilter, 'all'>, THREE.Object3D[]>;
     flyTarget: { camPos: THREE.Vector3; lookAt: THREE.Vector3 } | null;
   }>({
+    renderer: null,
+    scene: null,
+    hemiLight: null,
+    dirLight: null,
+    bloomPass: null,
     l1DeckMat: null,
     subsoloCover: null,
     groundMat: null,
+    ovalPlazaMat: null,
+    l2FoodSlabMat: null,
+    l2ExtraDeckMats: [],
+    obsidianGridGroup: null,
     beaconGroup: null,
     beaconHalo: null,
     beaconCone: null,
     l2Materials: [],
     l2Objects: [],
     subsoloObjects: [],
+    heatmapGeo: null,
+    heatmapMat: null,
+    heatmapMeta: [],
+    allianceGroup: null,
+    alliancePulses: [],
     storeEntries: [],
     kioskEntries: [],
     routeGroups: { moda: [], mercado: [], gastronomia: [] },
@@ -355,22 +551,64 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       .slice(0, 6);
   }, [searchQuery, searchableItems]);
 
-  // Atualiza Score IQ, Foco por Piso (F23), Destaque e Beacon em Busca de Loja (F22) e filtro de segmento em <1ms sem resetar câmera!
+  // Atualiza Tema Obsidian/Dia, Score IQ, Foco por Piso (F23), Destaque/EdgesGeometry e Heatmap sem resetar câmera!
   useEffect(() => {
     const {
+      renderer,
+      scene,
+      hemiLight,
+      dirLight,
+      bloomPass,
       storeEntries,
       kioskEntries,
       routeGroups,
       beaconGroup,
       l1DeckMat,
       groundMat,
+      ovalPlazaMat,
+      l2FoodSlabMat,
+      l2ExtraDeckMats,
+      obsidianGridGroup,
       subsoloCover,
       l2Materials,
       l2Objects,
       subsoloObjects,
+      heatmapGeo,
+      heatmapMat,
+      heatmapMeta,
     } = sceneRefs.current;
 
+    const isObsidian = visualTheme === 'obsidian';
     const hasStoreSelection = Boolean(selectedStore);
+
+    // 0. Modo Visual Obsidian vs Dia
+    if (scene) {
+      const bgHex = isObsidian ? '#080B10' : '#eaeef5';
+      scene.background = new THREE.Color(bgHex);
+      scene.fog = new THREE.Fog(bgHex, isObsidian ? 75 : 70, isObsidian ? 195 : 185);
+      scene.environmentIntensity = isObsidian ? 0.44 : 0.42;
+    }
+    if (renderer) {
+      renderer.toneMappingExposure = isObsidian ? 0.94 : 1.04;
+    }
+    if (bloomPass) {
+      bloomPass.enabled = isObsidian;
+    }
+    if (hemiLight) {
+      hemiLight.color.set(isObsidian ? '#cbd5e1' : '#ffffff');
+      hemiLight.groundColor.set(isObsidian ? '#0f172a' : '#cbd5e1');
+      hemiLight.intensity = isObsidian ? 0.65 : 1.2;
+    }
+    if (dirLight) {
+      dirLight.color.set(isObsidian ? '#fef3c7' : '#fffbeb');
+      dirLight.intensity = isObsidian ? 1.05 : 1.32;
+    }
+    if (obsidianGridGroup) {
+      obsidianGridGroup.visible = isObsidian;
+    }
+    if (ovalPlazaMat) {
+      ovalPlazaMat.color.set(isObsidian ? '#3b2d16' : '#fde68a');
+    }
 
     // 1. Atualizar Beacon 3D Luminoso Vertical e Halo (F22)
     if (beaconGroup) {
@@ -392,6 +630,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
     // Laje L1 e Terreno
     if (l1DeckMat) {
+      l1DeckMat.color.set(isObsidian ? '#131823' : '#f8fafc');
+      l1DeckMat.roughness = isObsidian ? 0.42 : 0.38;
+      l1DeckMat.metalness = isObsidian ? 0.18 : 0.04;
       if (isSubsolo) {
         l1DeckMat.transparent = true;
         l1DeckMat.opacity = 0.20;
@@ -406,6 +647,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     }
 
     if (groundMat) {
+      groundMat.color.set(isObsidian ? '#0a0e16' : '#e5e7eb');
       if (isSubsolo) {
         groundMat.transparent = true;
         groundMat.opacity = 0.20;
@@ -428,6 +670,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     });
 
     // Elementos Estruturais do 2º Piso L2
+    if (l2FoodSlabMat) {
+      l2FoodSlabMat.color.set(isObsidian ? '#181f2e' : '#fefce8');
+    }
+    l2ExtraDeckMats.forEach((m) => {
+      m.color.set(isObsidian ? '#1b2333' : '#fef9c3');
+    });
+
     l2Materials.forEach((mat) => {
       if (isL2) {
         mat.transparent = false;
@@ -451,7 +700,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       }
     });
 
-    // 3. Atualizar Lojas (Dimming Global vs Foco por Piso)
+    // 3. Atualizar Lojas (Dimming Global vs Foco por Piso + EdgesGeometry luminosa)
     for (const entry of storeEntries) {
       const telemetry = zonesTelemetry.find((z) => z.zone.id === entry.def.zoneId);
       const score = telemetry?.opportunityScore ?? 65;
@@ -460,15 +709,28 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       const segmentMatch =
         activeSegment === 'all' || entry.def.segment === activeSegment;
 
+      const isEntryL2 = entry.def.floor === 'L2';
+      const isEntrySS = entry.def.floor === 'SS1';
+      const isEntryL1 = entry.def.floor === 'L1';
+      const onActiveFloor =
+        (isL1 && isEntryL1) || (isL2 && isEntryL2) || (isSubsolo && isEntrySS);
+
       if (hasStoreSelection) {
-        // F22: Esmaecimento Global (Dimming) — Loja selecionada destacada com emissivo forte; demais esmaecidas para ~0.22
         if (isStorePicked) {
           entry.mat.transparent = false;
           entry.mat.opacity = 1.0;
           entry.mat.emissive.set('#f59e0b');
-          entry.mat.emissiveIntensity = 0.85;
-          entry.trimMat.emissive.set('#f59e0b');
-          entry.trimMat.emissiveIntensity = 0.95;
+          entry.mat.emissiveIntensity = isObsidian ? 0.65 : 0.85;
+          entry.trimMat.emissive.set('#fbbf24');
+          entry.trimMat.emissiveIntensity = isObsidian ? 1.45 : 0.95;
+
+          entry.edges.visible = true;
+          entry.edgesMat.color.setRGB(
+            isObsidian ? 1.85 : 0.96,
+            isObsidian ? 1.32 : 0.65,
+            isObsidian ? 0.35 : 0.12
+          );
+          entry.edgesMat.opacity = 0.98;
         } else {
           entry.mat.transparent = true;
           entry.mat.opacity = 0.22;
@@ -476,13 +738,12 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           entry.mat.emissiveIntensity = 0;
           entry.trimMat.emissive.set('#000000');
           entry.trimMat.emissiveIntensity = 0;
+
+          entry.edges.visible = isObsidian && onActiveFloor;
+          entry.edgesMat.color.set('#334155');
+          entry.edgesMat.opacity = 0.14;
         }
       } else {
-        // F23: Foco e Isolamento por Piso
-        const isEntryL2 = entry.def.floor === 'L2';
-        const isEntrySS = entry.def.floor === 'SS1';
-        const isEntryL1 = entry.def.floor === 'L1';
-
         if (isL1) {
           if (isEntryL1) {
             entry.mat.transparent = !segmentMatch;
@@ -500,7 +761,6 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             entry.mat.opacity = 0.18;
           }
         } else {
-          // Subsolo
           if (isEntrySS) {
             entry.mat.transparent = false;
             entry.mat.opacity = 1.0;
@@ -511,9 +771,25 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         }
 
         entry.mat.emissive.set(isZoneSelected ? '#E2A83B' : '#000000');
-        entry.mat.emissiveIntensity = isZoneSelected ? 0.16 : 0;
+        entry.mat.emissiveIntensity = isZoneSelected ? (isObsidian ? 0.18 : 0.16) : 0;
         entry.trimMat.emissive.set(isZoneSelected ? '#E2A83B' : '#000000');
-        entry.trimMat.emissiveIntensity = isZoneSelected ? 0.22 : 0;
+        entry.trimMat.emissiveIntensity = isZoneSelected ? (isObsidian ? 0.55 : 0.22) : 0;
+
+        if (isZoneSelected && onActiveFloor) {
+          entry.edges.visible = true;
+          entry.edgesMat.color.setRGB(
+            isObsidian ? 1.35 : 0.85,
+            isObsidian ? 0.96 : 0.58,
+            isObsidian ? 0.28 : 0.10
+          );
+          entry.edgesMat.opacity = isObsidian ? 0.82 : 0.35;
+        } else if (isObsidian && onActiveFloor) {
+          entry.edges.visible = true;
+          entry.edgesMat.color.set('#334155');
+          entry.edgesMat.opacity = 0.34;
+        } else {
+          entry.edges.visible = false;
+        }
       }
 
       const badgeText = entry.def.isVacant
@@ -526,10 +802,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         entry.def.accent,
         entry.def.tier,
         entry.def.isVacant,
-        isStorePicked
+        isStorePicked,
+        visualTheme
       );
       if (prevMat.map) prevMat.map.dispose();
       prevMat.map = nextTex;
+      // Mantém luminância linear abaixo de 0.84 para o UnrealBloomPass não estourar os letreiros
+      prevMat.color.setRGB(0.84, 0.84, 0.84);
       prevMat.needsUpdate = true;
     }
 
@@ -562,16 +841,188 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         k.mat.emissive.set('#000000');
         k.mat.emissiveIntensity = 0;
       }
+      const kSpriteMat = k.sprite.material as THREE.SpriteMaterial;
+      const kNextTex = createSignTexture(
+        k.def.name,
+        'Quiosque L1',
+        k.def.accent,
+        'satellite',
+        false,
+        isKioskPicked,
+        visualTheme
+      );
+      if (kSpriteMat.map) kSpriteMat.map.dispose();
+      kSpriteMat.map = kNextTex;
+      kSpriteMat.color.setRGB(0.84, 0.84, 0.84);
+      kSpriteMat.needsUpdate = true;
     }
 
-    // Rotas
+    // 5. Rotas
     (['moda', 'mercado', 'gastronomia'] as const).forEach((seg) => {
       const visible = activeSegment === 'all' || activeSegment === seg;
       routeGroups[seg].forEach((obj) => {
         obj.visible = visible;
       });
     });
-  }, [floor, showSubsoloXray, zonesTelemetry, selectedZoneId, activeSegment, selectedStore]);
+
+    // 6. Nuvem de Partículas Heatmap (âmbar/dourado para IQ >= 75, ciano/esmeralda nas demais)
+    if (heatmapGeo && heatmapMeta.length > 0) {
+      const colorAttr = heatmapGeo.getAttribute('color') as THREE.BufferAttribute | undefined;
+      if (colorAttr) {
+        const arr = colorAttr.array as Float32Array;
+        const scoreMap = new Map<ZoneId, number>();
+        zonesTelemetry.forEach((z) => scoreMap.set(z.zone.id, z.opportunityScore));
+
+        for (let i = 0; i < heatmapMeta.length; i++) {
+          const score = scoreMap.get(heatmapMeta[i].zoneId) ?? 65;
+          const isHigh = score >= 75;
+          const idx = i * 3;
+          if (isHigh) {
+            arr[idx] = isObsidian ? 1.05 : 0.92;
+            arr[idx + 1] = isObsidian ? 0.72 : 0.58;
+            arr[idx + 2] = isObsidian ? 0.18 : 0.12;
+          } else {
+            arr[idx] = 0.1;
+            arr[idx + 1] = 0.86;
+            arr[idx + 2] = 0.74;
+          }
+        }
+        colorAttr.needsUpdate = true;
+      }
+    }
+    if (heatmapMat) {
+      heatmapMat.opacity = isSubsolo ? 0.25 : isObsidian ? 0.85 : 0.62;
+    }
+  }, [
+    visualTheme,
+    floor,
+    showSubsoloXray,
+    zonesTelemetry,
+    selectedZoneId,
+    activeSegment,
+    selectedStore,
+  ]);
+
+  // Reconstrói Arcos Bézier 3D "Aliança de Corredor" sempre que routes ou campaigns mudarem
+  useEffect(() => {
+    const { allianceGroup, alliancePulses } = sceneRefs.current;
+    if (!allianceGroup) return;
+
+    while (allianceGroup.children.length > 0) {
+      const child = allianceGroup.children[0];
+      allianceGroup.remove(child);
+      disposeObjectResources(child);
+    }
+    alliancePulses.length = 0;
+
+    const isObsidian = visualTheme === 'obsidian';
+
+    interface ArcSpec {
+      start: THREE.Vector3;
+      end: THREE.Vector3;
+      tubeColor: string;
+      pulseRgb: [number, number, number];
+      speed: number;
+    }
+
+    const arcs: ArcSpec[] = [];
+
+    routes.forEach((route) => {
+      const start = resolveZoneAnchor(route.fromZone, route.fromLabel);
+      const end = resolveZoneAnchor(route.toZone, route.toLabel);
+      if (start.distanceTo(end) < 1.0) return;
+      const isHigh = route.sharePercent >= 50;
+      arcs.push({
+        start,
+        end,
+        tubeColor: isHigh ? '#F59E0B' : '#38BDF8',
+        pulseRgb: isHigh ? [2.0, 1.35, 0.3] : [0.35, 1.45, 2.0],
+        speed: isHigh ? 0.0042 : 0.0032,
+      });
+    });
+
+    (campaigns as CampaignWithOrigin[]).forEach((camp) => {
+      if (!camp.active || !camp.triggerOrigin) return;
+      const start = resolveCampaignOrigin(camp.triggerOrigin);
+      if (!start) return;
+
+      const campKey = normalizeStoreKey(camp.storeName);
+      const targetStore = CAPIM_STORES_3D.find((st) => {
+        const stKey = normalizeStoreKey(st.name);
+        return stKey === campKey || stKey.includes(campKey) || campKey.includes(stKey);
+      });
+      const end = targetStore
+        ? new THREE.Vector3(
+            targetStore.x,
+            (targetStore.floor === 'L2' ? L2_DECK_Y : targetStore.floor === 'SS1' ? -5.0 : 0) +
+              targetStore.h +
+              0.6,
+            targetStore.z
+          )
+        : resolveZoneAnchor(camp.zoneId);
+
+      if (start.distanceTo(end) < 1.0) return;
+      arcs.push({
+        start,
+        end,
+        tubeColor: '#E2A83B',
+        pulseRgb: [2.25, 1.5, 0.35],
+        speed: 0.0052,
+      });
+    });
+
+    arcs.forEach((arc) => {
+      const mid = arc.start.clone().add(arc.end).multiplyScalar(0.5);
+      const dist = arc.start.distanceTo(arc.end);
+      mid.y = Math.max(arc.start.y, arc.end.y) + Math.max(8.0, dist * 0.34);
+
+      const curve = new THREE.QuadraticBezierCurve3(arc.start, mid, arc.end);
+      const tubeGeo = new THREE.TubeGeometry(curve, 52, 0.11, 8, false);
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color: arc.tubeColor,
+        transparent: true,
+        opacity: isObsidian ? 0.55 : 0.42,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      allianceGroup.add(new THREE.Mesh(tubeGeo, tubeMat));
+
+      // Anéis luminosos nas extremidades da aliança
+      [arc.start, arc.end].forEach((pt) => {
+        const ringGeo = new THREE.RingGeometry(0.45, 0.95, 24);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: arc.tubeColor,
+          transparent: true,
+          opacity: isObsidian ? 0.85 : 0.65,
+          blending: THREE.AdditiveBlending,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.copy(pt);
+        allianceGroup.add(ring);
+      });
+
+      // Pulsos de luz viajando pelo arco
+      for (let i = 0; i < 3; i++) {
+        const pulseGeo = new THREE.SphereGeometry(0.32, 12, 12);
+        const pulseMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(arc.pulseRgb[0], arc.pulseRgb[1], arc.pulseRgb[2]),
+          toneMapped: false,
+        });
+        const pulseMesh = new THREE.Mesh(pulseGeo, pulseMat);
+        pulseMesh.position.copy(curve.getPointAt(i / 3));
+        allianceGroup.add(pulseMesh);
+        alliancePulses.push({
+          mesh: pulseMesh,
+          curve,
+          t: i / 3,
+          speed: arc.speed,
+        });
+      }
+    });
+  }, [routes, campaigns, visualTheme]);
 
   // Sincroniza câmera suavemente quando o usuário troca de piso/ala pelo painel externo ("Saltar para Ala")
   const prevExternalFloorRef = useRef<FloorId>(floor);
@@ -638,17 +1089,64 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     const height = container.clientHeight || 520;
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.94;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap; // Compatível com Three.js moderno sem warning
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#eaeef5');
-    scene.fog = new THREE.Fog('#eaeef5', 70, 185);
+    const isInitialObsidian = visualThemeRef.current === 'obsidian';
+    const initialBg = isInitialObsidian ? '#080B10' : '#eaeef5';
+    scene.background = new THREE.Color(initialBg);
+    scene.fog = new THREE.Fog(initialBg, isInitialObsidian ? 75 : 70, isInitialObsidian ? 195 : 185);
+    scene.environmentIntensity = isInitialObsidian ? 0.44 : 0.42;
+
+    // Reflexos metálicos reais via RoomEnvironment + PMREMGenerator
+    let pmremGenerator: THREE.PMREMGenerator | null = null;
+    let envRT: THREE.WebGLRenderTarget | null = null;
+    try {
+      pmremGenerator = new THREE.PMREMGenerator(renderer);
+      pmremGenerator.compileEquirectangularShader();
+      const roomEnv = new RoomEnvironment();
+      envRT = pmremGenerator.fromScene(roomEnv, 0.04);
+      scene.environment = envRT.texture;
+      roomEnv.dispose();
+    } catch {
+      // Fallback seguro caso ambiente headless não suporte PMREM
+    }
 
     const camera = new THREE.PerspectiveCamera(48, width / height, 0.2, 260);
     camera.position.set(-4, 46, 56);
+
+    // Pós-processamento cinematográfico (EffectComposer + UnrealBloomPass + OutputPass)
+    let composer: EffectComposer | null = null;
+    let bloomPass: UnrealBloomPass | null = null;
+    let outputPass: OutputPass | null = null;
+    let composerFailed = false;
+    try {
+      composer = new EffectComposer(renderer);
+      composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      composer.setSize(width, height);
+      const renderPass = new RenderPass(scene, camera);
+      bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(width, height),
+        0.26,
+        0.25,
+        0.96
+      );
+      bloomPass.enabled = isInitialObsidian;
+      outputPass = new OutputPass();
+      composer.addPass(renderPass);
+      composer.addPass(bloomPass);
+      composer.addPass(outputPass);
+    } catch {
+      composer = null;
+      bloomPass = null;
+      outputPass = null;
+      composerFailed = true;
+    }
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -660,28 +1158,71 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     controls.maxPolarAngle = Math.PI / 2 + 0.2;
     controls.target.set(-1, 1, -2);
 
-    const hemiLight = new THREE.HemisphereLight('#ffffff', '#cbd5e1', 1.2);
+    const hemiLight = new THREE.HemisphereLight(
+      isInitialObsidian ? '#cbd5e1' : '#ffffff',
+      isInitialObsidian ? '#0f172a' : '#cbd5e1',
+      isInitialObsidian ? 0.85 : 1.2
+    );
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight('#fffbeb', 1.32);
+    const dirLight = new THREE.DirectionalLight(
+      isInitialObsidian ? '#fef3c7' : '#fffbeb',
+      isInitialObsidian ? 1.25 : 1.32
+    );
     dirLight.position.set(28, 56, 34);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 1024;
     dirLight.shadow.mapSize.height = 1024;
     scene.add(dirLight);
 
+    sceneRefs.current.renderer = renderer;
+    sceneRefs.current.scene = scene;
+    sceneRefs.current.hemiLight = hemiLight;
+    sceneRefs.current.dirLight = dirLight;
+    sceneRefs.current.bloomPass = bloomPass;
+
     const l2Materials: THREE.MeshStandardMaterial[] = [];
     const l2Objects: THREE.Object3D[] = [];
     const subsoloObjects: THREE.Object3D[] = [];
 
     // === TERRENO BASE (translúcido no modo Raio-X para revelar SS1 e SS2) ===
-    const groundMat = new THREE.MeshStandardMaterial({ color: '#e5e7eb', roughness: 0.95 });
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: isInitialObsidian ? '#0a0e16' : '#e5e7eb',
+      roughness: 0.95,
+    });
     sceneRefs.current.groundMat = groundMat;
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(210, 165), groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set(0, -0.22, -2);
     ground.receiveShadow = true;
     scene.add(ground);
+
+    // === GRID TÉCNICO DOURADO / ARDÓSIA (MODO OBSIDIAN) ===
+    const obsidianGridGroup = new THREE.Group();
+    const groundGrid = new THREE.GridHelper(190, 64, '#E2A83B', '#1e293b');
+    groundGrid.position.set(0, -0.19, -2);
+    const groundGridMats = Array.isArray(groundGrid.material)
+      ? groundGrid.material
+      : [groundGrid.material];
+    groundGridMats.forEach((m) => {
+      m.transparent = true;
+      m.opacity = 0.20;
+      m.depthWrite = false;
+    });
+    obsidianGridGroup.add(groundGrid);
+
+    const l1Grid = new THREE.GridHelper(72, 28, '#E2A83B', '#263244');
+    l1Grid.position.set(-2, 0.075, -8);
+    const l1GridMats = Array.isArray(l1Grid.material) ? l1Grid.material : [l1Grid.material];
+    l1GridMats.forEach((m) => {
+      m.transparent = true;
+      m.opacity = 0.18;
+      m.depthWrite = false;
+    });
+    obsidianGridGroup.add(l1Grid);
+    obsidianGridGroup.visible = isInitialObsidian;
+    scene.add(obsidianGridGroup);
+    sceneRefs.current.obsidianGridGroup = obsidianGridGroup;
 
     // === MALHA VIÁRIA REAL (AV. NS-05 + 2 ROTATÓRIAS + 3ª ROTATÓRIA OESTE + VIA DIAGONAL + LO-2A + JK) ===
     const roadMat = new THREE.MeshStandardMaterial({ color: '#334155', roughness: 0.85 });
@@ -913,9 +1454,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     const l1Geo = new THREE.ExtrudeGeometry(mallShape, { depth: 0.42, bevelEnabled: false });
     l1Geo.rotateX(Math.PI / 2);
     const l1DeckMat = new THREE.MeshStandardMaterial({
-      color: '#f8fafc',
-      roughness: 0.38,
-      metalness: 0.04,
+      color: isInitialObsidian ? '#131823' : '#f8fafc',
+      roughness: isInitialObsidian ? 0.42 : 0.38,
+      metalness: isInitialObsidian ? 0.18 : 0.04,
       transparent: xrayRef.current,
       opacity: xrayRef.current ? 0.28 : 1.0,
     });
@@ -926,9 +1467,15 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     scene.add(l1Slab);
 
     // Praça de Eventos Oval Central (265,90 m² em frente à Riachuelo)
+    const ovalPlazaMat = new THREE.MeshStandardMaterial({
+      color: isInitialObsidian ? '#3b2d16' : '#fde68a',
+      roughness: 0.35,
+      metalness: 0.25,
+    });
+    sceneRefs.current.ovalPlazaMat = ovalPlazaMat;
     const ovalPlaza = new THREE.Mesh(
       new THREE.CylinderGeometry(3.6, 3.6, 0.14, 28),
-      new THREE.MeshStandardMaterial({ color: '#fde68a', roughness: 0.4 })
+      ovalPlazaMat
     );
     ovalPlaza.scale.set(1.35, 1, 0.8);
     ovalPlaza.position.set(-4.5, 0.1, 4.2);
@@ -1015,7 +1562,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
       const goldRim = new THREE.Mesh(
         new THREE.BoxGeometry(5.8, 0.16, 2.55),
-        new THREE.MeshStandardMaterial({ color: '#E2A83B', emissive: '#d97706', emissiveIntensity: 0.3 })
+        new THREE.MeshStandardMaterial({
+          color: '#E2A83B',
+          emissive: '#d97706',
+          emissiveIntensity: 0.35,
+          metalness: 0.85,
+          roughness: 0.22,
+        })
       );
       goldRim.position.set(0, 3.55, 0);
       portal.add(goldRim);
@@ -1053,11 +1606,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     const l2Geo = new THREE.ExtrudeGeometry(foodCourtShape, { depth: 0.42, bevelEnabled: false });
     l2Geo.rotateX(Math.PI / 2);
     const l2FoodSlabMat = new THREE.MeshStandardMaterial({
-      color: '#fefce8',
+      color: isInitialObsidian ? '#181f2e' : '#fefce8',
       roughness: 0.3,
+      metalness: 0.14,
       transparent: true,
       opacity: 0.9,
     });
+    sceneRefs.current.l2FoodSlabMat = l2FoodSlabMat;
     l2Materials.push(l2FoodSlabMat);
     const l2FoodSlab = new THREE.Mesh(l2Geo, l2FoodSlabMat);
     l2FoodSlab.position.set(0, l2DeckY, 0);
@@ -1134,12 +1689,20 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     });
 
     // Blocos extras reais L2 (Colégio Interação A8 & Unicesumar/IOA)
+    const l2ExtraDeckMats: THREE.MeshStandardMaterial[] = [];
     [
       { x: 9.2, z: 5.8, w: 7.0, d: 4.8 },
       { x: 11.4, z: -4.3, w: 6.0, d: 6.2 },
     ].forEach((b) => {
-      const deckMat = new THREE.MeshStandardMaterial({ color: '#fef9c3', transparent: true, opacity: 0.88 });
+      const deckMat = new THREE.MeshStandardMaterial({
+        color: isInitialObsidian ? '#1b2333' : '#fef9c3',
+        roughness: 0.32,
+        metalness: 0.12,
+        transparent: true,
+        opacity: 0.88,
+      });
       l2Materials.push(deckMat);
+      l2ExtraDeckMats.push(deckMat);
       const deck = new THREE.Mesh(
         new THREE.BoxGeometry(b.w, 0.35, b.d),
         deckMat
@@ -1148,6 +1711,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       scene.add(deck);
       l2Objects.push(deck);
     });
+    sceneRefs.current.l2ExtraDeckMats = l2ExtraDeckMats;
 
     // Escadas Rolantes L1 ↔ L2 (ao lado do Bistrô 81 → bico parabólico da Praça L2) (F24)
     // Partem da circulação aberta do L1 (X ≈ -9.5, Y = 0.18) e sobem em direção a Oeste (-X),
@@ -1182,12 +1746,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     beaconGeo.translate(0, 7.5, 0); // posiciona a ponta na base Y = 0
     beaconGeo.rotateX(Math.PI);     // inverte o cone para a ponta apontar para a loja/quiosque
     const beaconConeMat = new THREE.MeshBasicMaterial({
-      color: '#F59E0B',
+      color: new THREE.Color(1.9, 1.25, 0.25),
       transparent: true,
       opacity: 0.65,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       depthWrite: false,
+      toneMapped: false,
     });
     const beaconCone = new THREE.Mesh(beaconGeo, beaconConeMat);
     beaconGroup.add(beaconCone);
@@ -1196,12 +1761,13 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
     const haloGeo = new THREE.RingGeometry(1.2, 2.5, 32);
     haloGeo.rotateX(-Math.PI / 2);
     const beaconHaloMat = new THREE.MeshBasicMaterial({
-      color: '#F59E0B',
+      color: new THREE.Color(2.1, 1.4, 0.3),
       transparent: true,
       opacity: 0.85,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       depthWrite: false,
+      toneMapped: false,
     });
     const beaconHalo = new THREE.Mesh(haloGeo, beaconHaloMat);
     beaconHalo.position.set(0, 0.1, 0);
@@ -1250,30 +1816,62 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       scene.add(mesh);
       interactiveMeshes.push(mesh);
 
-      // Vitrine de Vidro Frontal + Moldura Superior Metálica
+      // Vitrine de Vidro Frontal + Moldura Superior Metálica (reflexos RoomEnvironment)
       const glass = new THREE.Mesh(
         new THREE.BoxGeometry(st.w * 0.86, st.h * 0.62, st.d + 0.06),
         new THREE.MeshStandardMaterial({
           color: st.isVacant ? '#fecdd3' : '#bae6fd',
           transparent: true,
-          opacity: 0.36,
-          roughness: 0.08,
-          metalness: 0.35,
+          opacity: 0.38,
+          roughness: 0.06,
+          metalness: 0.55,
+          envMapIntensity: 1.25,
         })
       );
       glass.position.set(st.x, baseY + st.h * 0.36, st.z);
       scene.add(glass);
 
-      const trimMat = new THREE.MeshStandardMaterial({ color: st.accent, roughness: 0.3 });
+      const trimMat = new THREE.MeshStandardMaterial({
+        color: st.accent,
+        roughness: 0.24,
+        metalness: 0.72,
+        envMapIntensity: 1.15,
+      });
       const trim = new THREE.Mesh(new THREE.BoxGeometry(st.w + 0.12, 0.24, st.d + 0.12), trimMat);
       trim.position.set(st.x, baseY + st.h + 0.08, st.z);
       scene.add(trim);
 
+      const edgesGeo = new THREE.EdgesGeometry(mesh.geometry);
+      const edgesMat = new THREE.LineBasicMaterial({
+        color: '#E2A83B',
+        transparent: true,
+        opacity: isInitialObsidian ? 0.32 : 0,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+      edges.position.copy(mesh.position);
+      edges.visible = isInitialObsidian;
+      scene.add(edges);
+
       const badgeText = st.isVacant
         ? 'ESPAÇO VAGO • EXPANSÃO'
         : `${st.sublabel ?? `IQ ${score}`} • IQ ${score}`;
-      const tex = createSignTexture(st.name, badgeText, st.accent, st.tier, st.isVacant);
-      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+      const tex = createSignTexture(
+        st.name,
+        badgeText,
+        st.accent,
+        st.tier,
+        st.isVacant,
+        false,
+        visualThemeRef.current
+      );
+      const spriteMat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        color: new THREE.Color(0.84, 0.84, 0.84),
+      });
+      const sprite = new THREE.Sprite(spriteMat);
 
       const signHeightOffset = st.tier === 'anchor' ? 1.55 : st.tier === 'megaloja' ? 1.15 : 0.78;
       const signScale =
@@ -1287,7 +1885,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       sprite.scale.set(signScale[0], signScale[1], 1);
       scene.add(sprite);
 
-      storeEntries.push({ def: st, mesh, mat, trimMat, sprite });
+      storeEntries.push({ def: st, mesh, mat, trimMat, edges, edgesMat, sprite });
     });
     sceneRefs.current.storeEntries = storeEntries;
 
@@ -1322,8 +1920,17 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
       const kSprite = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: createSignTexture(k.name, 'Quiosque L1', k.accent, 'satellite'),
+          map: createSignTexture(
+            k.name,
+            'Quiosque L1',
+            k.accent,
+            'satellite',
+            false,
+            false,
+            visualThemeRef.current
+          ),
           transparent: true,
+          color: new THREE.Color(0.84, 0.84, 0.84),
         })
       );
       kSprite.position.set(k.x, 2.35, k.z);
@@ -1341,6 +1948,98 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       });
     });
     sceneRefs.current.kioskEntries = kioskEntries;
+
+    // === NUVEM DE PARTÍCULAS HEATMAP (THREE.Points ~350 PARTÍCULAS NOS CORREDORES) ===
+    const PARTICLE_COUNT = 350;
+    const corridorZones: Array<{
+      zoneId: ZoneId;
+      xMin: number;
+      xMax: number;
+      zMin: number;
+      zMax: number;
+      yMin: number;
+      yMax: number;
+    }> = [
+      { zoneId: 'ala-sul-esporte', xMin: -26, xMax: -8, zMin: 0.5, zMax: 8.8, yMin: 1.0, yMax: 3.3 },
+      { zoneId: 'ala-central-ancoras', xMin: -17, xMax: 11, zMin: -8.5, zMax: 1.5, yMin: 1.0, yMax: 3.3 },
+      { zoneId: 'alameda-gourmet', xMin: -7, xMax: 13, zMin: 4.5, zMax: 11.2, yMin: 1.0, yMax: 3.1 },
+      { zoneId: 'ala-lazer-cinema', xMin: 16.8, xMax: 21.8, zMin: -27, zMax: 8, yMin: 1.0, yMax: 3.5 },
+      {
+        zoneId: 'praca-alimentacao-l2',
+        xMin: -30,
+        xMax: -13,
+        zMin: -4.2,
+        zMax: 4.2,
+        yMin: l2DeckY + 0.9,
+        yMax: l2DeckY + 2.9,
+      },
+    ];
+
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const colors = new Float32Array(PARTICLE_COUNT * 3);
+    const heatmapMeta: typeof sceneRefs.current.heatmapMeta = [];
+    const scoreByZone = new Map<ZoneId, number>();
+    zonesRef.current.forEach((z) => scoreByZone.set(z.zone.id, z.opportunityScore));
+
+    let seed = 42197;
+    const nextRand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const cz = corridorZones[i % corridorZones.length];
+      const bx = cz.xMin + nextRand() * (cz.xMax - cz.xMin);
+      const by = cz.yMin + nextRand() * (cz.yMax - cz.yMin);
+      const bz = cz.zMin + nextRand() * (cz.zMax - cz.zMin);
+
+      positions[i * 3] = bx;
+      positions[i * 3 + 1] = by;
+      positions[i * 3 + 2] = bz;
+
+      const sc = scoreByZone.get(cz.zoneId) ?? 65;
+      const isHigh = sc >= 75;
+      colors[i * 3] = isHigh ? 1.05 : 0.1;
+      colors[i * 3 + 1] = isHigh ? 0.72 : 0.86;
+      colors[i * 3 + 2] = isHigh ? 0.18 : 0.74;
+
+      heatmapMeta.push({
+        zoneId: cz.zoneId,
+        baseX: bx,
+        baseY: by,
+        baseZ: bz,
+        phase: nextRand() * Math.PI * 2,
+        speed: 0.7 + nextRand() * 1.1,
+        ampY: 0.28 + nextRand() * 0.45,
+        ampXZ: 0.25 + nextRand() * 0.55,
+      });
+    }
+
+    const heatmapGeo = new THREE.BufferGeometry();
+    heatmapGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    heatmapGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const particleTex = createSoftParticleTexture();
+    const heatmapMat = new THREE.PointsMaterial({
+      size: 1.55,
+      map: particleTex,
+      vertexColors: true,
+      transparent: true,
+      opacity: isInitialObsidian ? 0.85 : 0.62,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+      toneMapped: false,
+    });
+    const heatmapPoints = new THREE.Points(heatmapGeo, heatmapMat);
+    scene.add(heatmapPoints);
+    sceneRefs.current.heatmapGeo = heatmapGeo;
+    sceneRefs.current.heatmapMat = heatmapMat;
+    sceneRefs.current.heatmapMeta = heatmapMeta;
+
+    // === ARCOS BÉZIER 3D "ALIANÇA DE CORREDOR" (STRIPE-STYLE) ===
+    const allianceGroup = new THREE.Group();
+    scene.add(allianceGroup);
+    sceneRefs.current.allianceGroup = allianceGroup;
 
     // === ROTAS DE FLUXO ANIMADO + CARROS NAS AVENIDAS ===
     interface FlowWalker {
@@ -1522,6 +2221,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           if (data.zoneId) {
             onSelectZoneRef.current(data.zoneId);
             onFloorChangeRef.current(data.floor);
+            onSelectStoreNameRef.current?.(data.storeName);
             setSelectedStore({
               label: data.storeName,
               subtitle: data.subtitle,
@@ -1637,6 +2337,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      composer?.setSize(w, h);
+      bloomPass?.setSize(w, h);
     };
     const ro = new ResizeObserver(handleResize);
     ro.observe(container);
@@ -1656,6 +2358,28 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           const nextPt = w.path.getPointAt((w.t + 0.01) % 1);
           w.mesh.lookAt(nextPt);
         }
+      }
+
+      // Flutuação suave das ~350 partículas do Heatmap acima dos corredores
+      if (sceneRefs.current.heatmapGeo && sceneRefs.current.heatmapMeta.length > 0) {
+        const posAttr = sceneRefs.current.heatmapGeo.getAttribute('position') as THREE.BufferAttribute;
+        const arr = posAttr.array as Float32Array;
+        const meta = sceneRefs.current.heatmapMeta;
+        for (let i = 0; i < meta.length; i++) {
+          const m = meta[i];
+          const tPhase = elapsed * m.speed + m.phase;
+          const idx = i * 3;
+          arr[idx] = m.baseX + Math.cos(tPhase * 0.65) * m.ampXZ;
+          arr[idx + 1] = m.baseY + Math.sin(tPhase) * m.ampY;
+          arr[idx + 2] = m.baseZ + Math.sin(tPhase * 0.55) * m.ampXZ;
+        }
+        posAttr.needsUpdate = true;
+      }
+
+      // Pulsos de luz viajando nos Arcos Bézier "Aliança de Corredor"
+      for (const pulse of sceneRefs.current.alliancePulses) {
+        pulse.t = (pulse.t + pulse.speed) % 1;
+        pulse.mesh.position.copy(pulse.curve.getPointAt(pulse.t));
       }
 
       // Animação suave dos degraus nas esteiras e escadas rolantes + cabines dos elevadores
@@ -1766,7 +2490,16 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
         controls.update();
       }
 
-      renderer.render(scene, camera);
+      if (composer && !composerFailed) {
+        try {
+          composer.render();
+        } catch {
+          composerFailed = true;
+          renderer.render(scene, camera);
+        }
+      } else {
+        renderer.render(scene, camera);
+      }
     };
 
     animate();
@@ -1781,6 +2514,21 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       controls.dispose();
+      disposeObjectResources(scene);
+      scene.clear();
+      bloomPass?.dispose();
+      outputPass?.dispose();
+      composer?.dispose();
+      envRT?.dispose();
+      pmremGenerator?.dispose();
+      sceneRefs.current.renderer = null;
+      sceneRefs.current.scene = null;
+      sceneRefs.current.bloomPass = null;
+      sceneRefs.current.allianceGroup = null;
+      sceneRefs.current.alliancePulses = [];
+      sceneRefs.current.heatmapGeo = null;
+      sceneRefs.current.heatmapMat = null;
+      sceneRefs.current.heatmapMeta = [];
       renderer.dispose();
     };
   }, []);
@@ -1834,45 +2582,98 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
   };
 
   useEffect(() => {
-    if (!selectedStoreName) {
+    const tenantId = activeTenant?.id ?? null;
+    if (tenantId !== prevTenantIdRef.current) {
+      prevTenantIdRef.current = tenantId;
+      dismissedTenantIdRef.current = null;
+    }
+
+    const targetName =
+      selectedStoreName ??
+      (activeTenant && dismissedTenantIdRef.current !== activeTenant.id
+        ? activeTenant.storeName
+        : null);
+
+    if (!targetName) {
       if (selectedStore) setSelectedStore(null);
       return;
     }
-    const hit = searchableItems.find(
-      (h) =>
-        h.label.toLowerCase() === selectedStoreName.toLowerCase() ||
-        h.label.toLowerCase().includes(selectedStoreName.toLowerCase()) ||
-        selectedStoreName.toLowerCase().includes(h.label.toLowerCase())
-    );
-    if (hit && (!selectedStore || selectedStore.label !== hit.label)) {
-      handlePickSearchItem(hit);
+
+    const normTarget = normalizeStoreKey(targetName);
+    const hit =
+      searchableItems.find((h) => normalizeStoreKey(h.label) === normTarget) ??
+      searchableItems.find(
+        (h) =>
+          normalizeStoreKey(h.label).includes(normTarget) ||
+          normTarget.includes(normalizeStoreKey(h.label))
+      );
+
+    if (hit) {
+      if (!selectedStore || selectedStore.label !== hit.label) {
+        setTourActive(false);
+        setViewMode('orbit');
+        setSelectedStore(hit);
+        if (selectedStoreName && hit.label !== selectedStoreName) {
+          onSelectStoreNameRef.current?.(hit.label);
+        }
+        setSearchQuery('');
+        onSelectZoneRef.current(hit.zoneId);
+        const targetFloor: FloorId =
+          hit.floor === 'L2' ? 'L2' : hit.floor === 'SS1' ? 'SS1' : 'L1';
+        const isSS1 = hit.floor === 'SS1';
+        setShowSubsoloXray(isSS1);
+        onFloorChangeRef.current(targetFloor);
+        const yBase = hit.floor === 'L2' ? L2_DECK_Y : isSS1 ? -5.0 : 0;
+        const itemH = hit.isKiosk ? 1.8 : hit.h;
+        actionsRef.current?.flyTo(
+          [hit.x - 10, yBase + itemH + 10, hit.z + 15],
+          [hit.x, yBase + 1.5, hit.z]
+        );
+      }
+    } else if (activeTenant && !selectedStoreName) {
+      onSelectZoneRef.current(activeTenant.zoneId);
     }
-  }, [selectedStoreName, searchableItems]);
+  }, [selectedStoreName, activeTenant, searchableItems]);
 
   if (webglUnsupported) {
     return (
-      <div className="h-[480px] rounded-2xl bg-slate-100 border border-slate-300 flex items-center justify-center p-6 text-center text-sm text-slate-700">
+      <div className="h-[480px] rounded-2xl bg-[#080B10] border border-[#E2A83B]/30 flex items-center justify-center p-6 text-center text-sm text-stone-300">
         Navegador sem WebGL ativo no momento — use a Planta 2D Técnica ou os botões das alas abaixo.
       </div>
     );
   }
 
   const currentTourStop = GUIDED_TOUR_STOPS[tourStepIndex];
+  const isObsidianTheme = visualTheme === 'obsidian';
+  const hudGlassClass =
+    'bg-[#0B0D12]/80 backdrop-blur-xl border border-[#E2A83B]/30 text-white shadow-2xl';
+  const telemetryPillText = `PISO ${floor} • IQ ${activeZone?.opportunityScore ?? '--'} • ${
+    isObsidianTheme ? 'OBSIDIAN 3D' : 'DIA 3D'
+  }`;
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-slate-300 bg-[#eaeef5] shadow-inner">
+    <div
+      className={`relative rounded-2xl overflow-hidden border shadow-2xl transition-colors ${
+        isObsidianTheme
+          ? 'border-[#E2A83B]/30 bg-[#080B10]'
+          : 'border-slate-300 bg-[#eaeef5]'
+      }`}
+    >
       <div
         ref={mountRef}
         className="w-full h-[500px] sm:h-[580px] cursor-grab active:cursor-grabbing"
         aria-label="Maquete 3D fiel à Planta Mix oficial do Capim Dourado Shopping"
       />
 
-      {/* Barra Superior (Modo + Busca Rápida + Zoom) */}
+      {/* Barra Superior (Telemetria + Modo + Busca Rápida + Tema Obsidian/Dia + Zoom) */}
       <div className="absolute top-3 left-3 right-3 flex flex-wrap items-start justify-between gap-2 pointer-events-none">
         <div className="flex flex-col gap-2 pointer-events-auto max-w-full">
-          <div className="flex flex-wrap items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-stone-200 shadow-md">
+          <div className={`flex flex-wrap items-center gap-1.5 p-1.5 rounded-xl ${hudGlassClass}`}>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-[#E2A83B]/15 border border-[#E2A83B]/40 text-[#E2A83B] font-mono text-[11px] font-bold tracking-wider">
+              {telemetryPillText}
+            </span>
             {activeZone && (
-              <span className="hidden md:inline-flex px-2.5 py-1 rounded-lg bg-[#111318] text-[#E2A83B] text-[11px] font-extrabold">
+              <span className="hidden md:inline-flex px-2.5 py-1 rounded-lg bg-white/10 text-stone-100 text-[11px] font-extrabold">
                 {activeZone.zone.shortName}
               </span>
             )}
@@ -1880,7 +2681,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               type="button"
               onClick={() => handleToggleViewMode('orbit')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                viewMode === 'orbit' ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
+                viewMode === 'orbit'
+                  ? 'bg-[#E2A83B] text-[#0B0D12] shadow-sm'
+                  : 'text-stone-200 hover:bg-white/10'
               }`}
             >
               <Compass className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1890,7 +2693,9 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               type="button"
               onClick={() => handleToggleViewMode('walk')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
-                viewMode === 'walk' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-700 hover:bg-slate-100'
+                viewMode === 'walk'
+                  ? 'bg-amber-400 text-[#0B0D12] shadow-sm'
+                  : 'text-stone-200 hover:bg-white/10'
               }`}
             >
               <Footprints className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1908,8 +2713,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
                 tourActive
-                  ? 'bg-[#E2A83B] text-[#111318] shadow-sm'
-                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200'
+                  ? 'bg-[#E2A83B] text-[#0B0D12] shadow-sm'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30'
               }`}
             >
               {tourActive ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -1919,8 +2724,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
           {/* Busca Rápida de Loja / Quiosque / Vaga */}
           <div className="relative w-full sm:w-80">
-            <div className="flex items-center gap-2 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-md">
-              <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" aria-hidden="true" />
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${hudGlassClass}`}>
+              <Search className="w-3.5 h-3.5 text-[#E2A83B] shrink-0" aria-hidden="true" />
               <input
                 id="map-3d-store-search"
                 name="map3dStoreSearch"
@@ -1929,33 +2734,33 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar loja, PF, Super Big ou vaga..."
                 aria-label="Buscar loja no Mapa 3D"
-                className="w-full text-xs text-slate-900 bg-transparent focus:outline-none placeholder:text-slate-400"
+                className="w-full text-xs text-white bg-transparent focus:outline-none placeholder:text-stone-400"
               />
               {searchQuery && (
                 <button
                   type="button"
                   aria-label="Limpar busca"
                   onClick={() => setSearchQuery('')}
-                  className="text-slate-400 hover:text-slate-700"
+                  className="text-stone-400 hover:text-white"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
             {searchResults.length > 0 && (
-              <div className="absolute left-0 right-0 mt-1.5 bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden z-20 divide-y divide-slate-100">
+              <div className="absolute left-0 right-0 mt-1.5 bg-[#0B0D12]/95 backdrop-blur-xl rounded-xl border border-[#E2A83B]/35 shadow-2xl overflow-hidden z-20 divide-y divide-white/10">
                 {searchResults.map((hit) => (
                   <button
                     key={hit.label}
                     type="button"
                     onClick={() => handlePickSearchItem(hit)}
-                    className="w-full text-left px-3 py-2 hover:bg-amber-50 flex items-center justify-between gap-2 transition"
+                    className="w-full text-left px-3 py-2 hover:bg-[#E2A83B]/15 flex items-center justify-between gap-2 transition"
                   >
                     <div className="min-w-0">
-                      <span className="text-xs font-extrabold text-slate-900 block truncate">{hit.label}</span>
-                      <span className="text-[10px] text-slate-500 block truncate">{hit.subtitle}</span>
+                      <span className="text-xs font-extrabold text-white block truncate">{hit.label}</span>
+                      <span className="text-[10px] text-stone-400 block truncate">{hit.subtitle}</span>
                     </div>
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[10px] font-bold shrink-0">
+                    <span className="px-2 py-0.5 rounded bg-white/10 text-[#E2A83B] font-mono text-[10px] font-bold shrink-0">
                       {hit.floor}
                     </span>
                   </button>
@@ -1965,8 +2770,25 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           </div>
         </div>
 
-        {/* Zoom / Reset / Subsolo */}
-        <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto bg-white/95 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-md">
+        {/* Tema Obsidian / Dia + Raio-X + Zoom / Reset */}
+        <div className={`flex flex-wrap items-center gap-1.5 pointer-events-auto p-1.5 rounded-xl ${hudGlassClass}`}>
+          <button
+            type="button"
+            onClick={() => setVisualTheme((prev) => (prev === 'obsidian' ? 'day' : 'obsidian'))}
+            aria-label="Alternar modo visual Obsidian ou Dia"
+            className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border ${
+              isObsidianTheme
+                ? 'bg-[#E2A83B]/20 text-[#E2A83B] border-[#E2A83B]/45 hover:bg-[#E2A83B]/30'
+                : 'bg-white/15 text-amber-200 border-white/20 hover:bg-white/25'
+            }`}
+          >
+            {isObsidianTheme ? (
+              <Moon className="w-3.5 h-3.5" aria-hidden="true" />
+            ) : (
+              <Sun className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
+            <span>{isObsidianTheme ? 'Obsidian' : 'Dia'}</span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -1977,10 +2799,10 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               onFloorChange(next ? 'SS1' : 'L1');
               actionsRef.current?.resetOrbit(next ? 'SS1' : 'L1', next);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition border ${
               showSubsoloXray
-                ? 'bg-sky-600 text-white shadow-sm'
-                : 'bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200'
+                ? 'bg-sky-500 text-[#0B0D12] border-sky-400 shadow-sm'
+                : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-400/30'
             }`}
           >
             <Eye className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1990,7 +2812,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             type="button"
             aria-label="Aproximar Zoom"
             onClick={() => actionsRef.current?.zoom(0.8)}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
           >
             <ZoomIn className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -1998,7 +2820,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             type="button"
             aria-label="Afastar Zoom"
             onClick={() => actionsRef.current?.zoom(1.25)}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
           >
             <ZoomOut className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -2006,7 +2828,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             type="button"
             aria-label="Resetar Câmera"
             onClick={() => handleToggleViewMode(viewMode)}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition"
           >
             <RotateCcw className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -2015,19 +2837,22 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
       {/* Card Flutuante da Loja Clicada/Buscada */}
       {selectedStore && !tourActive && (
-        <div className="hidden sm:block absolute top-24 right-3 w-72 bg-[#111318]/95 text-white backdrop-blur-md rounded-2xl border border-[#E2A83B]/40 p-3.5 shadow-xl pointer-events-auto z-10">
+        <div className={`hidden sm:block absolute top-24 right-3 w-72 rounded-2xl p-3.5 pointer-events-auto z-10 ${hudGlassClass}`}>
           <div className="flex items-start justify-between gap-2">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#E2A83B] flex items-center gap-1">
                 <MapPin className="w-3 h-3" /> {selectedStore.floor} • Portaria {selectedStore.nearestPortal}
               </span>
-              <h4 className="text-sm font-extrabold mt-0.5">{selectedStore.label}</h4>
+              <h4 className="text-sm font-extrabold mt-0.5 text-white">{selectedStore.label}</h4>
               <p className="text-[11px] text-stone-300 mt-0.5">{selectedStore.subtitle}</p>
             </div>
             <button
               type="button"
               aria-label="Fechar card da loja"
               onClick={() => {
+                if (activeTenant) {
+                  dismissedTenantIdRef.current = activeTenant.id;
+                }
                 setSelectedStore(null);
                 onSelectStoreName?.(null);
               }}
@@ -2039,7 +2864,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           {activeZone && (
             <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
               <span className="text-stone-300">Score IQ ({activeZone.zone.shortName}):</span>
-              <strong className="text-[#E2A83B] font-extrabold">{activeZone.opportunityScore} pts</strong>
+              <strong className="text-[#E2A83B] font-mono font-extrabold">{activeZone.opportunityScore} pts</strong>
             </div>
           )}
         </div>
@@ -2047,7 +2872,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
       {/* Overlay do Tour Guiado Automático */}
       {tourActive && (
-        <div className="absolute top-24 right-3 left-3 sm:left-auto sm:w-88 bg-[#111318]/95 text-white backdrop-blur-md rounded-2xl border border-[#E2A83B] p-4 shadow-2xl pointer-events-auto z-10">
+        <div className={`absolute top-24 right-3 left-3 sm:left-auto sm:w-88 rounded-2xl p-4 pointer-events-auto z-10 ${hudGlassClass}`}>
           <div className="flex items-center justify-between gap-2 mb-1">
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#E2A83B] flex items-center gap-1">
               <Sparkles className="w-3 h-3" /> Tour Guiado Capim Dourado
@@ -2055,12 +2880,12 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
             <button
               type="button"
               onClick={() => setTourStepIndex((prev) => (prev + 1) % GUIDED_TOUR_STOPS.length)}
-              className="px-2 py-0.5 rounded bg-[#E2A83B] text-[#111318] text-[10px] font-extrabold"
+              className="px-2 py-0.5 rounded bg-[#E2A83B] text-[#0B0D12] text-[10px] font-extrabold"
             >
               Próxima →
             </button>
           </div>
-          <h4 className="text-xs font-extrabold">{currentTourStop.title}</h4>
+          <h4 className="text-xs font-extrabold text-white">{currentTourStop.title}</h4>
           <p className="text-[11px] text-stone-300 mt-1 leading-relaxed">{currentTourStop.description}</p>
         </div>
       )}
@@ -2068,19 +2893,19 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
       {/* Joypad Street View */}
       {viewMode === 'walk' && (
         <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-end justify-between gap-3 pointer-events-none">
-          <div className="pointer-events-auto bg-slate-900/90 text-white px-3.5 py-2.5 rounded-xl text-[11px] backdrop-blur-md shadow-lg max-w-sm">
-            <strong className="text-amber-400 block mb-0.5">
+          <div className={`pointer-events-auto px-3.5 py-2.5 rounded-xl text-[11px] max-w-sm ${hudGlassClass}`}>
+            <strong className="text-[#E2A83B] block mb-0.5">
               Modo Street View Ativo ({floor === 'L1' ? 'Térreo L1' : '2º Piso Curva JK'})
             </strong>
             Arraste para olhar as vitrines • Use <strong>Scroll / W A S D</strong> ou os botões ao lado.
           </div>
 
-          <div className="pointer-events-auto flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200 shadow-lg">
+          <div className={`pointer-events-auto flex items-center gap-1.5 p-2 rounded-2xl ${hudGlassClass}`}>
             <button
               type="button"
               aria-label="Virar à esquerda"
               onClick={() => actionsRef.current?.nudgeWalk(0, 0, 0.35)}
-              className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
+              className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition"
             >
               ↺ Esq
             </button>
@@ -2088,7 +2913,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               type="button"
               aria-label="Andar para frente"
               onClick={() => actionsRef.current?.nudgeWalk(3.0, 0, 0)}
-              className="px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold flex items-center gap-1"
+              className="px-3 py-2 rounded-lg bg-[#E2A83B] hover:bg-amber-400 text-[#0B0D12] text-xs font-extrabold flex items-center gap-1 transition"
             >
               <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Frente</span>
@@ -2097,7 +2922,7 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               type="button"
               aria-label="Recuar"
               onClick={() => actionsRef.current?.nudgeWalk(-3.0, 0, 0)}
-              className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1"
+              className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1 transition"
             >
               <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -2105,14 +2930,14 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
               type="button"
               aria-label="Virar à direita"
               onClick={() => actionsRef.current?.nudgeWalk(0, 0, -0.35)}
-              className="px-2.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
+              className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition"
             >
               Dir ↻
             </button>
             <button
               type="button"
               onClick={() => handleSwitchFloor(floor === 'L1' ? 'L2' : 'L1')}
-              className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1"
+              className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-[#0B0D12] text-xs font-extrabold flex items-center gap-1 transition"
             >
               {floor === 'L1' ? (
                 <MoveUp className="w-3.5 h-3.5" aria-hidden="true" />
@@ -2127,14 +2952,14 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
 
       {/* Barra Inferior: Presets de Câmera por Setor + Filtro de Fluxo por Segmento */}
       {viewMode === 'orbit' && (
-        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+        <div className="bg-[#0B0D12]/90 backdrop-blur-xl border-t border-[#E2A83B]/30 text-white px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Atalhos de Setor 3D">
             {CAMERA_PRESETS.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
                 onClick={() => handleSelectPreset(preset)}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-900 hover:text-white text-slate-800 text-[11px] font-bold transition"
+                className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-[#E2A83B] hover:text-[#0B0D12] text-stone-100 text-[11px] font-bold transition"
               >
                 {preset.label}
               </button>
@@ -2144,10 +2969,10 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar fluxos por segmento">
             {(
               [
-                { id: 'all', label: 'Todos Fluxos', dot: 'bg-slate-700' },
-                { id: 'moda', label: 'Moda', dot: 'bg-blue-600' },
-                { id: 'mercado', label: 'Subsolo / Mercado', dot: 'bg-emerald-600' },
-                { id: 'gastronomia', label: 'Gastronomia / L2', dot: 'bg-amber-600' },
+                { id: 'all', label: 'Todos Fluxos', dot: 'bg-stone-300' },
+                { id: 'moda', label: 'Moda', dot: 'bg-blue-400' },
+                { id: 'mercado', label: 'Subsolo / Mercado', dot: 'bg-emerald-400' },
+                { id: 'gastronomia', label: 'Gastronomia / L2', dot: 'bg-amber-400' },
               ] as const
             ).map((seg) => (
               <button
@@ -2156,8 +2981,8 @@ export const ShoppingMap3D: React.FC<ShoppingMap3DProps> = ({
                 onClick={() => setActiveSegment(seg.id)}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-bold inline-flex items-center gap-1.5 transition border ${
                   activeSegment === seg.id
-                    ? 'bg-[#111318] text-white border-[#111318]'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-[#E2A83B] text-[#0B0D12] border-[#E2A83B]'
+                    : 'bg-white/5 text-stone-200 border-white/15 hover:bg-white/15'
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${seg.dot}`} />

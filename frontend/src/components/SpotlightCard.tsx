@@ -4,16 +4,21 @@ interface SpotlightCardProps {
   children: React.ReactNode;
   className?: string;
   tilt3d?: boolean;
+  beam?: boolean;
+  hudCorners?: boolean;
 }
 
 /**
- * Container executivo com spotlight radial dourado e inclinação 3D sutil guiada por ponteiro.
- * Respeita prefers-reduced-motion e usa pointer-events: none no overlay.
+ * Container executivo com spotlight radial dourado, borda iluminada por ponteiro,
+ * feixe cônico opcional (`beam`), cantoneiras HUD (`hudCorners`) e inclinação 3D sutil.
+ * Respeita prefers-reduced-motion e usa pointer-events: none nas camadas visuais.
  */
 export const SpotlightCard: React.FC<SpotlightCardProps> = ({
   children,
   className = '',
   tilt3d = false,
+  beam = false,
+  hudCorners = false,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const rectRef = useRef({ left: 0, top: 0 });
@@ -71,9 +76,11 @@ export const SpotlightCard: React.FC<SpotlightCardProps> = ({
       ref={cardRef}
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
-      className={`spotlight-card ${tilt3d ? 'card-3d-tilt' : ''} ${className}`}
+      className={`spotlight-card ${tilt3d ? 'card-3d-tilt' : ''} ${beam ? 'border-beam-gold' : ''} ${className}`}
     >
       <div className="spotlight-overlay" aria-hidden="true" />
+      <div className="spotlight-border-glow" aria-hidden="true" />
+      {hudCorners && <div className="hud-corners-overlay" aria-hidden="true" />}
       <div className="relative z-10 h-full">{children}</div>
     </div>
   );
