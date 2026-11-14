@@ -61,6 +61,7 @@ import { SecurityAuditPanel } from './components/SecurityAuditPanel';
 import { LoginScreen } from './components/LoginScreen';
 import { LojistasAdmin } from './components/LojistasAdmin';
 import { StoreTenantSwitcher } from './components/StoreTenantSwitcher';
+import { SextaFeira13 } from './components/SextaFeira13';
 
 const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; subtitle: string }> = {
   cockpit: {
@@ -768,7 +769,7 @@ export function App() {
         <div className="space-y-5">
           {/* Identidade da Marca */}
           <div className="flex items-center gap-3 pb-4 border-b border-[#E2A83B]/15">
-            <div className="w-10 h-10 rounded-xl gold-pill-metallic font-black text-lg flex items-center justify-center shrink-0">
+            <div data-sexta13-logo className="w-10 h-10 rounded-xl gold-pill-metallic font-black text-lg flex items-center justify-center shrink-0">
               V
             </div>
             <div className="min-w-0">
@@ -867,7 +868,7 @@ export function App() {
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {/* Marca visível apenas no mobile/tablet */}
-              <div className="lg:hidden w-9 h-9 rounded-xl bg-[#111318] text-[#E2A83B] font-black text-base flex items-center justify-center">
+              <div data-sexta13-logo className="lg:hidden w-9 h-9 rounded-xl bg-[#111318] text-[#E2A83B] font-black text-base flex items-center justify-center">
                 V
               </div>
               <div>
@@ -1123,3 +1124,14 @@ export function App() {
 }
 
 export default App;
+
+            {!conciergePublico && (
+              <SextaFeira13
+                visivel={aba === 'cockpit' && !kioskTab}
+                lostSales={scopedLostSales}
+                zone={selectedTelemetry.zone}
+                storeName={activeTenant?.storeName ?? selectedTelemetry.zone.anchors[0] ?? 'Loja Âncora'}
+                segmento={activeTenant?.segment}
+                onLaunchCampaign={handleLaunchCampaign}
+              />
+            )}
