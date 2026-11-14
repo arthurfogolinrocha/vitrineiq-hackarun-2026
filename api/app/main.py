@@ -10,8 +10,10 @@ import os
 import time
 from collections import defaultdict, deque
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
@@ -151,5 +153,38 @@ def ia_plano(body: PlanRequest) -> PlanResponse:
 def audit_hash(body: AuditHashRequest) -> AuditHashResponse:
     return AuditHashResponse(
         hash=generate_audit_hash(body.payload, body.prev_hash, body.event_id, body.timestamp)
+    )
+
+
+_ALLOWED_LOGO_HOSTS = {
+    "www.intranetmall.com",
+    "intranetmall.com",
+    "www.capimdouradosc.com.br",
+    "capimdouradosc.com.br",
+}
+
+
+@app.get("/api/logo-proxy")
+def logo_proxy(url: str) -> Response:
+    """Proxy seguro (anti-SSRF) para carregar logos oficiais do shopping em Canvas PNG sem erro de CORS."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_LOGO_HOSTS:
+        raise HTTPException(400, "Domínio de logo não autorizado.")
+    try:
+        resp = httpx.get(url, timeout=5.0, follow_redirects=False)
+    except httpx.HTTPError as exc:
+        raise HTTPException(502, "Falha ao buscar logo da loja.") from exc
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, "Logo indisponível.")
+    ctype = resp.headers.get("content-type", "image/png").split(";")[0].strip()
+    if not ctype.startswith("image/"):
+        raise HTTPException(415, "Conteúdo retornado não é uma imagem.")
+    return Response(
+        content=resp.content[:2_000_000],
+        media_type=ctype,
+        headers={
+            "Cache-Control": "public, max-age=86400",
+            "Access-Control-Allow-Origin": "*",
+        },
     )
 

@@ -196,3 +196,8 @@ def test_db_usa_tmp_na_vercel_sem_database_url(monkeypatch):
     monkeypatch.setenv("VERCEL", "1")
     assert db._url() == "sqlite:////tmp/vitrineiq.db"
 
+
+def test_logo_proxy_bloqueia_ssrf_e_esquema_inseguro():
+    assert client.get("/api/logo-proxy", params={"url": "http://127.0.0.1/secret.png"}).status_code == 400
+    assert client.get("/api/logo-proxy", params={"url": "https://evil.example.com/a.png"}).status_code == 400
+

@@ -70,6 +70,7 @@ export interface StoreTenant {
   segment: Exclude<SegmentCategory, 'todos'>;
   avgTicket: number;
   floorLabel: string;
+  logoUrl?: string;
 }
 
 export interface ShopContextFactors {

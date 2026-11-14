@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readTenantUrl, readUrlView } from '../utils/urlView';
-import { CAPIM_DOURADO_STORES } from '../data/shoppingData';
+import { CAPIM_DOURADO_STORES, findStoreByName } from '../data/shoppingData';
 
 describe('readUrlView (US: QR abre o Concierge direto)', () => {
   it('abre o Concierge na ala do QR', () => {
@@ -44,5 +44,12 @@ describe('readTenantUrl (Multi-tenant Admin vs Lojista)', () => {
       role: 'store',
       storeId: CAPIM_DOURADO_STORES[0].id,
     });
+  });
+
+  it('carrega catálogo completo do Capim Dourado (180+ lojas) com logos oficiais', () => {
+    expect(CAPIM_DOURADO_STORES.length).toBeGreaterThanOrEqual(180);
+    const withLogo = CAPIM_DOURADO_STORES.filter((s) => Boolean(s.logoUrl));
+    expect(withLogo.length).toBeGreaterThanOrEqual(180);
+    expect(findStoreByName('Centauro')?.logoUrl).toContain('https://');
   });
 });
