@@ -35,7 +35,7 @@ export const TAB_META: Record<ActiveTab, { label: string; shortLabel: string; su
   concierge: {
     label: 'Concierge QR',
     shortLabel: 'QR Cliente',
-    subtitle: 'Totem anônimo que capta desejo real e libera cupom',
+    subtitle: 'Totem anônimo que capta desejo real e libera reserva ou convite',
   },
   audit: {
     label: 'LGPD & Backend Python',

@@ -490,7 +490,7 @@ export const PromoPosterModal: React.FC<PromoPosterModalProps> = ({ draft, onClo
               <p className="font-bold text-[#F5C76B]">O que vai na imagem:</p>
               <ul className="text-stone-300 space-y-1 text-[11px]">
                 <li>• Logo oficial da loja <strong>{draft?.storeName}</strong></li>
-                <li>• Cupom <strong>{draft?.couponCode}</strong> ({draft?.discountBadge})</li>
+                <li>• Código <strong>{draft?.couponCode}</strong> ({draft?.discountBadge})</li>
                 <li>• QR Code real direto para o Concierge sem app</li>
               </ul>
             </div>

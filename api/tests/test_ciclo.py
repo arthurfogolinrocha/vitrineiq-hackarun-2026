@@ -212,15 +212,15 @@ def test_crowd_drop_tiers_e_endpoints():
     assert (cd_est["peopleNow"], cd_est["tier"], cd_est["discountPct"], cd_est["couponCode"]) == (3, 2, 20, "CROWD-PRACA-20")
 
     cd1 = compute_crowd_drop([{"pico_simultaneo": 2, "olharam": 5}], ALA)
-    assert (cd1["tier"], cd1["discountPct"], cd1["nextTarget"], cd1["label"]) == (1, 10, 3, "Vitrine Despertada (10% OFF)")
+    assert (cd1["tier"], cd1["discountPct"], cd1["nextTarget"], cd1["label"]) == (1, 10, 3, "Vitrine Despertada (Prova expressa)")
 
     cd2 = compute_crowd_drop([{"pico_simultaneo": 4, "olharam": 10}], ALA)
-    assert (cd2["tier"], cd2["discountPct"], cd2["nextTarget"], cd2["label"]) == (2, 20, 5, "Combo Coletivo Ativo (20% OFF)")
+    assert (cd2["tier"], cd2["discountPct"], cd2["nextTarget"], cd2["label"]) == (2, 20, 5, "Combo Coletivo Ativo (Brinde na compra)")
 
     client.post("/api/vitrine/eventos", json={**EVENTO, "pico_simultaneo": 6, "olharam": 12, "chegaram_perto": 3})
     cd_api = client.get(f"/api/vitrine/crowd-drop?ala={ALA}").json()
     assert (cd_api["tier"], cd_api["discountPct"], cd_api["couponCode"]) == (3, 30, "CROWD-ALA-30")
-    assert cd_api["label"] == "CROWD-DROP MÁXIMO (30% OFF)"
+    assert cd_api["label"] == "CROWD-DROP MÁXIMO (Experiência VIP)"
 
     estado = client.get("/api/estado").json()
     assert estado["crowdDrop"][ALA]["tier"] == 3

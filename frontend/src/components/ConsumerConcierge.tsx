@@ -187,7 +187,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
       setLatestReward(created);
       setLiveStatus(
         created.couponCode
-          ? `Oferta encontrada: ${created.matchedOffer}. Cupom ${created.couponCode} liberado.`
+          ? `Oferta encontrada: ${created.matchedOffer}. Código ${created.couponCode} liberado.`
           : 'Busca registrada. Nenhuma oferta ativa agora; avisaremos aqui quando uma loja publicar.'
       );
       setQuery('');
@@ -367,7 +367,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               O que você procura ou achou das lojas hoje?
             </label>
             <span id="qr-query-hint" className="block text-[11px] text-stone-600 mb-1.5">
-              Mínimo de 3 caracteres. Sua busca libera cupons na hora (não pedimos nome nem contato; não escreva dados pessoais).
+              Mínimo de 3 caracteres. Sua busca libera reservas e convites na hora (não pedimos nome nem contato; não escreva dados pessoais).
             </span>
             <input
               id="qr-query"
@@ -515,7 +515,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
 
         {latestReward && !latestReward.couponCode && (
           <p role="status" className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
-            Busca registrada. Nenhuma oferta ativa nesta ala agora: se uma loja publicar, o cupom aparece aqui.
+            Busca registrada. Nenhuma oferta ativa nesta ala agora: se uma loja publicar, o convite aparece aqui.
           </p>
         )}
 
@@ -524,7 +524,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="font-bold text-emerald-800 flex items-center gap-1.5">
                 <Ticket className="w-4 h-4 text-emerald-600" aria-hidden="true" />
-                Cupom Desbloqueado!
+                Oferta de Resgate Liberada!
               </span>
               <span className="font-mono font-black px-2.5 py-0.5 rounded-lg bg-emerald-600 text-white">
                 {latestReward.couponCode}
@@ -597,7 +597,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
               Duas Pontas Conectadas (Cliente + Lojista)
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Ao enviar uma busca no <strong>Concierge QR</strong>, o visitante recebe um cupom na hora sem instalar aplicativo, enquanto o <strong>Painel do Lojista e o Mapa 3D</strong> recebem o sinal de demanda instantaneamente.
+              Ao enviar uma busca no <strong>Concierge QR</strong>, o visitante recebe uma oferta de resgate (reserva, prova ou parcelamento) na hora sem instalar aplicativo, enquanto o <strong>Painel do Lojista e o Mapa 3D</strong> recebem o sinal de demanda instantaneamente.
             </p>
 
             <div className="flex items-center gap-2 text-[11px] text-emerald-800 font-semibold bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">
@@ -609,7 +609,7 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
           <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-3">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
               <Gift className="w-4 h-4 text-blue-600" aria-hidden="true" />
-              Últimas Buscas &amp; Cupons Liberados ({campaigns.filter((c) => c.active).length} cupons ativos)
+              Últimas Buscas &amp; Ofertas Liberadas ({campaigns.filter((c) => c.active).length} ofertas ativas)
             </h3>
             <ul className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1 text-xs">
               {signals.map((sig) => {

@@ -101,9 +101,9 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     segmento: activeTenant?.segment || 'todos',
     triggerOrigin: '',
     title: 'Combo Pós-Cinema 2h Relâmpago',
-    discountBadge: '15% OFF',
-    couponCode: 'CAPIM15',
-    whatsappCopy: buildWhatsappOfferCopy('CAPIM15', '15% OFF'),
+    discountBadge: 'Reserva + aviso de reposição',
+    couponCode: 'CAPIM-RESERVA',
+    whatsappCopy: buildWhatsappOfferCopy('CAPIM-RESERVA', 'Reserva + aviso de reposição'),
     expiresInMinutes: 120,
   }));
   const [copiedId, setCopiedId] = useState<string | null>(null);

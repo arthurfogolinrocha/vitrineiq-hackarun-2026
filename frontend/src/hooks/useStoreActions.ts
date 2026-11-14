@@ -235,7 +235,7 @@ export function useStoreActions({
     setSignals((prev) => [signal, ...prev]);
     appendAudit(
       'CONCIERGE_QR_SIGNAL',
-      `Busca anônima em ${zoneShortName}: "${query}" -> cupom ${signal.couponCode}`
+      `Busca anônima em ${zoneShortName}: "${query}" -> convite ${signal.couponCode}`
     );
     return signal;
   };
@@ -245,7 +245,7 @@ export function useStoreActions({
     const zoneId = activeTenant?.zoneId ?? selectedZoneId;
     const discountBadge =
       reason === 'preco'
-        ? '15% OFF VOZ'
+        ? 'ATÉ 10X SEM JUROS'
         : reason === 'estoque_grade'
           ? 'RESERVA EXPRESSA'
           : 'ATENDIMENTO VIP';

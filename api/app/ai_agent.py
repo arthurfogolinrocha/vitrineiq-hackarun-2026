@@ -26,8 +26,12 @@ SYSTEM_INSTRUCTIONS = (
     "e responda em português direto, sem Markdown, com:\n"
     "1) Diagnóstico da oportunidade agora;\n"
     "2) Ação imediata na vitrine/balcão;\n"
-    "3) Texto pronto curto para WhatsApp/cupom relâmpago;\n"
-    "4) Ideia de parceria cross-segmento no shopping."
+    "3) Texto pronto curto para WhatsApp/convite de resgate;\n"
+    "4) Ideia de parceria cross-segmento no shopping.\n"
+    "Regra: NUNCA proponha desconto, cupom ou percentual de abatimento; o lojista não quer "
+    "sacrificar margem. Trate o motivo da venda perdida: sem tamanho/estoque -> reserva e aviso "
+    "de reposição; preço -> parcelamento ou kit de entrada; fila/demora -> atendimento expresso; "
+    "só olhando -> convite para provar a novidade ou serviço/brinde."
 )
 
 
@@ -129,18 +133,19 @@ def heuristic_plan(prompt: str, category: Optional[str], context: Optional[str])
     lower = f"{prompt or ''} {context or ''}".lower()
     cat = category or "Geral"
 
-    action = "Posicionar placa de oferta-âncora na entrada da vitrine com QR Code de resgate válido por 2 horas."
-    whatsapp = "⚡ Só nas próximas 2h no Capim Dourado: apresente o cupom VITRINE-HOJE no balcão e garanta condição exclusiva!"
-    cross = "Criar voucher cruzado com a Praça de Alimentação / Cinemark para converter o fluxo que já está circulando na ala."
+    action = "Posicionar a peça mais procurada na entrada da vitrine com QR Code do Concierge para reserva e prova."
+    whatsapp = "✨ Novidade na vitrine do Capim Dourado: reserve pelo QR e prove hoje, sem compromisso."
+    cross = "Criar convite cruzado com a Praça de Alimentação / Cinemark para converter o fluxo que já está circulando na ala."
 
-    if any(word in lower for word in ("preco", "preço", "desconto")):
-        action = "Destacar kit de entrada/combo de menor ticket na frente da vitrine e oferecer condição relâmpago de parcelamento sem juros."
-        whatsapp = "🔥 Achado do dia no Capim Dourado: baixamos o combo mais procurado por tempo limitado. Mostre VITRINE-PRECO no balcão!"
+    if any(word in lower for word in ("preco", "preço", "desconto", "parcel")):
+        action = "Destacar kit de entrada de menor ticket na frente da vitrine e anunciar parcelamento sem juros, sem mexer no preço."
+        whatsapp = "💳 Aquele item que você viu no Capim Dourado: hoje em até 10x sem juros. Reserve pelo QR!"
     elif any(word in lower for word in ("estoque", "tamanho", "grade")):
-        action = "Ativar reserva expressa com entrega gratuita em casa ou retirada no dia seguinte para não perder o cliente por falta de grade."
-        whatsapp = "📦 Não achou sua numeração na vitrine? Garantimos entrega expressa amanhã com 10% OFF usando VITRINE-GRADE!"
+        action = "Ativar reserva com aviso de reposição e retirada no dia seguinte para não perder o cliente por falta de grade."
+        whatsapp = "📦 Não achou sua numeração? Reserve pelo QR e avisamos assim que chegar, separado no seu nome."
     elif any(word in lower for word in ("fila", "almo", "cinema")):
         action = "Liberar fila expressa para pedidos pré-selecionados via QR Code (retirada em balcão dedicado em até 5 min)."
+        whatsapp = "⏱️ Sem fila agora: escolha pelo QR e retire no balcão expresso em até 5 minutos."
         cross = "Integrar alerta pós-sessão do Cinemark e saída da Morofit para antecipar produção em horários de pico."
 
     wing_match = re.search(r"Ala:\s*([^|]+)", context or "", flags=re.IGNORECASE)

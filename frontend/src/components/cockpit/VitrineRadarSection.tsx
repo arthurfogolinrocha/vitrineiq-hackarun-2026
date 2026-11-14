@@ -88,7 +88,7 @@ export const VitrineRadarSection: React.FC<VitrineRadarSectionProps> = ({
               Radar de Vitrine (Esquerda • Centro • Direita)
             </h3>
             <span className="text-[11px] font-mono text-[#F5C76B]">
-              {crowdDrop ? `CROWD ${crowdDrop.peopleNow}P • ${crowdDrop.discountPct}%` : 'LIVE FOV 110°'}
+              {crowdDrop ? `CROWD ${crowdDrop.peopleNow}P • NÍVEL ${crowdDrop.tier}` : 'LIVE FOV 110°'}
             </span>
           </div>
 

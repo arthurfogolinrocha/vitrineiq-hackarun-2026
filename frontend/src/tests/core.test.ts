@@ -131,7 +131,7 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
     expect(telemetry.opportunityScore).toBeGreaterThan(0);
 
     const matched = matchConsumerOffer('Tênis casual pós cinema', cinemaZone, INITIAL_FLASH_CAMPAIGNS);
-    expect(matched.couponCode).toBe('VITRINE-CINE18');
+    expect(matched.couponCode).toBe('VITRINE-CINE');
   });
 
   it('deve processar diagnóstico de funil de câmera de borda sem erro de segurança', async () => {
