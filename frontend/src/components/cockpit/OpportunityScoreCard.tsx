@@ -27,6 +27,8 @@ interface OpportunityScoreCardProps {
   clampedScore: number;
   effectiveFootTraffic: number;
   stopsTotal: number;
+  /** Pessoas na frente da vitrine agora (ainda não contadas em Passaram). */
+  pessoasAgora?: number;
 }
 
 /** Card principal Obsidian Bento com Gauge Orbital do IQ Score, ações táticas e 4 KPIs da ala. */
@@ -42,6 +44,7 @@ export const OpportunityScoreCard: React.FC<OpportunityScoreCardProps> = ({
   clampedScore,
   effectiveFootTraffic,
   stopsTotal,
+  pessoasAgora = 0,
 }) => {
   const animatedScore = useAnimatedNumber(clampedScore);
   const animatedFootTraffic = useAnimatedNumber(effectiveFootTraffic);
@@ -214,15 +217,23 @@ export const OpportunityScoreCard: React.FC<OpportunityScoreCardProps> = ({
                 IQ Score
               </span>
               <strong className="text-3xl font-black text-white leading-none kpi-metric">
-                {animatedScore}
+                {current.semDados ? '—' : animatedScore}
               </strong>
             </div>
           </div>
-          <div className="text-left md:text-center">
+          <div className="text-left md:text-center" aria-live="polite">
             <span className="text-xs font-bold text-[#E2A83B] block">
-              {getScoreStatusLabel(effectiveScore)}
+              {current.semDados ? 'Sem dados ainda hoje' : getScoreStatusLabel(effectiveScore)}
             </span>
-            <span className="text-[11px] text-stone-400">Índice em tempo real (0–100)</span>
+            <span className="text-[11px] text-stone-400">
+              {!current.medido
+                ? 'Demonstração: dados fictícios'
+                : current.semDados
+                  ? pessoasAgora > 0
+                    ? `${pessoasAgora} na frente da vitrine agora: conta quando sair da imagem`
+                    : 'Aguardando câmera, Balcão ou Concierge'
+                  : 'Medido hoje: câmera, Concierge e Balcão (0–100)'}
+            </span>
           </div>
         </div>
       </div>
@@ -236,7 +247,7 @@ export const OpportunityScoreCard: React.FC<OpportunityScoreCardProps> = ({
           </span>
           <strong className="text-xl font-extrabold text-white mt-1 block kpi-metric">
             {animatedFootTraffic}
-            <span className="text-xs font-normal text-stone-400">/h</span>
+            <span className="text-xs font-normal text-stone-400">{current.medido ? ' hoje' : '/h'}</span>
           </strong>
         </div>
         <div className="bg-white/5 rounded-2xl p-3">
@@ -254,7 +265,7 @@ export const OpportunityScoreCard: React.FC<OpportunityScoreCardProps> = ({
             Conversão Ala
           </span>
           <strong className="text-xl font-extrabold text-emerald-400 mt-1 block kpi-metric">
-            {current.conversionRate}%
+            {current.medido && current.vitrineStops === 0 ? '—' : `${current.conversionRate}%`}
           </strong>
         </div>
         <div className="bg-white/5 rounded-2xl p-3">

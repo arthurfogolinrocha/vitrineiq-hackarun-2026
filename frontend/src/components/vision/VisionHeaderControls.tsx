@@ -2,7 +2,6 @@ import React from 'react';
 import {
   AlertTriangle,
   Camera,
-  Eye,
   EyeOff,
   Lock,
   Pause,
@@ -17,11 +16,9 @@ import { StoreAvatar } from '../StoreAvatar';
 interface VisionHeaderControlsProps {
   activeTenant?: StoreTenant | null;
   webcamActive: boolean;
-  privacyBlur: boolean;
   isPaused: boolean;
   webcamError: string | null;
   onToggleWebcam: () => void;
-  onTogglePrivacyBlur: () => void;
   onTogglePaused: () => void;
   onResetCounters: () => void;
   onDismissWebcamError: () => void;
@@ -31,11 +28,9 @@ interface VisionHeaderControlsProps {
 export const VisionHeaderControls: React.FC<VisionHeaderControlsProps> = ({
   activeTenant,
   webcamActive,
-  privacyBlur,
   isPaused,
   webcamError,
   onToggleWebcam,
-  onTogglePrivacyBlur,
   onTogglePaused,
   onResetCounters,
   onDismissWebcamError,
@@ -109,19 +104,10 @@ export const VisionHeaderControls: React.FC<VisionHeaderControlsProps> = ({
           </button>
 
           {webcamActive && (
-            <button
-              type="button"
-              aria-pressed={privacyBlur}
-              onClick={onTogglePrivacyBlur}
-              className="min-h-[44px] px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-            >
-              {privacyBlur ? (
-                <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
-              ) : (
-                <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-              )}
-              <span>{privacyBlur ? 'Desfoque LGPD: ON' : 'Desfoque LGPD: OFF'}</span>
-            </button>
+            <span className="px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold flex items-center gap-1.5">
+              <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Desfoque LGPD sempre ligado</span>
+            </span>
           )}
 
           <button

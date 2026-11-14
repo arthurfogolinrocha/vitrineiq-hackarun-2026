@@ -31,7 +31,8 @@ export interface CockpitMetrics {
   isCamActiveHere: boolean;
   corridorTotal: number;
   stopsTotal: number;
-  entriesTotal: number;
+  /** null = não medido (logado: a câmera não conta entradas). */
+  entriesTotal: number | null;
   conversionsTotal: number;
   stopRatePct: number;
   entryRatePct: number;
@@ -105,24 +106,28 @@ export function buildWhatsappOfferCopy(couponCode: string, discountBadge: string
   return `Só nas próximas 2 horas no Capim Dourado: apresente ${safeCode} e garanta ${safeBadge} em peças selecionadas!`;
 }
 
-/** Monta os campos pré-preenchidos para resgate ao vivo de um dos terços da vitrine. */
-export function buildVitrineRescueDraft(part: VitrineThird): Pick<
-  CampaignDraftForm,
-  'title' | 'discountBadge' | 'couponCode' | 'whatsappCopy' | 'expiresInMinutes'
-> {
-  const partLabel =
+/** Oferta relâmpago curta para a vitrine (resgate ou alerta da câmera); o lojista só confirma. */
+export function buildVitrineRescueDraft(
+  part: VitrineThird | null,
+  minutos = 45,
+  ondeSemParte = 'Vitrine'
+): Pick<CampaignDraftForm, 'title' | 'discountBadge' | 'couponCode' | 'whatsappCopy' | 'expiresInMinutes'> {
+  const onde =
     part === 'esquerda'
       ? 'Vitrine Esquerda'
       : part === 'centro'
         ? 'Vitrine Central'
-        : 'Vitrine Direita';
-  const couponCode = `VITRINE${part.slice(0, 3).toUpperCase()}15`;
+        : part === 'direita'
+          ? 'Vitrine Direita'
+          : ondeSemParte;
+  // Cupom novo a cada abertura: dois resgates seguidos não publicam o mesmo código.
+  const couponCode = `VIQ${Date.now().toString(36).slice(-5).toUpperCase()}`;
   return {
-    title: `Resgate Ao Vivo — ${partLabel}`,
+    title: `Relâmpago ao vivo — ${onde}`,
     discountBadge: '15% OFF',
     couponCode,
-    whatsappCopy: `Vimos você curtindo nossa ${partLabel} no Capim Dourado! Apresente ${couponCode} nos próximos 45 min e garanta 15% OFF exclusivo.`,
-    expiresInMinutes: 45,
+    whatsappCopy: `Só nos próximos ${minutos} min no Capim Dourado: apresente ${couponCode} e garanta 15% OFF.`,
+    expiresInMinutes: minutos,
   };
 }
 
@@ -159,7 +164,8 @@ export function computeCockpitMetrics(params: {
     activeTenant,
   } = params;
 
-  const pesoHora = temDadoReal ? 1 : selectedBarWeight;
+  // Logado (medido), o Score e o fluxo nunca são escalados pelo perfil estimado.
+  const pesoHora = temDadoReal || current.medido ? 1 : selectedBarWeight;
   const effectiveFootTraffic = Math.round(current.footTraffic * pesoHora);
   const effectiveScore = Math.max(
     0,
@@ -176,8 +182,10 @@ export function computeCockpitMetrics(params: {
     isCamActiveHere && visionSnapshot && visionSnapshot.vitrineStops > 0
       ? visionSnapshot.vitrineStops
       : Math.round(current.vitrineStops * pesoHora);
-  const entriesTotal =
-    isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
+  // A câmera não conta entradas: com dado real a etapa fica "não medido"; a estimativa só vale na demonstração.
+  const entriesTotal: number | null = current.medido
+    ? null
+    : isCamActiveHere && visionSnapshot && visionSnapshot.entries > 0
       ? visionSnapshot.entries
       : Math.max(12, Math.round(stopsTotal * 0.42));
   // RN12: "compraram" vem só do botão "Venda concluída" do Modo Balcão
@@ -186,13 +194,14 @@ export function computeCockpitMetrics(params: {
   const stopRatePct =
     corridorTotal > 0 ? Math.min(100, Math.round((stopsTotal / corridorTotal) * 100)) : 0;
   const entryRatePct =
-    corridorTotal > 0 ? Math.min(100, Math.round((entriesTotal / corridorTotal) * 100)) : 0;
+    entriesTotal !== null && corridorTotal > 0 ? Math.min(100, Math.round((entriesTotal / corridorTotal) * 100)) : 0;
   const convBarPct =
     corridorTotal > 0 ? Math.min(100, Math.round((conversionsTotal / corridorTotal) * 100)) : 0;
 
   const maxHourlyFlow = Math.max(220, Math.round(current.footTraffic * 1.15));
   const avgTicket = activeTenant?.avgTicket ?? 185;
-  const peopleNotEntered = Math.max(0, corridorTotal - entriesTotal);
+  // Medido: sem contagem de entradas, conta quem passou sem olhar a vitrine.
+  const peopleNotEntered = Math.max(0, corridorTotal - (entriesTotal ?? stopsTotal));
   const opportunityLossHour = Math.round(peopleNotEntered * 0.14 * avgTicket);
 
   return {

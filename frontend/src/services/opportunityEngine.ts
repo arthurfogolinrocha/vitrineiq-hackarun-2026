@@ -68,6 +68,16 @@ export interface ZoneLiveTelemetry {
   opportunityScore: number;
   multiplier: number;
   cameraFeedLinked: boolean;
+  /** true = números medidos (API); false = demonstração offline com as bases fictícias da ala. */
+  medido: boolean;
+  /** Modo medido sem nenhum sinal (P=B=V=0): o painel não mostra Score. */
+  semDados: boolean;
+}
+
+/** O que a API mediu numa ala: câmera de hoje (`vitrine[ala]`) e vendas concluídas do Balcão (RN12). */
+export interface MedicaoAla {
+  vitrine?: { passantes: number; olharam: number };
+  vendasConcluidas: number;
 }
 
 export function computeZoneTelemetry(
@@ -75,11 +85,35 @@ export function computeZoneTelemetry(
   factors: ShopContextFactors,
   signals: ConsumerSignal[],
   lostSales: LostSaleEvent[],
-  visionSnapshot?: VisionFunnelSnapshot
+  visionSnapshot?: VisionFunnelSnapshot,
+  medicao?: MedicaoAla
 ): ZoneLiveTelemetry {
   const multiplier = computeContextMultiplier(zone.id, factors);
   const zoneSignals = signals.filter((s) => s.zoneId === zone.id);
   const zoneLost = lostSales.filter((l) => l.zoneId === zone.id);
+  const dominantReason = motivoDominante(zoneLost, zone.topObjection);
+
+  if (medicao) {
+    // Fórmula 6.1 só com o medido: P = olharam a vitrine (câmera), B = buscas do Concierge, V = vendas perdidas.
+    const P = medicao.vitrine?.olharam ?? 0;
+    const B = zoneSignals.length;
+    const V = zoneLost.length;
+    const semDados = P + B + V === 0;
+    return {
+      zone,
+      footTraffic: medicao.vitrine?.passantes ?? 0,
+      vitrineStops: P,
+      conversionRate: P > 0 ? Number(((medicao.vendasConcluidas / P) * 100).toFixed(1)) : 0,
+      qrSearchCount: B,
+      lostSalesCount: V,
+      dominantReason,
+      opportunityScore: semDados ? 0 : Math.round(calculateRetailOpportunityScore(P, B, V, multiplier)),
+      multiplier,
+      cameraFeedLinked: Boolean(medicao.vitrine),
+      medido: true,
+      semDados,
+    };
+  }
 
   const cameraFeedLinked = Boolean(visionSnapshot && visionSnapshot.zoneId === zone.id);
   const extraPassers = cameraFeedLinked && visionSnapshot ? visionSnapshot.passersBy : 0;
@@ -92,25 +126,6 @@ export function computeZoneTelemetry(
   const totalEntries = zone.conversions + extraEntries;
   const conversionRate =
     vitrineStops > 0 ? Number(((totalEntries / vitrineStops) * 100).toFixed(1)) : 0;
-
-  const reasonCounts: Record<LostSaleReason, number> = {
-    preco: 0,
-    estoque_grade: 0,
-    pesquisando: 0,
-    fila_atendimento: 0,
-  };
-  for (const item of zoneLost) {
-    reasonCounts[item.reason] += 1;
-  }
-
-  let dominantReason: LostSaleReason = zone.topObjection;
-  let maxCount = 0;
-  for (const [reason, count] of Object.entries(reasonCounts)) {
-    if (count > maxCount) {
-      maxCount = count;
-      dominantReason = reason as LostSaleReason;
-    }
-  }
 
   const opportunityScore = calculateRetailOpportunityScore(
     vitrineStops,
@@ -130,11 +145,35 @@ export function computeZoneTelemetry(
     opportunityScore,
     multiplier,
     cameraFeedLinked,
+    medido: false,
+    semDados: false,
   };
 }
 
+function motivoDominante(zoneLost: LostSaleEvent[], padrao: LostSaleReason): LostSaleReason {
+  const reasonCounts: Record<LostSaleReason, number> = {
+    preco: 0,
+    estoque_grade: 0,
+    pesquisando: 0,
+    fila_atendimento: 0,
+  };
+  for (const item of zoneLost) {
+    reasonCounts[item.reason] += 1;
+  }
+
+  let dominantReason = padrao;
+  let maxCount = 0;
+  for (const [reason, count] of Object.entries(reasonCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      dominantReason = reason as LostSaleReason;
+    }
+  }
+  return dominantReason;
+}
+
 export function matchConsumerOffer(
-  query: string,
+  _query: string,
   zone: ShoppingZone,
   campaigns: FlashCampaign[]
 ): { couponCode: string; matchedOffer: string } {
@@ -147,8 +186,6 @@ export function matchConsumerOffer(
   }
 
   const anyActive = campaigns.find((c) => c.active);
-  const normalized = query.toLowerCase();
-  const suffix = Math.floor(100 + (normalized.length * 37) % 899);
 
   if (anyActive) {
     return {
@@ -157,9 +194,10 @@ export function matchConsumerOffer(
     };
   }
 
+  // Sem campanha no ar não há cupom nem desconto: só indica as lojas da ala.
   return {
-    couponCode: `VIQ-${zone.floor}${suffix}`,
-    matchedOffer: `Achado VitrineIQ na ${zone.shortName} (${zone.anchors.slice(0, 2).join(', ')}) — 12% OFF no balcão`,
+    couponCode: '',
+    matchedOffer: `Lojas da ${zone.shortName}: ${zone.anchors.slice(0, 2).join(', ')}`,
   };
 }
 

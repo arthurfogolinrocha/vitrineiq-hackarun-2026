@@ -143,6 +143,8 @@ export interface VitrineResumo {
   olharesPorZona: Record<string, number>;
   acoes: string[];
   atualizadoEm: string | null;
+  /** Pessoas na frente no último resumo (até 30 s); ainda não contam como passantes. */
+  agora?: number;
 }
 
 export interface VitrineAlerta {

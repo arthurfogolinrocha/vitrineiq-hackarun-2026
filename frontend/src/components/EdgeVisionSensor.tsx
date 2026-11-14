@@ -62,7 +62,7 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
 
   const [isPaused, setIsPaused] = useState(false);
   const [webcamActive, setWebcamActive] = useState(false);
-  const [privacyBlur, setPrivacyBlur] = useState(true);
+  const privacyBlur = true; // RNF03: desfoque da webcam no navegador sempre ligado, sem opção de desligar
   const [webcamError, setWebcamError] = useState<string | null>(null);
 
   const [isAuditing, setIsAuditing] = useState(false);
@@ -306,6 +306,8 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         offscreen.height = 360;
         const offCtx = offscreen.getContext('2d');
         if (offCtx) {
+          // LGPD: o frame vai para a IA na nuvem, então sai com o mesmo desfoque do preview (sem rosto nítido).
+          offCtx.filter = 'blur(7px) brightness(0.8)';
           offCtx.drawImage(videoEl, 0, 0, 640, 360);
           frameDataUrl = offscreen.toDataURL('image/jpeg', 0.7);
         }
@@ -358,14 +360,12 @@ export const EdgeVisionSensor: React.FC<EdgeVisionSensorProps> = ({
         <VisionHeaderControls
           activeTenant={activeTenant}
           webcamActive={webcamActive}
-          privacyBlur={privacyBlur}
           isPaused={isPaused}
           webcamError={webcamError}
           onToggleWebcam={() => {
             setWebcamError(null);
             setWebcamActive((w) => !w);
           }}
-          onTogglePrivacyBlur={() => setPrivacyBlur((b) => !b)}
           onTogglePaused={() => setIsPaused((p) => !p)}
           onResetCounters={handleResetCounters}
           onDismissWebcamError={() => setWebcamError(null)}

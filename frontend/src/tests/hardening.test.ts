@@ -42,6 +42,8 @@ function makeTelemetry(overrides: Partial<ZoneLiveTelemetry> = {}): ZoneLiveTele
     opportunityScore: 80,
     multiplier: 1.2,
     cameraFeedLinked: false,
+    medido: false,
+    semDados: false,
     ...overrides,
   };
 }
@@ -74,21 +76,27 @@ describe('cockpitHelpers — funções puras do Cockpit', () => {
   });
 
   it('buildVitrineRescueDraft gera rascunhos consistentes para esquerda, centro e direita', () => {
-    const expected: Record<VitrineThird, { label: string; code: string }> = {
-      esquerda: { label: 'Vitrine Esquerda', code: 'VITRINEESQ15' },
-      centro: { label: 'Vitrine Central', code: 'VITRINECEN15' },
-      direita: { label: 'Vitrine Direita', code: 'VITRINEDIR15' },
+    const expected: Record<VitrineThird, string> = {
+      esquerda: 'Vitrine Esquerda',
+      centro: 'Vitrine Central',
+      direita: 'Vitrine Direita',
     };
 
     (['esquerda', 'centro', 'direita'] as VitrineThird[]).forEach((part) => {
       const draft = buildVitrineRescueDraft(part);
-      expect(draft.title).toBe(`Resgate Ao Vivo — ${expected[part].label}`);
+      expect(draft.title).toBe(`Relâmpago ao vivo — ${expected[part]}`);
       expect(draft.discountBadge).toBe('15% OFF');
-      expect(draft.couponCode).toBe(expected[part].code);
+      expect(draft.couponCode).toMatch(/^VIQ[0-9A-Z]{5}$/);
       expect(draft.expiresInMinutes).toBe(45);
-      expect(draft.whatsappCopy).toContain(expected[part].label);
-      expect(draft.whatsappCopy).toContain(expected[part].code);
+      expect(draft.whatsappCopy).toContain(draft.couponCode);
+      expect(draft.whatsappCopy).toContain('45 min');
     });
+
+    // Alerta da câmera sem parte da vitrine: usa o nome da ala e validade de 30 min.
+    const alerta = buildVitrineRescueDraft(null, 30, 'Ala Sul');
+    expect(alerta.title).toBe('Relâmpago ao vivo — Ala Sul');
+    expect(alerta.expiresInMinutes).toBe(30);
+    expect(alerta.whatsappCopy).toContain('30 min');
   });
 
   it('resolveStoreMeta prioriza activeTenant correspondente, respeita fallback e consulta catálogo', () => {
@@ -157,6 +165,18 @@ describe('cockpitHelpers — funções puras do Cockpit', () => {
     expect(realData.effectiveFootTraffic).toBe(400);
     expect(realData.effectiveScore).toBe(80);
     expect(realData.conversionsTotal).toBe(0);
+
+    // Logado (medido): nada é escalado pelo perfil estimado e "entraram" fica não medido.
+    const medido = computeCockpitMetrics({
+      current: makeTelemetry({ medido: true }),
+      temDadoReal: false,
+      selectedBarWeight: 0.25,
+      completedSalesByZone: {},
+    });
+    expect(medido.pesoHora).toBe(1);
+    expect(medido.entriesTotal).toBeNull();
+    expect(medido.entryRatePct).toBe(0);
+    expect(medido.peopleNotEntered).toBe(300); // 400 passaram - 100 olharam
   });
 
   it('computeCockpitMetrics aplica VisionFunnelSnapshot apenas quando a zona coincide e trata zero fluxo', () => {

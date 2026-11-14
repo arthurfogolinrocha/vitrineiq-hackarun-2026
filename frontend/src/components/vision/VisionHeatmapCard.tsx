@@ -72,6 +72,9 @@ export const VisionHeatmapCard: React.FC<VisionHeatmapCardProps> = ({
             : 'Raio-X Multimodal da Vitrine (Gemini Vision)'}
         </span>
       </button>
+      <p className="text-[11px] text-slate-500 -mt-1">
+        Envia 1 frame já desfocado (sem rosto nítido) para a Gemini; nada é gravado.
+      </p>
 
       <button
         type="button"

@@ -9,6 +9,8 @@ interface HourlyPeakSectionProps {
   activeTenant?: StoreTenant | null;
   horasReais: { hora: number; dados: HoraResumo }[];
   temDadoReal: boolean;
+  /** Logado: sem dado real não mostra a curva estimada. */
+  medido: boolean;
   maxPassaram: number;
   insights: string[];
   maxHourlyFlow: number;
@@ -23,6 +25,7 @@ export const HourlyPeakSection: React.FC<HourlyPeakSectionProps> = ({
   activeTenant,
   horasReais,
   temDadoReal,
+  medido,
   maxPassaram,
   insights,
   maxHourlyFlow,
@@ -43,7 +46,7 @@ export const HourlyPeakSection: React.FC<HourlyPeakSectionProps> = ({
             User Story #01 • Horário de Pico do Segmento
           </span>
           <h3 className="text-base font-extrabold text-[#111318] mt-0.5">
-            {temDadoReal
+            {temDadoReal || medido
               ? `Movimento real por hora, hoje (${zoneTitle})`
               : `Fluxo Estimado de Clientes ao Longo do Dia (${zoneTitle})`}
           </h3>
@@ -55,7 +58,9 @@ export const HourlyPeakSection: React.FC<HourlyPeakSectionProps> = ({
         >
           {temDadoReal
             ? 'Medido: câmera, Balcão e Concierge'
-            : 'Estimativa: sem dados reais desta ala hoje'}
+            : medido
+              ? 'Sem dados reais desta ala hoje'
+              : 'Estimativa: sem dados reais desta ala hoje'}
         </span>
       </div>
 
@@ -152,6 +157,10 @@ export const HourlyPeakSection: React.FC<HourlyPeakSectionProps> = ({
             </ul>
           )}
         </div>
+      ) : medido ? (
+        <p className="text-xs font-semibold text-stone-600 bg-[#FAF8F5] border border-dashed border-stone-300 rounded-2xl p-4">
+          Nenhum movimento registrado hoje nesta ala. O gráfico aparece quando a câmera, o Balcão ou o Concierge registrarem algo.
+        </p>
       ) : (
         <div className="pt-2">
           <div className="h-44 flex items-end justify-between gap-1.5 sm:gap-2 px-1 border-b border-stone-200 pb-2">

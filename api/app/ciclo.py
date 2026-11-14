@@ -253,6 +253,18 @@ def _pct(a: int, b: int) -> int:
     return round(100 * a / b) if b else 0
 
 
+def _na_frente_agora(regs: list[dict[str, Any]]) -> int:
+    """Pessoas na frente da vitrine no último resumo (até 30 s atrás).
+
+    O resumo só conta como passante quem já saiu da imagem; isto mostra quem ainda está lá agora.
+    """
+    recente = max(regs, key=lambda r: r["fim"], default=None)
+    if not recente:
+        return 0
+    idade = db.agora().replace(tzinfo=None) - datetime.fromisoformat(recente["fim"]).replace(tzinfo=None)
+    return recente.get("pico_simultaneo", 0) if idade <= timedelta(seconds=30) else 0
+
+
 def resumo_vitrine(regs: list[dict[str, Any]]) -> dict[str, Any]:
     """Soma os resumos de 10 s. Mesma lógica de resumo() e acoes() do computer-vision/lojista.py."""
     passantes = sum(r["passantes"] for r in regs)
@@ -301,6 +313,7 @@ def resumo_vitrine(regs: list[dict[str, Any]]) -> dict[str, Any]:
         "olharesPorZona": {z: zonas[z] for z in ZONAS_VITRINE},
         "acoes": acoes[:3],
         "atualizadoEm": max((r["fim"] for r in regs), default=None),
+        "agora": _na_frente_agora(regs),
     }
 
 
@@ -407,9 +420,9 @@ def estado(
     if u["papel"] == "lojista":
         ala = u["zoneId"]
 
-    balcao = db.listar("balcao", 500, zona=ala)
+    balcao = db.listar("balcao", 500, _hoje(), zona=ala)  # o painel mostra o dia; ontem não pesa no Score
     campanhas = db.listar("campanha", 100, zona=ala)
-    signals = db.listar("busca", 100, zona=ala)
+    signals = db.listar("busca", 100, _hoje(), zona=ala)
     buscas_hoje = db.listar("busca", 500, _hoje(), zona=ala)
     vitrine_regs = db.listar("vitrine", 5000, _hoje(), zona=ala)
     alertas = db.listar("alerta", 20, db.agora() - timedelta(seconds=ALERTA_RECENTE_S), zona=ala)

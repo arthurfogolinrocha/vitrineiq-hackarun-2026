@@ -67,7 +67,7 @@ export const AppTopHeader: React.FC<AppTopHeaderProps> = ({
       <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           {/* Marca visível apenas no mobile/tablet */}
-          <div className="lg:hidden w-9 h-9 rounded-xl bg-[#111318] text-[#E2A83B] font-black text-base flex items-center justify-center">
+          <div data-sexta13-logo className="lg:hidden w-9 h-9 rounded-xl bg-[#111318] text-[#E2A83B] font-black text-base flex items-center justify-center">
             V
           </div>
           <div>

@@ -9,7 +9,7 @@ import {
   ZoneId,
 } from '../types';
 import { ZoneLiveTelemetry } from '../services/opportunityEngine';
-import { LiveContextPayload, VitrineResumo } from '../services/api';
+import { LiveContextPayload, VitrineAlerta, VitrineResumo } from '../services/api';
 import { horasDoGrafico, insightsPorHora, PerfilPorHora } from '../utils/horario';
 import { PosterDraft, PromoPosterModal } from './PromoPosterModal';
 import { VitrineCrowdDropModal } from './VitrineCrowdDropModal';
@@ -22,6 +22,7 @@ import { HourlyPeakSection } from './cockpit/HourlyPeakSection';
 import { NewCampaignModal } from './cockpit/NewCampaignModal';
 import { OpportunityScoreCard } from './cockpit/OpportunityScoreCard';
 import { VitrineRadarSection } from './cockpit/VitrineRadarSection';
+import { VitrineSummaryCard } from './cockpit/VitrineSummaryCard';
 import {
   CampaignDraftForm,
   HOURLY_PROFILE,
@@ -61,6 +62,9 @@ interface RetailerCockpitProps {
   perfilHoje?: PerfilPorHora;
   /** Lojista logado: a campanha sai sempre em nome da loja dele e a ala não muda. */
   lojaFixa?: string | null;
+  /** Alerta da câmera escolhido no banner: abre o modal de campanha já preenchido para a ala dele. */
+  campanhaAlerta?: VitrineAlerta | null;
+  onCampanhaAlertaAberta?: () => void;
 }
 
 /** Cockpit tático do lojista/shopping: orquestra KPIs, funil, Vitrine Viva, gráficos, IA e campanhas. */
@@ -91,6 +95,8 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
   completedSalesByZone,
   perfilHoje,
   lojaFixa,
+  campanhaAlerta,
+  onCampanhaAlertaAberta,
 }) => {
   const current =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
@@ -151,7 +157,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
 
   const openModal = () => {
     setValidationError(null);
-    dialogRef.current?.showModal();
+    if (!dialogRef.current?.open) dialogRef.current?.showModal(); // já aberto: só atualiza os campos
   };
 
   const closeModal = () => {
@@ -223,10 +229,18 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
     }
   };
 
-  const handleRescueVitrine = (part: VitrineThird) => {
-    updateCampaignForm(buildVitrineRescueDraft(part));
+  const handleRescueVitrine = (part: VitrineThird | null, minutos = 45) => {
+    updateCampaignForm(buildVitrineRescueDraft(part, minutos, current.zone.shortName));
     openModal();
   };
+
+  // Banner "Cliente olhando a vitrine agora" → "Criar campanha": abre já preenchido, validade de 30 min.
+  useEffect(() => {
+    if (!campanhaAlerta) return;
+    const parte = campanhaAlerta.zonaVitrine;
+    handleRescueVitrine(parte === 'esquerda' || parte === 'centro' || parte === 'direita' ? parte : null, 30);
+    onCampanhaAlertaAberta?.();
+  }, [campanhaAlerta]);
 
   const activeDisplayStoreName = activeTenant?.storeName ?? campaignForm.storeName;
   const activeDisplayStoreLogo = resolveStoreMeta(
@@ -258,10 +272,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           clampedScore={metrics.clampedScore}
           effectiveFootTraffic={metrics.effectiveFootTraffic}
           stopsTotal={metrics.stopsTotal}
+          pessoasAgora={vitrineResumo?.agora}
         />
 
         <DoorFunnelCard
           isCamActiveHere={metrics.isCamActiveHere}
+          medido={current.medido}
           corridorTotal={metrics.corridorTotal}
           stopsTotal={metrics.stopsTotal}
           entriesTotal={metrics.entriesTotal}
@@ -271,6 +287,12 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           convBarPct={metrics.convBarPct}
         />
       </div>
+
+      <VitrineSummaryCard
+        vitrineResumo={vitrineResumo}
+        zoneShortName={current.zone.shortName}
+        medido={current.medido}
+      />
 
       {/* DIFERENCIAL: VITRINE VIVA + TAXÍMETRO DINHEIRO NA MESA (R$/h) + RADAR 3 TERÇOS + CROWD-DROP */}
       <VitrineRadarSection
@@ -283,6 +305,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
         opportunityLossHour={metrics.opportunityLossHour}
         peopleNotEntered={metrics.peopleNotEntered}
         avgTicket={metrics.avgTicket}
+        medido={current.medido}
       />
 
       {/* LINHA 2: GRÁFICO DE HORÁRIO DE PICO (7 cols) + SIMULADOR TÁTIL DE CONTEXTO (5 cols) */}
@@ -292,6 +315,7 @@ export const RetailerCockpit: React.FC<RetailerCockpitProps> = ({
           activeTenant={activeTenant}
           horasReais={horasReais}
           temDadoReal={temDadoReal}
+          medido={current.medido}
           maxPassaram={maxPassaram}
           insights={insights}
           maxHourlyFlow={metrics.maxHourlyFlow}

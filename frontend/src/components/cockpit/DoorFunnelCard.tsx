@@ -3,9 +3,11 @@ import { Users } from 'lucide-react';
 
 interface DoorFunnelCardProps {
   isCamActiveHere: boolean;
+  /** Dado real (logado): sem câmera, a etapa "entraram" fica "não medido". */
+  medido: boolean;
   corridorTotal: number;
   stopsTotal: number;
-  entriesTotal: number;
+  entriesTotal: number | null;
   conversionsTotal: number;
   stopRatePct: number;
   entryRatePct: number;
@@ -15,6 +17,7 @@ interface DoorFunnelCardProps {
 /** Card lateral Bento com o funil físico de 4 etapas na porta da loja. */
 export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
   isCamActiveHere,
+  medido,
   corridorTotal,
   stopsTotal,
   entriesTotal,
@@ -27,7 +30,7 @@ export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
     {
       label: '1. Passaram na Frente',
       withUsersIcon: true,
-      valueText: `${corridorTotal} pessoas (100%)`,
+      valueText: `${corridorTotal} pessoas${corridorTotal > 0 ? ' (100%)' : ''}`,
       valueColorClass: '',
       barColorClass: 'bg-[#111318]',
       widthStyle: undefined as string | undefined,
@@ -43,10 +46,10 @@ export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
     {
       label: '3. Entraram na Loja',
       withUsersIcon: false,
-      valueText: `${entriesTotal} (${entryRatePct}%)`,
+      valueText: entriesTotal === null ? 'não medido' : `${entriesTotal} (${entryRatePct}%)`,
       valueColorClass: 'text-blue-700',
       barColorClass: 'bg-blue-600 transition-all duration-300',
-      widthStyle: `${Math.max(8, entryRatePct)}%`,
+      widthStyle: `${entriesTotal === null ? 0 : Math.max(8, entryRatePct)}%`,
     },
     {
       label: '4. Compra Concluída',
@@ -58,7 +61,8 @@ export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
     },
   ];
 
-  const nonEntrants = corridorTotal - entriesTotal;
+  // Medido: sem contagem de entradas, conta quem passou sem olhar a vitrine.
+  const nonEntrants = corridorTotal - (entriesTotal ?? stopsTotal);
 
   return (
     <section className="xl:col-span-4 bento-card-cream rounded-3xl p-5 sm:p-6 flex flex-col justify-between gap-4">
@@ -72,7 +76,7 @@ export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
           </h3>
         </div>
         <span className="px-2.5 py-1 rounded-full bg-stone-100 text-[10px] font-bold text-stone-700">
-          {isCamActiveHere ? 'Sensor Webcam' : 'Projeção da Ala'}
+          {isCamActiveHere ? 'Sensor Webcam' : medido ? 'Sem câmera hoje' : 'Projeção da Ala'}
         </span>
       </div>
 
@@ -102,9 +106,11 @@ export const DoorFunnelCard: React.FC<DoorFunnelCardProps> = ({
 
       <div className="rounded-2xl bg-[#FAF8F5] border border-stone-200 p-3.5 text-xs text-stone-700">
         <strong className="text-[#111318] block mb-0.5">Leitura para o Lojista:</strong>
-        {nonEntrants > 0
-          ? `${nonEntrants} pessoas passaram na frente sem entrar. Use uma oferta relâmpago ou QR na vitrine para capturar essa demanda.`
-          : 'Ótima taxa de atração na porta nesta janela horária.'}
+        {medido && corridorTotal === 0
+          ? 'A câmera desta ala ainda não registrou passantes hoje.'
+          : nonEntrants > 0
+            ? `${nonEntrants} pessoas passaram na frente sem ${medido ? 'olhar a vitrine' : 'entrar'}. Use uma oferta relâmpago ou QR na vitrine para capturar essa demanda.`
+            : 'Ótima taxa de atração na porta nesta janela horária.'}
       </div>
     </section>
   );

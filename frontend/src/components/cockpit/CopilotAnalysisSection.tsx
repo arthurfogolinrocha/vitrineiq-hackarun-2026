@@ -115,7 +115,9 @@ export const CopilotAnalysisSection: React.FC<CopilotAnalysisSectionProps> = ({
       <div className="pt-2 border-t border-stone-100 space-y-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
           <Search className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
-          O que os Clientes Mais Buscam no Totem/QR desta Ala ({current.zone.hotSearches.length} buscas ativas • {current.qrSearchCount} sinais)
+          {current.medido
+            ? `Buscas no Concierge desta ala: ${current.qrSearchCount} • termos típicos do segmento (referência)`
+            : `O que os Clientes Mais Buscam no Totem/QR desta Ala (${current.zone.hotSearches.length} buscas ativas • ${current.qrSearchCount} sinais)`}
         </span>
         <div className="flex flex-wrap gap-1.5">
           {current.zone.hotSearches.map((term) => (

@@ -47,7 +47,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <div className="space-y-5">
         {/* Identidade da Marca */}
         <div className="flex items-center gap-3 pb-4 border-b border-[#E2A83B]/15">
-          <div className="w-10 h-10 rounded-xl gold-pill-metallic font-black text-lg flex items-center justify-center shrink-0">
+          <div data-sexta13-logo className="w-10 h-10 rounded-xl gold-pill-metallic font-black text-lg flex items-center justify-center shrink-0">
             V
           </div>
           <div className="min-w-0">
@@ -140,7 +140,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <Store className="w-3 h-3 text-[#E2A83B]" aria-hidden="true" />
             {activeTenant ? 'Loja Isolada' : 'Ala Selecionada'}
           </span>
-          <span className="text-[#E2A83B] font-mono">IQ {selectedTelemetry.opportunityScore}</span>
+          <span className="text-[#E2A83B] font-mono">
+            {selectedTelemetry.semDados ? 'Sem dados hoje' : `IQ ${selectedTelemetry.opportunityScore}`}
+          </span>
         </div>
         {activeTenant ? (
           <div className="flex items-center gap-2.5">
@@ -167,7 +169,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         <div className="flex items-center justify-between text-[11px] text-stone-400 pt-1 border-t border-white/10">
           <span>{selectedTelemetry.zone.floor === 'L1' ? 'Térreo (L1)' : '2º Piso (L2)'}</span>
           <span className="text-emerald-400 font-semibold kpi-metric">
-            {selectedTelemetry.footTraffic}/h fluxo
+            {selectedTelemetry.footTraffic}
+            {selectedTelemetry.medido ? ' passaram hoje' : '/h fluxo'}
           </span>
         </div>
       </div>

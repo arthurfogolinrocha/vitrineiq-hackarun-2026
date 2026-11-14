@@ -118,7 +118,7 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
     expect(lunchMult).toBeGreaterThan(morningMult);
   });
 
-  it('deve consolidar telemetria por ala com vendas perdidas e recomendações de oferta', () => {
+  it('deve consolidar telemetria por ala com vendas perdidas e recomendações de oferta (demonstração)', () => {
     const cinemaZone = CAPIM_DOURADO_ZONES.find((z) => z.id === 'ala-lazer-cinema')!;
     const telemetry = computeZoneTelemetry(
       cinemaZone,
@@ -127,11 +127,85 @@ describe('Motor VitrineIQ — Inteligência Comercial & Fatores do Shopping', ()
       INITIAL_LOST_SALES
     );
 
+    expect(telemetry.medido).toBe(false);
+    expect(telemetry.semDados).toBe(false);
     expect(telemetry.footTraffic).toBeGreaterThan(cinemaZone.baseFootTraffic);
     expect(telemetry.opportunityScore).toBeGreaterThan(0);
 
     const matched = matchConsumerOffer('Tênis casual pós cinema', cinemaZone, INITIAL_FLASH_CAMPAIGNS);
     expect(matched.couponCode).toBe('VITRINE-CINE18');
+  });
+
+  it('sem campanha no ar, o Concierge só indica as lojas da ala: sem cupom e sem desconto (issue #16)', () => {
+    const cinemaZone = CAPIM_DOURADO_ZONES.find((z) => z.id === 'ala-lazer-cinema')!;
+    const semOferta = matchConsumerOffer('Tênis', cinemaZone, []);
+    expect(semOferta.couponCode).toBe('');
+    expect(semOferta.matchedOffer).not.toMatch(/OFF|%/);
+    expect(semOferta.matchedOffer).toContain(cinemaZone.anchors[0]);
+  });
+
+  describe('Score com dado real (issue #13, fórmula 6.1)', () => {
+    const cinemaZone = CAPIM_DOURADO_ZONES.find((z) => z.id === 'ala-lazer-cinema')!;
+    // ameno + pós-cinema 20h na ala do cinema → M = 1,35
+    const fatores = { weather: 'ameno', timeSlot: 'pos_cinema_20h', mallEvent: 'fluxo_normal' } as const;
+
+    it('zerado (P=B=V=0) não mostra Score nem usa as bases fictícias', () => {
+      const t = computeZoneTelemetry(cinemaZone, fatores, [], [], undefined, { vendasConcluidas: 0 });
+      expect(t.medido).toBe(true);
+      expect(t.semDados).toBe(true);
+      expect(t.opportunityScore).toBe(0);
+      expect(t.footTraffic).toBe(0);
+      expect(t.vitrineStops).toBe(0);
+      expect(t.conversionRate).toBe(0);
+      expect(t.cameraFeedLinked).toBe(false);
+    });
+
+    it('P=40, B=5, V=6, M=1,35 → 55 (inteiro da fórmula)', () => {
+      const buscas = Array.from({ length: 5 }, (_, i) => ({
+        id: `b${i}`,
+        zoneId: cinemaZone.id,
+        query: 'tênis',
+        budget: '80_200' as const,
+        preference: '',
+        couponCode: '',
+        matchedOffer: '',
+        timestamp: '20:00',
+      }));
+      const perdidas = Array.from({ length: 6 }, (_, i) => ({
+        id: `p${i}`,
+        zoneId: cinemaZone.id,
+        storeName: 'Loja X',
+        reason: 'preco' as const,
+        timestamp: '20:00',
+      }));
+      // sinais de outra ala não entram no Score desta
+      const outraAla = { ...buscas[0], id: 'outra', zoneId: 'ala-central-ancoras' as const };
+      const t = computeZoneTelemetry(cinemaZone, fatores, [...buscas, outraAla], perdidas, undefined, {
+        vitrine: { passantes: 120, olharam: 40 },
+        vendasConcluidas: 4,
+      });
+      expect(t.multiplier).toBe(1.35);
+      expect(t.opportunityScore).toBe(55);
+      expect(t.semDados).toBe(false);
+      expect(t.footTraffic).toBe(120);
+      expect(t.vitrineStops).toBe(40);
+      expect(t.qrSearchCount).toBe(5);
+      expect(t.lostSalesCount).toBe(6);
+      expect(t.conversionRate).toBe(10); // 4 vendas ÷ 40 que olharam
+      expect(t.dominantReason).toBe('preco');
+      expect(t.cameraFeedLinked).toBe(true);
+    });
+
+    it('só buscas (sem câmera) já geram Score e não marcam câmera ligada', () => {
+      const busca = {
+        id: 'b', zoneId: cinemaZone.id, query: 'x', budget: 'ate_80' as const,
+        preference: '', couponCode: '', matchedOffer: '', timestamp: '20:00',
+      };
+      const t = computeZoneTelemetry(cinemaZone, fatores, [busca], [], undefined, { vendasConcluidas: 0 });
+      expect(t.opportunityScore).toBe(Math.round(2.4 * 1.35)); // 3
+      expect(t.conversionRate).toBe(0);
+      expect(t.cameraFeedLinked).toBe(false);
+    });
   });
 
   it('deve processar diagnóstico de funil de câmera de borda sem erro de segurança', async () => {

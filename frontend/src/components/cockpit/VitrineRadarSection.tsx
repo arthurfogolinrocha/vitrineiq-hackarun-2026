@@ -15,6 +15,8 @@ interface VitrineRadarSectionProps {
   opportunityLossHour: number;
   peopleNotEntered: number;
   avgTicket: number;
+  /** Dado real (logado): o valor é do dia e rotulado como estimativa. */
+  medido: boolean;
 }
 
 /** Seção Vitrine Viva: taxímetro R$/h, radar de 3 terços (esquerda/centro/direita) e gatilho Crowd-Drop. */
@@ -28,6 +30,7 @@ export const VitrineRadarSection: React.FC<VitrineRadarSectionProps> = ({
   opportunityLossHour,
   peopleNotEntered,
   avgTicket,
+  medido,
 }) => {
   const animatedLossHour = useAnimatedNumber(opportunityLossHour);
   const tercos = vitrineResumo?.olharesPorZona ?? { esquerda: 0, centro: 0, direita: 0 };
@@ -60,10 +63,12 @@ export const VitrineRadarSection: React.FC<VitrineRadarSectionProps> = ({
             <strong className="text-3xl sm:text-4xl font-black text-white kpi-metric">
               R$ {animatedLossHour.toLocaleString('pt-BR')}
             </strong>
-            <span className="text-xs font-bold text-[#F5C76B]">/ hora</span>
+            <span className="text-xs font-bold text-[#F5C76B]">{medido ? 'hoje (estimativa)' : '/ hora'}</span>
           </div>
           <p className="text-xs text-stone-300 leading-relaxed">
-            {peopleNotEntered} passantes saíram sem entrar agora (ticket médio R$ {avgTicket}). Aponte a câmera YOLO na vitrine para capturar quem aponta para os produtos.
+            {medido
+              ? `${peopleNotEntered} pessoas passaram sem olhar a vitrine hoje. Estimativa: 14% delas comprariam, com ticket médio de R$ ${avgTicket}.`
+              : `${peopleNotEntered} passantes saíram sem entrar agora (ticket médio R$ ${avgTicket}). Aponte a câmera YOLO na vitrine para capturar quem aponta para os produtos.`}
           </p>
           <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
             <span className="px-2.5 py-1 rounded-full bg-white/10 text-[#F5C76B] border border-[#E2A83B]/30 font-bold flex items-center gap-1">

@@ -26,6 +26,7 @@ import {
 import { readUrlView } from './utils/urlView';
 import { abasPermitidas, ActiveTab } from './utils/acesso';
 import { LoginScreen } from './components/LoginScreen';
+import { SextaFeira13 } from './components/SextaFeira13';
 import { StoriesRoletaModal } from './components/StoriesRoletaModal';
 import { useAuditLogs } from './hooks/useAuditLogs';
 import { useIdlePrefetch } from './hooks/useIdlePrefetch';
@@ -169,25 +170,30 @@ export function App() {
     setFloor(CAPIM_DOURADO_ZONES.find((z) => z.id === zonaFixa)?.floor ?? 'L1');
   }, [zonaFixa]);
 
-  // Câmera real da ala selecionada (computer-vision → API) tem prioridade sobre o simulador.
+  // Câmera real da ala selecionada (computer-vision → API). O simulador só entra na demonstração offline.
   const cameraResumo = sync.vitrine[selectedZoneId];
-  const effectiveVision = useMemo<VisionFunnelSnapshot>(
+  const effectiveVision = useMemo<VisionFunnelSnapshot | undefined>(
     () =>
       cameraResumo
         ? {
             zoneId: selectedZoneId,
             passersBy: cameraResumo.passantes,
             vitrineStops: cameraResumo.olharam,
-            entries: 0, // shortcut: a câmera ainda não conta entradas; o funil usa a estimativa até a T5
+            entries: 0, // a câmera não conta entradas: o funil mostra "não medido"
             exits: 0,
             passedWithoutEntering: cameraResumo.passantes,
             attractionRate: cameraResumo.taxaAtencao,
             sourceMode: 'webcam_live',
             lastMotionRegion: 'vitrine',
           }
-        : visionSnapshot,
-    [cameraResumo, selectedZoneId, visionSnapshot]
+        : demo
+          ? visionSnapshot
+          : undefined,
+    [cameraResumo, selectedZoneId, visionSnapshot, demo]
   );
+
+  // Alerta da câmera que o lojista transformou em campanha: o Painel abre o modal já preenchido.
+  const [campanhaAlerta, setCampanhaAlerta] = useState<VitrineAlerta | null>(null);
 
   const alertaAtivo = sync.alertas.find(
     (a) =>
@@ -219,17 +225,40 @@ export function App() {
     const list = activeTenant
       ? CAPIM_DOURADO_ZONES.filter((z) => z.id === activeTenant.zoneId)
       : CAPIM_DOURADO_ZONES;
+    // Logado, o Score usa só o medido (câmera, Concierge e Balcão); as bases fictícias ficam na demonstração.
     return list.map((zone) =>
-      computeZoneTelemetry(zone, sync.factors, sync.signals, scopedLostSales, effectiveVision)
+      computeZoneTelemetry(
+        zone,
+        sync.factors,
+        sync.signals,
+        scopedLostSales,
+        effectiveVision,
+        demo
+          ? undefined
+          : { vitrine: sync.vitrine[zone.id], vendasConcluidas: sync.completedSalesByZone[zone.id] ?? 0 }
+      )
     );
-  }, [activeTenant, sync.factors, sync.signals, scopedLostSales, effectiveVision]);
+  }, [
+    activeTenant,
+    sync.factors,
+    sync.signals,
+    scopedLostSales,
+    effectiveVision,
+    demo,
+    sync.vitrine,
+    sync.completedSalesByZone,
+  ]);
 
   const selectedTelemetry =
     zonesTelemetry.find((z) => z.zone.id === selectedZoneId) ?? zonesTelemetry[0];
 
+  // Logado: só o que a câmera mediu, sem completar com valores padrão.
   const mergedVitrineResumo = useMemo(
-    () => buildMergedVitrineResumo(cameraResumo, demoCameraOverlay, effectiveVision, selectedZoneId),
-    [cameraResumo, demoCameraOverlay, effectiveVision, selectedZoneId]
+    () =>
+      demo
+        ? buildMergedVitrineResumo(cameraResumo, demoCameraOverlay, effectiveVision ?? visionSnapshot, selectedZoneId)
+        : cameraResumo,
+    [cameraResumo, demoCameraOverlay, effectiveVision, visionSnapshot, selectedZoneId, demo]
   );
 
   const actions = useStoreActions({
@@ -301,8 +330,7 @@ export function App() {
   const handleRunCopilot = async (telemetry: ZoneLiveTelemetry) => {
     setIsAnalyzing(true);
     try {
-      const hasCam = effectiveVision.zoneId === telemetry.zone.id;
-      const camSummary = hasCam
+      const camSummary = effectiveVision && effectiveVision.zoneId === telemetry.zone.id
         ? `Webcam ao vivo na porta: ${effectiveVision.passersBy} passaram, ${effectiveVision.vitrineStops} olharam a vitrine (${effectiveVision.attractionRate}% atração).`
         : '';
 
@@ -422,6 +450,7 @@ export function App() {
                 onCreateCampaign={(zoneId, alertId) => {
                   handleSelectZone(zoneId);
                   setActiveTab('cockpit');
+                  setCampanhaAlerta(alertaAtivo);
                   setAlertasVistos((v) => [...v, alertId]);
                 }}
                 onDismiss={(alertId) => setAlertasVistos((v) => [...v, alertId])}
@@ -449,7 +478,9 @@ export function App() {
               mergedVitrineResumo={mergedVitrineResumo}
               crowdDrop={sync.crowdDropByZone[selectedZoneId]}
               lastPointedPart={lastPointedPart}
-              onSimulatePointGesture={handleSimulatePointGesture}
+              onSimulatePointGesture={demo ? handleSimulatePointGesture : undefined}
+              campanhaAlerta={campanhaAlerta}
+              onCampanhaAlertaAberta={() => setCampanhaAlerta(null)}
               scopedCampaigns={scopedCampaigns}
               campaigns={sync.campaigns}
               onLaunchCampaign={actions.handleLaunchCampaign}
@@ -482,6 +513,16 @@ export function App() {
               onNavigateToStore={handleNavigateToStore}
               auditLogs={auditLogs}
             />
+            {!conciergePublico && (
+              <SextaFeira13
+                visivel={aba === 'cockpit' && !kioskTab}
+                lostSales={scopedLostSales}
+                zone={selectedTelemetry.zone}
+                storeName={activeTenant?.storeName ?? selectedTelemetry.zone.anchors[0] ?? 'Loja Âncora'}
+                segmento={activeTenant?.segment}
+                onLaunchCampaign={actions.handleLaunchCampaign}
+              />
+            )}
           </div>
         </main>
       </div>

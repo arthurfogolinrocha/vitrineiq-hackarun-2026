@@ -15,7 +15,7 @@ import {
   ZoneId,
 } from '../../types';
 import { CAPIM_DOURADO_ZONES, CROSS_SEGMENT_ROUTES } from '../../data/shoppingData';
-import { LiveContextPayload, VitrineResumo } from '../../services/api';
+import { LiveContextPayload, VitrineAlerta, VitrineResumo } from '../../services/api';
 import { ZoneLiveTelemetry } from '../../services/opportunityEngine';
 import { PerfilPorHora } from '../../utils/horario';
 import { ActiveTab } from '../../utils/acesso';
@@ -58,10 +58,12 @@ interface AppTabContentProps {
   isSyncingContext: boolean;
   onSyncLiveContext: () => void;
   activeTenant: StoreTenant | null;
-  mergedVitrineResumo: VitrineResumo;
+  mergedVitrineResumo?: VitrineResumo;
   crowdDrop?: CrowdDropState;
   lastPointedPart: 'esquerda' | 'centro' | 'direita' | null;
-  onSimulatePointGesture: (part: 'esquerda' | 'centro' | 'direita') => void;
+  onSimulatePointGesture?: (part: 'esquerda' | 'centro' | 'direita') => void;
+  campanhaAlerta: VitrineAlerta | null;
+  onCampanhaAlertaAberta: () => void;
   scopedCampaigns: FlashCampaign[];
   campaigns: FlashCampaign[];
   onLaunchCampaign: (draft: Omit<FlashCampaign, 'id' | 'active' | 'createdAt'>) => void;
@@ -70,7 +72,7 @@ interface AppTabContentProps {
   onRunCopilot: (telemetry: ZoneLiveTelemetry) => Promise<void>;
   isAnalyzing: boolean;
   lastAnalysis: AIAnalysisResponse | null;
-  effectiveVision: VisionFunnelSnapshot;
+  effectiveVision?: VisionFunnelSnapshot;
   visionSnapshot: VisionFunnelSnapshot;
   onUpdateVisionSnapshot: (next: VisionFunnelSnapshot) => void;
   onAnalyzeWithVision: (snapshot: VisionFunnelSnapshot) => void;
@@ -118,6 +120,8 @@ export const AppTabContent: React.FC<AppTabContentProps> = ({
   crowdDrop,
   lastPointedPart,
   onSimulatePointGesture,
+  campanhaAlerta,
+  onCampanhaAlertaAberta,
   scopedCampaigns,
   campaigns,
   onLaunchCampaign,
@@ -172,6 +176,8 @@ export const AppTabContent: React.FC<AppTabContentProps> = ({
           crowdDrop={crowdDrop}
           lastPointedPart={lastPointedPart}
           onSimulatePointGesture={onSimulatePointGesture}
+          campanhaAlerta={campanhaAlerta}
+          onCampanhaAlertaAberta={onCampanhaAlertaAberta}
           campaigns={scopedCampaigns}
           onLaunchCampaign={onLaunchCampaign}
           onToggleCampaign={onToggleCampaign}
@@ -211,7 +217,7 @@ export const AppTabContent: React.FC<AppTabContentProps> = ({
           onUpdateSnapshot={onUpdateVisionSnapshot}
           onAnalyzeWithVision={onAnalyzeWithVision}
           activeTenant={activeTenant}
-          olharesPorZona={mergedVitrineResumo.olharesPorZona}
+          olharesPorZona={mergedVitrineResumo?.olharesPorZona}
           onAuditComplete={onAuditComplete}
         />
       )}

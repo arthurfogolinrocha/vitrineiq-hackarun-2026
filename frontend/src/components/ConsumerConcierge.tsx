@@ -635,9 +635,11 @@ export const ConsumerConcierge: React.FC<ConsumerConciergeProps> = ({
                         )}
                       </div>
                     </div>
-                    <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold shrink-0">
-                      {sig.couponCode}
-                    </span>
+                    {sig.couponCode && (
+                      <span className="px-2 py-1 rounded bg-amber-100 text-amber-900 border border-amber-200 font-mono text-[11px] font-bold shrink-0">
+                        {sig.couponCode}
+                      </span>
+                    )}
                   </li>
                 );
               })}
